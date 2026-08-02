@@ -3,7 +3,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { extractMessage } from "./extract";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
-import type { ConversationResult, DraftProperty } from "./types";
+import type { ConversationResult, DraftProperty, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
@@ -105,6 +105,54 @@ function mergeDraftFromMessage(
     price: extracted.price ?? (numericAnswer ? Number(numericAnswer[0]) : undefined) ?? draft.price,
     rooms: extracted.rooms ?? draft.rooms
   };
+}
+
+async function searchActiveProperties(extracted: ReturnType<typeof extractMessage>): Promise<PropertyCandidate[]> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return mockProperties
+      .filter((property) => !extracted.area || property.area === extracted.area)
+      .filter((property) => !extracted.propertyType || property.type === extracted.propertyType)
+      .filter((property) => !extracted.maxPrice || property.price <= extracted.maxPrice)
+      .slice(0, 5);
+  }
+
+  let query = supabase
+    .from("properties")
+    .select("id,type,area,landmark,price,rooms")
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(5);
+
+  if (extracted.area) {
+    query = query.eq("area", extracted.area);
+  }
+
+  if (extracted.propertyType) {
+    query = query.eq("type", extracted.propertyType);
+  }
+
+  if (extracted.maxPrice) {
+    query = query.lte("price", extracted.maxPrice);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Failed to search active properties", error);
+    return [];
+  }
+
+  return (data ?? []).map((property) => ({
+    id: property.id,
+    title: `${property.type ?? "عقار"} في ${property.area ?? "منطقة غير محددة"}`,
+    type: property.type ?? "عقار",
+    area: property.area ?? "غير محددة",
+    landmark: property.landmark ?? "غير محدد",
+    price: Number(property.price ?? 0),
+    rooms: property.rooms ?? undefined
+  }));
 }
 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
@@ -239,11 +287,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     case "search_property":
       {
-        const results = mockProperties
-          .filter((property) => !extracted.area || property.area === extracted.area)
-          .filter((property) => !extracted.propertyType || property.type === extracted.propertyType)
-          .filter((property) => !extracted.maxPrice || property.price <= extracted.maxPrice)
-          .slice(0, 5);
+        const results = await searchActiveProperties(extracted);
 
         await setConversationState(message.from, {
           ...state,
