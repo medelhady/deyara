@@ -3,6 +3,8 @@ import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   const provider = getWhatsAppProvider();
   const formData = await request.formData();

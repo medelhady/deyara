@@ -3,6 +3,8 @@ import { z } from "zod";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
+export const dynamic = "force-dynamic";
+
 const mockMessageSchema = z.object({
   from: z.string().min(6).default("whatsapp:+22200000000"),
   body: z.string().default(""),

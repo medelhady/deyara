@@ -83,7 +83,7 @@ a {
 
 .admin-header {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
   padding-bottom: 28px;
@@ -135,7 +135,7 @@ a {
 .actions-panel {
   margin-top: 18px;
   display: grid;
-  justify-items: start;
+  justify-items: flex-start;
   gap: 10px;
 }
 
@@ -144,7 +144,7 @@ a {
   grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   gap: 18px;
   margin-top: 28px;
-  align-items: start;
+  align-items: flex-start;
 }
 
 label {
@@ -254,7 +254,7 @@ textarea {
 
 .row-actions {
   display: flex;
-  align-items: start;
+  align-items: flex-start;
   gap: 8px;
 }
 

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 
+export const dynamic = "force-dynamic";
+
 const statusSchema = z.object({
   status: z.enum(["active", "rejected", "hidden", "rented"]),
   admin_note: z.string().optional()
