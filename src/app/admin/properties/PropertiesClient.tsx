@@ -19,7 +19,9 @@ export function PropertiesClient() {
   const [message, setMessage] = useState("جار تحميل العقارات...");
 
   async function loadProperties() {
-    const response = await fetch("/api/admin/properties");
+    const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
+      cache: "no-store"
+    });
     const data = await response.json();
 
     if (data.mode === "mock") {
