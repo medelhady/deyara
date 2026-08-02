@@ -1,0 +1,293 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --ink: #18201c;
+  --muted: #667069;
+  --line: #d9d5cb;
+  --accent: #0f7b63;
+  --accent-ink: #ffffff;
+  --surface: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Arial, "Segoe UI", sans-serif;
+}
+
+a {
+  color: inherit;
+}
+
+.shell,
+.admin-shell {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 48px 0;
+}
+
+.hero {
+  min-height: 70vh;
+  display: grid;
+  align-content: center;
+  gap: 18px;
+}
+
+.hero h1,
+.admin-header h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(34px, 5vw, 64px);
+  line-height: 1.08;
+  letter-spacing: 0;
+}
+
+.hero p {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1.8;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.button {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.button.secondary {
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--line);
+}
+
+.admin-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+
+.status {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 28px 0;
+}
+
+.card,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+}
+
+.card h2,
+.panel h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.card strong {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--accent);
+}
+
+.card p,
+.panel li,
+.panel p {
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.actions-panel {
+  margin-top: 18px;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.simulator {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 28px;
+  align-items: start;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.chips button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: var(--muted);
+  background: #fff;
+  cursor: pointer;
+}
+
+.phone-preview {
+  min-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #e8f0ea;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty {
+  margin: auto;
+  color: var(--muted);
+}
+
+.bubble {
+  width: min(82%, 560px);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.bubble p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.bubble span {
+  display: block;
+  margin-top: 6px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.bubble.inbound {
+  align-self: flex-end;
+  background: #d7f7c9;
+}
+
+.bubble.outbound {
+  align-self: flex-start;
+}
+
+.list-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.property-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.property-row h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+}
+
+.property-row p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.row-actions {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+}
+
+.row-actions button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-header {
+    display: grid;
+  }
+
+  .simulator {
+    grid-template-columns: 1fr;
+  }
+
+  .property-row {
+    display: grid;
+  }
+}
