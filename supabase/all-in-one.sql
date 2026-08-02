@@ -109,6 +109,13 @@ create table if not exists public.conversations (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.conversation_states (
+  phone text primary key,
+  state jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.places (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
@@ -125,6 +132,7 @@ create index if not exists property_media_property_id_idx on public.property_med
 create index if not exists contact_requests_status_idx on public.contact_requests(status);
 create index if not exists contact_requests_renter_phone_idx on public.contact_requests(renter_phone);
 create index if not exists conversations_phone_created_idx on public.conversations(phone, created_at desc);
+create index if not exists conversation_states_updated_at_idx on public.conversation_states(updated_at desc);
 create index if not exists places_kind_name_idx on public.places(kind, name);
 
 create or replace function public.set_updated_at()
@@ -157,6 +165,11 @@ create trigger payments_set_updated_at
 before update on public.payments
 for each row execute function public.set_updated_at();
 
+drop trigger if exists conversation_states_set_updated_at on public.conversation_states;
+create trigger conversation_states_set_updated_at
+before update on public.conversation_states
+for each row execute function public.set_updated_at();
+
 alter table public.users enable row level security;
 alter table public.properties enable row level security;
 alter table public.property_media enable row level security;
@@ -164,6 +177,7 @@ alter table public.search_requests enable row level security;
 alter table public.contact_requests enable row level security;
 alter table public.payments enable row level security;
 alter table public.conversations enable row level security;
+alter table public.conversation_states enable row level security;
 alter table public.places enable row level security;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

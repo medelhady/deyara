@@ -32,17 +32,19 @@ export type PropertyCandidate = {
   rooms?: number;
 };
 
+export type DraftProperty = {
+  type?: string;
+  area?: string;
+  landmark?: string;
+  price?: number;
+  rooms?: number;
+  hasVideo?: boolean;
+  hasLocation?: boolean;
+  awaitingConfirmation?: boolean;
+};
+
 export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
   selectedPropertyId?: string;
-  draftProperty?: {
-    type?: string;
-    area?: string;
-    landmark?: string;
-    price?: number;
-    rooms?: number;
-    hasVideo?: boolean;
-    hasLocation?: boolean;
-    awaitingConfirmation?: boolean;
-  };
+  draftProperty?: DraftProperty;
 };

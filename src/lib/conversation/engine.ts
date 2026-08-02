@@ -1,9 +1,9 @@
-import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
+﻿import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { extractMessage } from "./extract";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
-import type { ConversationResult } from "./types";
+import type { ConversationResult, DraftProperty } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
@@ -16,7 +16,7 @@ function isNo(body: string) {
   return /^(لا|لأ|كلا|تعديل|الغاء|إلغاء)$/i.test(body.trim());
 }
 
-function formatPropertySummary(draft: NonNullable<ReturnType<typeof getConversationState>["draftProperty"]>) {
+function formatPropertySummary(draft: DraftProperty) {
   return [
     "راجع ملخص الإعلان قبل إرساله للإدارة:",
     "",
@@ -32,7 +32,7 @@ function formatPropertySummary(draft: NonNullable<ReturnType<typeof getConversat
 
 async function submitPropertyForReview(
   ownerPhone: string,
-  draft: NonNullable<ReturnType<typeof getConversationState>["draftProperty"]>
+  draft: DraftProperty
 ) {
   const supabase = getServiceSupabase();
 
@@ -69,7 +69,7 @@ async function submitPropertyForReview(
   return { saved: true };
 }
 
-function getNextPropertyQuestion(draft: NonNullable<ReturnType<typeof getConversationState>["draftProperty"]>) {
+function getNextPropertyQuestion(draft: DraftProperty) {
   if (!draft.area) {
     return "في أي مقاطعة يقع العقار؟ مثال: تفرغ زينة، عرفات، لكصر.";
   }
@@ -90,7 +90,7 @@ function getNextPropertyQuestion(draft: NonNullable<ReturnType<typeof getConvers
 }
 
 function mergeDraftFromMessage(
-  draft: NonNullable<ReturnType<typeof getConversationState>["draftProperty"]>,
+  draft: DraftProperty,
   extracted: ReturnType<typeof extractMessage>,
   body: string
 ) {
@@ -109,10 +109,10 @@ function mergeDraftFromMessage(
 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const extracted = extractMessage(message.body);
-  const state = getConversationState(message.from);
+  const state = await getConversationState(message.from);
 
   if (state.draftProperty && /^(الغاء|إلغاء|احذف|حذف)$/i.test(message.body.trim())) {
-    setConversationState(message.from, {
+    await setConversationState(message.from, {
       ...state,
       draftProperty: undefined
     });
@@ -127,7 +127,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     if (isYes(message.body)) {
       const submission = await submitPropertyForReview(message.from, state.draftProperty);
 
-      setConversationState(message.from, {
+      await setConversationState(message.from, {
         ...state,
         draftProperty: undefined
       });
@@ -141,7 +141,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
 
     if (isNo(message.body)) {
-      setConversationState(message.from, {
+      await setConversationState(message.from, {
         ...state,
         draftProperty: {
           ...state.draftProperty,
@@ -163,7 +163,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       hasVideo: true,
       awaitingConfirmation: Boolean(state.draftProperty?.area && state.draftProperty?.price && state.draftProperty?.landmark)
     };
-    setConversationState(message.from, {
+    await setConversationState(message.from, {
       ...state,
       draftProperty
     });
@@ -179,7 +179,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       ...state.draftProperty,
       hasLocation: true
     };
-    setConversationState(message.from, {
+    await setConversationState(message.from, {
       ...state,
       draftProperty
     });
@@ -208,7 +208,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       draftProperty.area && draftProperty.price && draftProperty.landmark && draftProperty.hasVideo
     );
 
-    setConversationState(message.from, {
+    await setConversationState(message.from, {
       ...state,
       draftProperty
     });
@@ -226,7 +226,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         draftProperty.area && draftProperty.price && draftProperty.landmark && draftProperty.hasVideo
       );
 
-      setConversationState(message.from, {
+      await setConversationState(message.from, {
         ...state,
         draftProperty
       });
@@ -245,7 +245,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           .filter((property) => !extracted.maxPrice || property.price <= extracted.maxPrice)
           .slice(0, 5);
 
-        setConversationState(message.from, {
+        await setConversationState(message.from, {
           ...state,
           lastSearchResults: results
         });
@@ -280,7 +280,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           };
         }
 
-        setConversationState(message.from, {
+        await setConversationState(message.from, {
           ...state,
           selectedPropertyId: selected.id
         });
@@ -318,3 +318,4 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
   }
 }
+

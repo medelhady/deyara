@@ -89,6 +89,13 @@ create table public.conversations (
   created_at timestamptz not null default now()
 );
 
+create table public.conversation_states (
+  phone text primary key,
+  state jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table public.places (
   id uuid primary key default uuid_generate_v4(),
   name text not null,
@@ -102,6 +109,7 @@ create table public.places (
 create index properties_status_area_price_idx on public.properties(status, area, price);
 create index contact_requests_status_idx on public.contact_requests(status);
 create index conversations_phone_created_idx on public.conversations(phone, created_at desc);
+create index conversation_states_updated_at_idx on public.conversation_states(updated_at desc);
 create index places_kind_name_idx on public.places(kind, name);
 
 alter table public.users enable row level security;
@@ -111,6 +119,7 @@ alter table public.search_requests enable row level security;
 alter table public.contact_requests enable row level security;
 alter table public.payments enable row level security;
 alter table public.conversations enable row level security;
+alter table public.conversation_states enable row level security;
 alter table public.places enable row level security;
 
 -- The app backend uses SUPABASE_SERVICE_ROLE_KEY. Admin-facing RLS policies can be added
