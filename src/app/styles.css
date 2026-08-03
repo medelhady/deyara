@@ -497,6 +497,16 @@ select {
   gap: 10px;
 }
 
+.wallets-layout {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.compact-list {
+  margin-top: 14px;
+}
+
 .approved-box strong {
   display: block;
   margin-bottom: 8px;

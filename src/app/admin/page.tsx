@@ -207,6 +207,9 @@ export default async function AdminPage() {
             <Link className="button secondary" href="/admin/dictionary">
               قاموس البوت
             </Link>
+            <Link className="button secondary" href="/admin/wallets">
+              النقاط والإحالات
+            </Link>
           </div>
         </article>
       </section>
