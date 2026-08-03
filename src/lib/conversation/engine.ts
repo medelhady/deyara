@@ -67,6 +67,10 @@ function propertyTypeSingular(type?: string) {
   return type ?? "دار";
 }
 
+function formatPrice(price: number) {
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(price)} جديدة`;
+}
+
 function formatSearchResults(
   results: PropertyCandidate[],
   extracted: ReturnType<typeof extractMessage>,
@@ -77,14 +81,24 @@ function formatSearchResults(
   const placeText = extracted.area ? ` في ${extracted.area}` : searchText ? ` قريبة من ${searchText}` : "";
   const startIndex = options?.startIndex ?? 0;
   const total = options?.total ?? results.length;
-  const moreText = options?.hasMore ? "\n\nلخيارات أكثر اكتب: 0" : "";
+  const moreText = options?.hasMore ? "\n\nتريد خيارات أكثر؟ اكتب: 0" : "";
 
-  return `متوفر عدد ${total} ${typeText} للإيجار${placeText}:\n\n${results
+  return [
+    `لقيت لك ${total} ${typeText} للإيجار${placeText}.`,
+    "",
+    results
     .map(
       (property, index) =>
-        `${startIndex + index + 1}. ${property.type} في ${property.area}\nالسعر: ${property.price}\nقريبة من: ${property.landmark}`
+        `${startIndex + index + 1}. ${property.type} في ${property.area} - ${formatPrice(property.price)}\nقريبة من: ${property.landmark}`
     )
-    .join("\n\n")}\n\nاكتب رقم الدار اللي اخترت، مثلا: 1\nالفيديو والتفاصيل الكاملة تظهر بعد اختيار الدار.${moreText}`;
+    .join("\n\n"),
+    "",
+    "اكتب رقم الدار التي أعجبتك، مثلا: 1",
+    "بعد الاختيار نرسل لك التفاصيل والفيديو.",
+    moreText
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function submitPropertyForReview(
@@ -435,7 +449,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       if (results.length === 0) {
         return {
           debugIntent: "search_property",
-          reply: `ما حصلت ${mergedSearch.propertyType ?? "عقار"} في ${mergedSearch.area} الآن. اكتب منطقة أو معلم ثاني ونبحث لك مباشرة.`
+        reply: `ما حصلت ${mergedSearch.propertyType ?? "عقار"} في ${mergedSearch.area} حاليًا.\n\nاكتب منطقة ثانية أو معلم قريب، مثلا: كارفور أو تفرغ زينة.`
         };
       }
 
@@ -478,7 +492,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       const placeText = areaFromText ?? text;
       return {
         debugIntent: "search_property",
-        reply: `ما حصلت نتيجة مناسبة لـ ${placeText} الآن. جرّب منطقة أو معلم ثاني، مثل: تفرغ زينة أو كارفور.`
+        reply: `ما حصلت نتيجة مناسبة لـ ${placeText} حاليًا.\n\nجرّب منطقة أو معلم ثاني، مثل: تفرغ زينة أو كارفور.`
       };
     }
 
@@ -617,14 +631,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
       return {
         debugIntent: "request_contact",
-        reply: "اختر دارًا أولًا من آخر نتائج البحث."
+        reply: "اختر دارًا من آخر النتائج أولًا. اكتب رقم الخيار مثل: 1"
       };
     }
 
     if (!state.selectedPropertyVideoViewed) {
       return {
         debugIntent: "select_property",
-        reply: "أولًا شوف فيديو الدار عشان تتأكد إنها مناسبة لك. اكتب 2 لمشاهدة الفيديو."
+        reply: "قبل طلب الرقم، شوف فيديو الدار حتى تتأكد أنها مناسبة لك.\n\nاكتب: 2 لمشاهدة الفيديو."
       };
     }
 
@@ -646,8 +660,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "request_contact",
       reply: request.existing
-        ? "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
-        : "لطلب التواصل مع صاحب العقار يرجى دفع رسوم الطلب ثم إرسال صورة الإيصال. بعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+        ? "عندك طلب تواصل سابق لهذه الدار.\n\nإذا دفعت الرسوم، أرسل صورة الإيصال هنا. بعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
+        : "تمام. لطلب رقم المؤجر، ادفع رسوم الطلب ثم أرسل صورة الإيصال هنا.\n\nبعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
     };
   }
 
@@ -655,7 +669,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
       return {
         debugIntent: "select_property",
-        reply: "اختر دارًا أولًا من آخر نتائج البحث."
+        reply: "اختر دارًا من آخر النتائج أولًا. اكتب رقم الخيار مثل: 1"
       };
     }
 
@@ -669,8 +683,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "select_property",
       reply: videoUrl
-        ? `هذا فيديو الدار:\n${videoUrl}\n\nإذا عجبتك الدار وتريد رقم المؤجر، اكتب: 1`
-        : "الفيديو غير متوفر لهذا الإعلان حاليًا. سنراجعه من الإدارة. جرّب اختيار دار ثانية أو اكتب بحث جديد."
+        ? `هذا فيديو الدار:\n${videoUrl}\n\nإذا الدار مناسبة لك وتريد رقم المؤجر، اكتب: 1`
+        : "الفيديو غير متوفر لهذا الإعلان حاليًا. جرّب اختيار دار ثانية أو اكتب بحث جديد."
     };
   }
 
@@ -723,7 +737,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
           return {
             debugIntent: "search_property",
-            reply: `في أي منطقة تبحث عن ${extracted.propertyType ?? "عقار"}؟ مثال: عرفات، تفرغ زينة، لكصر.`
+            reply: `في أي منطقة تبحث عن ${extracted.propertyType ?? "عقار"}؟\n\nمثال: عرفات، تفرغ زينة، لكصر.`
           };
         }
 
@@ -749,7 +763,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           return {
             debugIntent: "search_property",
             reply:
-              "ما حصلت نتيجة مناسبة الآن. اكتب منطقة أو معلم ثاني ونبحث لك مباشرة."
+              "ما حصلت نتيجة مناسبة حاليًا.\n\nاكتب منطقة أو معلم ثاني ونبحث لك مباشرة."
           };
         }
 
@@ -769,7 +783,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         if (!selected) {
           return {
             debugIntent: "select_property",
-            reply: "لم أجد هذا الاختيار في آخر نتائج. أرسل طلب بحث جديد أو اختر رقمًا من القائمة."
+            reply: "ما لقيت هذا الرقم في آخر النتائج.\n\nاختر رقمًا من القائمة أو أرسل بحثًا جديدًا."
           };
         }
 
@@ -785,7 +799,16 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         return {
           debugIntent: "select_property",
-          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nللمشاهدة قبل التواصل، اكتب 2 وشوف فيديو الدار.\nإذا عجبتك بعد الفيديو، اكتب 1 لطلب رقم المؤجر.`
+          reply: [
+            `${selected.type} في ${selected.area}`,
+            `السعر: ${formatPrice(selected.price)}`,
+            `الغرف: ${selected.rooms ?? "غير محدد"}`,
+            `قريبة من: ${selected.landmark}`,
+            "",
+            "الخطوة التالية:",
+            "اكتب 2 لمشاهدة فيديو الدار.",
+            "بعد الفيديو، إذا عجبتك الدار اكتب 1 لطلب رقم المؤجر."
+          ].join("\n")
         };
       }
 
@@ -793,7 +816,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
         return {
           debugIntent: "request_contact",
-          reply: "اختر عقارًا أولًا من آخر نتائج البحث، ثم أرسل: طلب تواصل."
+          reply: "اختر دارًا أولًا من آخر نتائج البحث، ثم اطلب التواصل.\n\nمثال: اكتب 1 لاختيار أول دار."
+        };
+      }
+
+      if (!state.selectedPropertyVideoViewed) {
+        return {
+          debugIntent: "select_property",
+          reply: "قبل طلب الرقم، شوف فيديو الدار حتى تتأكد أنها مناسبة لك.\n\nاكتب: 2 لمشاهدة الفيديو."
         };
       }
 
@@ -817,7 +847,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           return {
             debugIntent: "request_contact",
             reply:
-              "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+              "عندك طلب تواصل سابق لهذه الدار.\n\nإذا دفعت الرسوم، أرسل صورة الإيصال هنا. بعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
           };
         }
 
@@ -831,7 +861,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       return {
         debugIntent: "request_contact",
         reply:
-          "لطلب التواصل مع صاحب العقار يرجى دفع رسوم الطلب ثم إرسال صورة الإيصال. بعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+          "تمام. لطلب رقم المؤجر، ادفع رسوم الطلب ثم أرسل صورة الإيصال هنا.\n\nبعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
       };
 
     case "send_payment_receipt":
