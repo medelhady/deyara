@@ -374,6 +374,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         selectedPropertyId: undefined,
         selectedProperty: undefined,
         selectedPropertyAt: undefined,
+        awaitingContactChoice: undefined,
         activeContactRequestId: undefined
       });
 
@@ -513,6 +514,37 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
+  if (state.awaitingContactChoice && message.body.trim() === "1") {
+    if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
+      return {
+        debugIntent: "request_contact",
+        reply: "اختر دارًا أولًا من آخر نتائج البحث."
+      };
+    }
+
+    const request = await createContactRequest(message.from, state.selectedProperty);
+
+    if (!request.saved) {
+      return {
+        debugIntent: "request_contact",
+        reply: "تعذر إنشاء طلب التواصل الآن. حاول مرة أخرى بعد قليل."
+      };
+    }
+
+    await setConversationState(message.from, {
+      ...state,
+      awaitingContactChoice: false,
+      activeContactRequestId: request.id
+    });
+
+    return {
+      debugIntent: "request_contact",
+      reply: request.existing
+        ? "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+        : "لطلب التواصل مع صاحب العقار يرجى دفع رسوم الطلب ثم إرسال صورة الإيصال. بعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+    };
+  }
+
   switch (extracted.intent) {
     case "add_property": {
       const draftProperty = mergeDraftFromMessage(state.draftProperty ?? {}, extracted, message.body);
@@ -543,6 +575,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
             selectedPropertyId: undefined,
             selectedProperty: undefined,
             selectedPropertyAt: undefined,
+            awaitingContactChoice: undefined,
             activeContactRequestId: undefined
           });
 
@@ -565,6 +598,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           selectedPropertyId: undefined,
           selectedProperty: undefined,
           selectedPropertyAt: undefined,
+          awaitingContactChoice: undefined,
           activeContactRequestId: undefined
         });
 
@@ -601,12 +635,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           selectedPropertyId: selected.id,
           selectedProperty: selected,
           selectedPropertyAt: new Date().toISOString(),
+          awaitingContactChoice: true,
           activeContactRequestId: undefined
         });
 
         return {
           debugIntent: "select_property",
-          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nإذا حاب تتواصل مع صاحب العقار، اكتب: طلب تواصل.`
+          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nللتواصل مع صاحب العقار اكتب: 1`
         };
       }
 
@@ -631,6 +666,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         if (request.existing) {
           await setConversationState(message.from, {
             ...state,
+            awaitingContactChoice: false,
             activeContactRequestId: request.id
           });
 
@@ -643,6 +679,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         await setConversationState(message.from, {
           ...state,
+          awaitingContactChoice: false,
           activeContactRequestId: request.id
         });
       }
