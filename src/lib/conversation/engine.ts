@@ -105,6 +105,31 @@ function formatSearchResults(
     .join("\n");
 }
 
+function refineSearchResults(
+  results: PropertyCandidate[],
+  extracted: ReturnType<typeof extractMessage>
+) {
+  let refined = [...results];
+
+  if (extracted.maxPrice) {
+    refined = refined.filter((property) => property.price <= extracted.maxPrice!);
+  }
+
+  if (extracted.rooms) {
+    refined = refined.filter((property) => property.rooms === extracted.rooms);
+  }
+
+  if (extracted.sortBy === "cheapest") {
+    refined.sort((first, second) => first.price - second.price);
+  }
+
+  if (extracted.sortBy === "expensive") {
+    refined.sort((first, second) => second.price - first.price);
+  }
+
+  return refined;
+}
+
 async function submitPropertyForReview(
   ownerPhone: string,
   draft: DraftProperty
@@ -414,6 +439,61 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const extracted = extractMessage(message.body);
   const state = await getConversationState(message.from);
 
+  if (state.awaitingMaxPriceFilter) {
+    const maxPrice = message.body.trim().match(/\d{2,8}/);
+
+    if (!maxPrice) {
+      return {
+        debugIntent: "search_property",
+        reply: "أقل من كم؟ اكتب الرقم فقط، مثلا: 2500"
+      };
+    }
+
+    const allResults = state.lastSearchResults ?? [];
+    const refinedResults = refineSearchResults(allResults, {
+      intent: "refine_search",
+      maxPrice: Number(maxPrice[0])
+    });
+    const visibleResults = refinedResults.slice(0, 5);
+
+    if (visibleResults.length === 0) {
+      await setConversationState(message.from, {
+        ...state,
+        awaitingMaxPriceFilter: false
+      });
+
+      return {
+        debugIntent: "search_property",
+        reply: `ما لقيت نتيجة أقل من ${formatPrice(Number(maxPrice[0]))} داخل آخر بحث.\n\nجرّب مبلغًا أعلى أو اكتب منطقة جديدة.`
+      };
+    }
+
+    await setConversationState(message.from, {
+      ...state,
+      awaitingMaxPriceFilter: false,
+      lastSearchResults: refinedResults,
+      lastSearchShownCount: visibleResults.length,
+      lastSearchQuery: {
+        ...(state.lastSearchQuery ?? { intent: "search_property" }),
+        maxPrice: Number(maxPrice[0])
+      },
+      selectedPropertyId: undefined,
+      selectedProperty: undefined,
+      selectedPropertyAt: undefined,
+      awaitingContactChoice: undefined,
+      selectedPropertyVideoViewed: undefined,
+      activeContactRequestId: undefined
+    });
+
+    return {
+      debugIntent: "search_property",
+      reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        total: refinedResults.length,
+        hasMore: refinedResults.length > visibleResults.length
+      })
+    };
+  }
+
   if (extracted.intent === "unknown" && isCasualReply(message.body)) {
     return {
       debugIntent: "intro",
@@ -444,6 +524,64 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         startIndex: shownCount,
         total: allResults.length,
         hasMore: shownCount + nextResults.length < allResults.length
+      })
+    };
+  }
+
+  if (extracted.intent === "refine_search") {
+    const allResults = state.lastSearchResults ?? [];
+
+    if (allResults.length === 0) {
+      return {
+        debugIntent: "search_property",
+        reply: "أرسل بحثًا أولًا، مثلا: دار للكراء في عرفات. بعدها تقدر تكتب: أرخص، غرفتين، أو أقل من 2500."
+      };
+    }
+
+    if (!extracted.maxPrice && !extracted.rooms && !extracted.sortBy) {
+      await setConversationState(message.from, {
+        ...state,
+        awaitingMaxPriceFilter: true
+      });
+
+      return {
+        debugIntent: "search_property",
+        reply: "أقل من كم؟ اكتب الرقم فقط، مثلا: 2500"
+      };
+    }
+
+    const refinedResults = refineSearchResults(allResults, extracted);
+    const visibleResults = refinedResults.slice(0, 5);
+
+    if (visibleResults.length === 0) {
+      return {
+        debugIntent: "search_property",
+        reply: "ما لقيت نتيجة بهذه المواصفات داخل آخر بحث.\n\nجرّب فلتر أوسع، مثلا: أرخص، أو اكتب: أقل من ثم حدد السعر."
+      };
+    }
+
+    await setConversationState(message.from, {
+      ...state,
+      lastSearchResults: refinedResults,
+      lastSearchShownCount: visibleResults.length,
+      lastSearchQuery: {
+        ...(state.lastSearchQuery ?? { intent: "search_property" }),
+        maxPrice: extracted.maxPrice ?? state.lastSearchQuery?.maxPrice,
+        rooms: extracted.rooms ?? state.lastSearchQuery?.rooms
+      },
+      selectedPropertyId: undefined,
+      selectedProperty: undefined,
+      selectedPropertyAt: undefined,
+      awaitingContactChoice: undefined,
+      selectedPropertyVideoViewed: undefined,
+      activeContactRequestId: undefined
+    });
+
+    return {
+      debugIntent: "search_property",
+      reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        total: refinedResults.length,
+        hasMore: refinedResults.length > visibleResults.length
       })
     };
   }

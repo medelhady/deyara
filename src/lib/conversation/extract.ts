@@ -51,6 +51,17 @@ export function extractMessage(text: string): ExtractedMessage {
   const landmarkMatch = body.match(/(?:قريب من|قرب|بجانب|جنب)\s+(.+?)(?:\s+ب|\s+بسعر|$)/);
   const searchText = landmarkMatch?.[1]?.trim();
   const mentionsBudget = /حد|اقصى|أقصى|اقل|أقل|أرخص|ما يتجاوز|لا يتجاوز|بحد|ميزانية|بـ|ب /.test(body);
+  const wantsCheapest = /^(ارخص|أرخص|الأرخص|اقل سعر|أقل سعر|رخيص|الرخيص)$/i.test(body);
+  const wantsExpensive = /^(اغلى|أغلى|الأغلى|اعلى سعر|أعلى سعر)$/i.test(body);
+
+  if (wantsCheapest || wantsExpensive || mentionsBudget || roomsMatch) {
+    return {
+      intent: "refine_search",
+      maxPrice: mentionsBudget ? price : undefined,
+      rooms: roomsMatch ? Number(roomsMatch[1]) : undefined,
+      sortBy: wantsCheapest ? "cheapest" : wantsExpensive ? "expensive" : undefined
+    };
+  }
 
   if (includesAny(body, renterSearchPhrases)) {
     return {

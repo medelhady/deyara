@@ -3,6 +3,7 @@ export type Intent =
   | "intro"
   | "add_property"
   | "search_property"
+  | "refine_search"
   | "select_property"
   | "request_contact"
   | "send_payment_receipt"
@@ -18,6 +19,7 @@ export type ExtractedMessage = {
   searchText?: string;
   rooms?: number;
   selectedIndex?: number;
+  sortBy?: "cheapest" | "expensive";
 };
 
 export type ConversationResult = {
@@ -61,5 +63,6 @@ export type ConversationState = {
   awaitingContactChoice?: boolean;
   selectedPropertyVideoViewed?: boolean;
   activeContactRequestId?: string;
+  awaitingMaxPriceFilter?: boolean;
   draftProperty?: DraftProperty;
 };
