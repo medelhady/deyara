@@ -284,6 +284,45 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const extracted = extractMessage(message.body);
   const state = await getConversationState(message.from);
 
+  if (state.pendingSearch && extracted.intent === "unknown") {
+    const areaFromText = knownAreas.find((area) => message.body.includes(area));
+    const mergedSearch = {
+      ...state.pendingSearch,
+      area: state.pendingSearch.area ?? areaFromText
+    };
+
+    if (mergedSearch.area) {
+      const results = await searchActiveProperties(mergedSearch);
+
+      await setConversationState(message.from, {
+        ...state,
+        pendingSearch: undefined,
+        lastSearchResults: results,
+        selectedPropertyId: undefined,
+        selectedProperty: undefined,
+        selectedPropertyAt: undefined,
+        activeContactRequestId: undefined
+      });
+
+      if (results.length === 0) {
+        return {
+          debugIntent: "search_property",
+          reply: `لم أجد ${mergedSearch.propertyType ?? "عقارات"} في ${mergedSearch.area} الآن. سأحفظ طلبك، وعند وصول عقار مناسب يمكن تنبيهك بعد تفعيل الإشعارات.`
+        };
+      }
+
+      return {
+        debugIntent: "search_property",
+        reply: `يوجد ${results.length} ${mergedSearch.propertyType ?? "عقارات"} في ${mergedSearch.area}:\n\n${results
+          .map(
+            (property, index) =>
+              `${index + 1}. ${property.title}\nرقم الإعلان: ${property.propertyCode ?? property.id.slice(0, 8)}\nالسعر: ${property.price}\nالمنطقة: ${property.area}\nالمعلم: ${property.landmark}`
+          )
+          .join("\n\n")}\n\nاكتب رقم العقار لعرض التفاصيل بدون أرقام.`
+      };
+    }
+  }
+
   if (state.draftProperty && /^(الغاء|إلغاء|احذف|حذف)$/i.test(message.body.trim())) {
     await setConversationState(message.from, {
       ...state,
@@ -423,10 +462,28 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     case "search_property":
       {
+        if (!extracted.area && !extracted.searchText) {
+          await setConversationState(message.from, {
+            ...state,
+            pendingSearch: extracted,
+            lastSearchResults: undefined,
+            selectedPropertyId: undefined,
+            selectedProperty: undefined,
+            selectedPropertyAt: undefined,
+            activeContactRequestId: undefined
+          });
+
+          return {
+            debugIntent: "search_property",
+            reply: `في أي منطقة تبحث عن ${extracted.propertyType ?? "عقار"}؟ مثال: عرفات، تفرغ زينة، لكصر.`
+          };
+        }
+
         const results = await searchActiveProperties(extracted);
 
         await setConversationState(message.from, {
           ...state,
+          pendingSearch: undefined,
           lastSearchResults: results,
           selectedPropertyId: undefined,
           selectedProperty: undefined,

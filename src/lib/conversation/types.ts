@@ -48,6 +48,7 @@ export type DraftProperty = {
 
 export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
+  pendingSearch?: ExtractedMessage;
   selectedPropertyId?: string;
   selectedProperty?: PropertyCandidate;
   selectedPropertyAt?: string;
