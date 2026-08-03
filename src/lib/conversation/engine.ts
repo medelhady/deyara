@@ -648,10 +648,20 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "intro",
       reply: [
-        "هذا رابط دعوتك:",
+        "╭──────────────",
+        "🔗 *دعوتك في الديارة*",
+        "╰──────────────",
+        "",
+        "كود الدعوة",
+        `*${referralCode}*`,
+        "",
+        "━━━━━━━━━━━━━━",
+        "رابط الدعوة",
         makeReferralLink(referralCode),
         "",
-        "أي شخص يسجل ويشحن عن طريقك تحصل على 30% نقاط تسويق."
+        "━━━━━━━━━━━━━━",
+        "📣 عمولتك",
+        "أي شخص يسجل ويشحن عن طريقك تحصل على *30%* نقاط تسويق."
       ].join("\n")
     };
   }
