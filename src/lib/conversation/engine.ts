@@ -526,7 +526,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     if (!state.selectedPropertyVideoViewed) {
       return {
         debugIntent: "select_property",
-        reply: "قبل طلب رقم المؤجر لازم تشاهد فيديو الدار. لمشاهدة الفيديو اكتب: 2"
+        reply: "أولًا شوف فيديو الدار عشان تتأكد إنها مناسبة لك. اكتب 2 لمشاهدة الفيديو."
       };
     }
 
@@ -569,7 +569,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "select_property",
       reply:
-        "فيديو الدار:\nhttps://example.com/mock-property-video.mp4\n\nإذا الدار عجبتك وتريد رقم المؤجر اكتب: 1"
+        "هذا فيديو الدار:\nhttps://example.com/mock-property-video.mp4\n\nإذا عجبتك الدار وتريد رقم المؤجر، اكتب: 1"
     };
   }
 
@@ -684,7 +684,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         return {
           debugIntent: "select_property",
-          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nلمشاهدة فيديو الدار اكتب: 2\nبعد مشاهدة الفيديو، إذا عجبتك الدار اكتب: 1 لطلب رقم المؤجر.`
+          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nللمشاهدة قبل التواصل، اكتب 2 وشوف فيديو الدار.\nإذا عجبتك بعد الفيديو، اكتب 1 لطلب رقم المؤجر.`
         };
       }
 
