@@ -375,6 +375,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         selectedProperty: undefined,
         selectedPropertyAt: undefined,
         awaitingContactChoice: undefined,
+        selectedPropertyVideoViewed: undefined,
         activeContactRequestId: undefined
       });
 
@@ -522,6 +523,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
     }
 
+    if (!state.selectedPropertyVideoViewed) {
+      return {
+        debugIntent: "select_property",
+        reply: "قبل طلب رقم المؤجر لازم تشاهد فيديو الدار. لمشاهدة الفيديو اكتب: 2"
+      };
+    }
+
     const request = await createContactRequest(message.from, state.selectedProperty);
 
     if (!request.saved) {
@@ -542,6 +550,26 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       reply: request.existing
         ? "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
         : "لطلب التواصل مع صاحب العقار يرجى دفع رسوم الطلب ثم إرسال صورة الإيصال. بعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+    };
+  }
+
+  if (state.awaitingContactChoice && message.body.trim() === "2") {
+    if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
+      return {
+        debugIntent: "select_property",
+        reply: "اختر دارًا أولًا من آخر نتائج البحث."
+      };
+    }
+
+    await setConversationState(message.from, {
+      ...state,
+      selectedPropertyVideoViewed: true
+    });
+
+    return {
+      debugIntent: "select_property",
+      reply:
+        "فيديو الدار:\nhttps://example.com/mock-property-video.mp4\n\nإذا الدار عجبتك وتريد رقم المؤجر اكتب: 1"
     };
   }
 
@@ -576,6 +604,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
             selectedProperty: undefined,
             selectedPropertyAt: undefined,
             awaitingContactChoice: undefined,
+            selectedPropertyVideoViewed: undefined,
             activeContactRequestId: undefined
           });
 
@@ -599,6 +628,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           selectedProperty: undefined,
           selectedPropertyAt: undefined,
           awaitingContactChoice: undefined,
+          selectedPropertyVideoViewed: undefined,
           activeContactRequestId: undefined
         });
 
@@ -636,12 +666,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           selectedProperty: selected,
           selectedPropertyAt: new Date().toISOString(),
           awaitingContactChoice: true,
+          selectedPropertyVideoViewed: false,
           activeContactRequestId: undefined
         });
 
         return {
           debugIntent: "select_property",
-          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nللتواصل مع صاحب العقار اكتب: 1`
+          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nلمشاهدة فيديو الدار اكتب: 2\nبعد مشاهدة الفيديو، إذا عجبتك الدار اكتب: 1 لطلب رقم المؤجر.`
         };
       }
 

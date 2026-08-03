@@ -55,6 +55,7 @@ export type ConversationState = {
   selectedProperty?: PropertyCandidate;
   selectedPropertyAt?: string;
   awaitingContactChoice?: boolean;
+  selectedPropertyVideoViewed?: boolean;
   activeContactRequestId?: string;
   draftProperty?: DraftProperty;
 };
