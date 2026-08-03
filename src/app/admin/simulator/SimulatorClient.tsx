@@ -97,6 +97,24 @@ export function SimulatorClient() {
         >
           إرسال فيديو تجريبي
         </button>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() =>
+            sendMessage({
+              label: "تم إرسال إيصال دفع تجريبي",
+              media: [
+                {
+                  url: "https://example.com/mock-payment-receipt.jpg",
+                  contentType: "image/jpeg"
+                }
+              ]
+            })
+          }
+          disabled={isSending}
+        >
+          إرسال إيصال تجريبي
+        </button>
       </section>
 
       <section className="phone-preview" aria-label="WhatsApp conversation preview">

@@ -183,23 +183,60 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
     .maybeSingle();
 
   if (existing) {
-    return { saved: true, existing: true, status: existing.status as string };
+    return { saved: true, existing: true, id: existing.id as string, status: existing.status as string };
   }
 
-  const { error } = await supabase.from("contact_requests").insert({
-    property_id: selected.id,
-    renter_phone: renterPhone,
-    owner_phone: selected.ownerPhone,
-    status: "pending_payment",
-    fee_amount: Number(process.env.CONTACT_REQUEST_FEE ?? "100")
-  });
+  const { data, error } = await supabase
+    .from("contact_requests")
+    .insert({
+      property_id: selected.id,
+      renter_phone: renterPhone,
+      owner_phone: selected.ownerPhone,
+      status: "pending_payment",
+      fee_amount: Number(process.env.CONTACT_REQUEST_FEE ?? "100")
+    })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Failed to create contact request", error);
     return { saved: false, error: error.message };
   }
 
-  return { saved: true, existing: false };
+  return { saved: true, existing: false, id: data.id as string };
+}
+
+async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { saved: false };
+  }
+
+  const { error: paymentError } = await supabase.from("payments").insert({
+    contact_request_id: contactRequestId,
+    receipt_image_url: receiptUrl,
+    status: "pending"
+  });
+
+  if (paymentError) {
+    console.error("Failed to save payment receipt", paymentError);
+    return { saved: false, error: paymentError.message };
+  }
+
+  const { error: requestError } = await supabase
+    .from("contact_requests")
+    .update({
+      status: "pending_admin_review"
+    })
+    .eq("id", contactRequestId);
+
+  if (requestError) {
+    console.error("Failed to update contact request after receipt", requestError);
+    return { saved: false, error: requestError.message };
+  }
+
+  return { saved: true };
 }
 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
@@ -286,6 +323,17 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (message.media.length > 0) {
+    if (state.activeContactRequestId && message.media.some((item) => item.contentType.startsWith("image/"))) {
+      const receipt = await savePaymentReceipt(state.activeContactRequestId, message.media[0].url);
+
+      return {
+        debugIntent: "send_payment_receipt",
+        reply: receipt.saved
+          ? "✅ تم استلام صورة الإيصال. سيتم التحقق من الإدارة، وبعد الموافقة سنرسل رقم المؤجر فقط."
+          : "وصلت الصورة، لكن تعذر حفظ الإيصال الآن. حاول مرة أخرى بعد قليل."
+      };
+    }
+
     return {
       debugIntent: extracted.intent,
       reply: "تم استلام الملف. إذا كان إيصال دفع فسيتم مراجعته من الإدارة، وإذا كان صورة للعقار فسيتم حفظها مع الإعلان."
@@ -402,12 +450,22 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         }
 
         if (request.existing) {
+          await setConversationState(message.from, {
+            ...state,
+            activeContactRequestId: request.id
+          });
+
           return {
             debugIntent: "request_contact",
             reply:
               "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
           };
         }
+
+        await setConversationState(message.from, {
+          ...state,
+          activeContactRequestId: request.id
+        });
       }
 
       return {

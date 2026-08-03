@@ -17,7 +17,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("contact_requests")
-    .select("*, properties(type, area, price, landmark)")
+    .select("*, properties(property_code, type, area, price, landmark), payments(id, receipt_image_url, status, created_at)")
     .order("created_at", { ascending: false })
     .limit(50);
 

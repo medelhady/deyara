@@ -49,5 +49,6 @@ export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
   selectedPropertyId?: string;
   selectedProperty?: PropertyCandidate;
+  activeContactRequestId?: string;
   draftProperty?: DraftProperty;
 };

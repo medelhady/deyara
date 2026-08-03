@@ -16,6 +16,12 @@ type ContactRequest = {
     price?: number | null;
     landmark?: string | null;
   } | null;
+  payments?: Array<{
+    id: string;
+    receipt_image_url: string | null;
+    status: string;
+    created_at: string;
+  }>;
 };
 
 export function ContactRequestsClient() {
@@ -38,6 +44,24 @@ export function ContactRequestsClient() {
     setMessage((data.contactRequests ?? []).length ? "" : "لا توجد طلبات تواصل حتى الآن.");
   }
 
+  async function updateStatus(id: string, status: "approved" | "rejected") {
+    const response = await fetch(`/api/admin/contact-requests/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ status })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      setMessage(data.error ?? "تعذر تحديث طلب التواصل.");
+      return;
+    }
+
+    await loadRequests();
+  }
+
   useEffect(() => {
     void loadRequests();
   }, []);
@@ -58,6 +82,24 @@ export function ContactRequestsClient() {
             <p>رقم المؤجر: {request.owner_phone}</p>
             <p>الحالة: {request.status}</p>
             <p>الرسوم: {request.fee_amount ?? "غير محددة"}</p>
+            <p>
+              الإيصال:{" "}
+              {request.payments?.[0]?.receipt_image_url ? (
+                <a href={request.payments[0].receipt_image_url} target="_blank" rel="noreferrer">
+                  فتح الإيصال
+                </a>
+              ) : (
+                "لم يصل بعد"
+              )}
+            </p>
+          </div>
+          <div className="row-actions">
+            <button type="button" onClick={() => updateStatus(request.id, "approved")}>
+              قبول الدفع
+            </button>
+            <button type="button" onClick={() => updateStatus(request.id, "rejected")}>
+              رفض
+            </button>
           </div>
         </article>
       ))}
