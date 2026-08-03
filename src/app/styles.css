@@ -491,6 +491,12 @@ select {
   color: var(--ink);
 }
 
+.dictionary-edit {
+  width: 100%;
+  display: grid;
+  gap: 10px;
+}
+
 .approved-box strong {
   display: block;
   margin-bottom: 8px;

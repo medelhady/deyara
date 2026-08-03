@@ -21,6 +21,10 @@ export async function PATCH(
     updates.active = Boolean(body.active);
   }
 
+  if ("category" in body) {
+    updates.category = String(body.category ?? "").trim();
+  }
+
   if ("phrase" in body) {
     updates.phrase = String(body.phrase ?? "").trim();
   }

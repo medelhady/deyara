@@ -26,6 +26,11 @@ export function DictionaryClient() {
   const [phrase, setPhrase] = useState("");
   const [responseText, setResponseText] = useState("");
   const [adminNote, setAdminNote] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState("renter_search");
+  const [editPhrase, setEditPhrase] = useState("");
+  const [editResponseText, setEditResponseText] = useState("");
+  const [editAdminNote, setEditAdminNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +107,39 @@ export function DictionaryClient() {
     setEntries((current) => current.map((item) => (item.id === entry.id ? data.entry : item)));
   }
 
+  function startEdit(entry: DictionaryEntry) {
+    setEditingId(entry.id);
+    setEditCategory(entry.category);
+    setEditPhrase(entry.phrase);
+    setEditResponseText(entry.response_text ?? "");
+    setEditAdminNote(entry.admin_note ?? "");
+  }
+
+  async function saveEdit(entry: DictionaryEntry) {
+    setError(null);
+    const response = await fetch(`/api/admin/dictionary/${entry.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        category: editCategory,
+        phrase: editPhrase,
+        response_text: editResponseText,
+        admin_note: editAdminNote
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error ?? "تعذر حفظ التعديل.");
+      return;
+    }
+
+    setEntries((current) => current.map((item) => (item.id === entry.id ? data.entry : item)));
+    setEditingId(null);
+  }
+
   async function deleteEntry(entry: DictionaryEntry) {
     const response = await fetch(`/api/admin/dictionary/${entry.id}`, {
       method: "DELETE"
@@ -176,20 +214,64 @@ export function DictionaryClient() {
 
         {entries.map((entry) => (
           <article className="dictionary-row" key={entry.id}>
-            <div>
-              <strong>{entry.phrase}</strong>
-              <span>{categoryLabels[entry.category] ?? entry.category}</span>
-              {entry.response_text ? <p className="dictionary-response">الرد: {entry.response_text}</p> : null}
-              {entry.admin_note ? <p>{entry.admin_note}</p> : null}
-            </div>
-            <div className="row-actions">
-              <button type="button" onClick={() => toggleEntry(entry)}>
-                {entry.active ? "تعطيل" : "تفعيل"}
-              </button>
-              <button type="button" onClick={() => deleteEntry(entry)}>
-                حذف
-              </button>
-            </div>
+            {editingId === entry.id ? (
+              <div className="dictionary-edit">
+                <label>
+                  نوع العبارة
+                  <select value={editCategory} onChange={(event) => setEditCategory(event.target.value)}>
+                    <option value="renter_search">بحث مستأجر</option>
+                    <option value="owner_listing">عرض مؤجر</option>
+                    <option value="greeting">تحية</option>
+                    <option value="intro">بداية محادثة</option>
+                    <option value="area">منطقة أو معلم</option>
+                  </select>
+                </label>
+                <label>
+                  العبارة
+                  <input value={editPhrase} onChange={(event) => setEditPhrase(event.target.value)} />
+                </label>
+                <label>
+                  الرد المناسب
+                  <textarea
+                    value={editResponseText}
+                    onChange={(event) => setEditResponseText(event.target.value)}
+                    rows={3}
+                  />
+                </label>
+                <label>
+                  ملاحظة داخلية
+                  <input value={editAdminNote} onChange={(event) => setEditAdminNote(event.target.value)} />
+                </label>
+                <div className="row-actions">
+                  <button type="button" onClick={() => saveEdit(entry)}>
+                    حفظ
+                  </button>
+                  <button type="button" onClick={() => setEditingId(null)}>
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <strong>{entry.phrase}</strong>
+                  <span>{categoryLabels[entry.category] ?? entry.category}</span>
+                  {entry.response_text ? <p className="dictionary-response">الرد: {entry.response_text}</p> : null}
+                  {entry.admin_note ? <p>{entry.admin_note}</p> : null}
+                </div>
+                <div className="row-actions">
+                  <button type="button" onClick={() => startEdit(entry)}>
+                    تعديل
+                  </button>
+                  <button type="button" onClick={() => toggleEntry(entry)}>
+                    {entry.active ? "تعطيل" : "تفعيل"}
+                  </button>
+                  <button type="button" onClick={() => deleteEntry(entry)}>
+                    حذف
+                  </button>
+                </div>
+              </>
+            )}
           </article>
         ))}
       </section>
