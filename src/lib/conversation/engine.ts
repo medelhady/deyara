@@ -240,6 +240,29 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     return [];
   }
 
+  if ((!data || data.length === 0) && extracted.propertyType && extracted.area) {
+    let broadQuery = supabase
+      .from("properties")
+      .select(selectColumns)
+      .eq("status", "active")
+      .ilike("area", `%${extracted.area}%`)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (extracted.maxPrice) {
+      broadQuery = broadQuery.lte("price", extracted.maxPrice);
+    }
+
+    const broad = await broadQuery;
+    data = broad.data;
+    error = broad.error;
+
+    if (error) {
+      console.error("Failed broad active property search", error);
+      return [];
+    }
+  }
+
   if ((!data || data.length === 0) && extracted.searchText) {
     const term = extracted.searchText.replace(/[%_,]/g, "").trim();
     let fallbackQuery = supabase

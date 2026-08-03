@@ -55,7 +55,7 @@ export function extractMessage(text: string): ExtractedMessage {
   if (includesAny(body, renterSearchPhrases)) {
     return {
       intent: "search_property",
-      propertyType: propertyType ?? (body.includes("دار") ? "منزل" : undefined),
+      propertyType,
       area,
       maxPrice: mentionsBudget ? price : undefined,
       price: mentionsBudget ? undefined : price,
