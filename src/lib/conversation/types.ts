@@ -24,6 +24,7 @@ export type ConversationResult = {
 
 export type PropertyCandidate = {
   id: string;
+  propertyCode?: string;
   title: string;
   type: string;
   area: string;

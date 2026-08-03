@@ -18,7 +18,7 @@ export async function GET() {
   }
 
   const [propertiesResult, statesResult, usersResult] = await Promise.all([
-    supabase.from("properties").select("id,status,area,price,landmark,created_at").order("created_at", { ascending: false }).limit(5),
+    supabase.from("properties").select("id,property_code,status,area,price,landmark,created_at").order("created_at", { ascending: false }).limit(5),
     supabase.from("conversation_states").select("phone,updated_at,state").order("updated_at", { ascending: false }).limit(5),
     supabase.from("users").select("phone,role,created_at").order("created_at", { ascending: false }).limit(5)
   ]);

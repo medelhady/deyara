@@ -120,7 +120,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
   let query = supabase
     .from("properties")
-    .select("id,type,area,landmark,price,rooms")
+    .select("id,property_code,type,area,landmark,price,rooms")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(5);
@@ -146,6 +146,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
   return (data ?? []).map((property) => ({
     id: property.id,
+    propertyCode: property.property_code ?? undefined,
     title: `${property.type ?? "عقار"} في ${property.area ?? "منطقة غير محددة"}`,
     type: property.type ?? "عقار",
     area: property.area ?? "غير محددة",
@@ -307,7 +308,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           reply: `وجدت ${results.length} عقارات مناسبة:\n\n${results
             .map(
               (property, index) =>
-                `${index + 1}. ${property.title}\nالسعر: ${property.price}\nالمنطقة: ${property.area}\nالمعلم: ${property.landmark}`
+                `${index + 1}. ${property.title}\nرقم الإعلان: ${property.propertyCode ?? property.id.slice(0, 8)}\nالسعر: ${property.price}\nالمنطقة: ${property.area}\nالمعلم: ${property.landmark}`
             )
             .join("\n\n")}\n\nاكتب رقم العقار لعرض التفاصيل بدون أرقام.`
         };
@@ -331,7 +332,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         return {
           debugIntent: "select_property",
-          reply: `${selected.title}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nالمنطقة: ${selected.area}\nالمعلم القريب: ${selected.landmark}\n\nالأرقام مخفية. لطلب رقم المؤجر أرسل: طلب تواصل.`
+          reply: `رقم الإعلان: ${selected.propertyCode ?? selected.id.slice(0, 8)}\n${selected.title}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nالمنطقة: ${selected.area}\nالمعلم القريب: ${selected.landmark}\n\nالأرقام مخفية. لطلب رقم المؤجر أرسل: طلب تواصل.`
         };
       }
 

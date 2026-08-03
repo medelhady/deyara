@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type Property = {
   id: string;
+  property_code: string | null;
   owner_phone: string;
   type: string | null;
   area: string | null;
@@ -65,6 +66,7 @@ export function PropertiesClient() {
             <h2>
               {property.type ?? "عقار"} في {property.area ?? "منطقة غير محددة"}
             </h2>
+            <p>رقم الإعلان: {property.property_code ?? property.id.slice(0, 8)}</p>
             <p>السعر: {property.price ?? "غير محدد"}</p>
             <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
             <p>رقم المؤجر: {property.owner_phone}</p>

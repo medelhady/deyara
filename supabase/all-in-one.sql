@@ -38,6 +38,7 @@ create table if not exists public.users (
 
 create table if not exists public.properties (
   id uuid primary key default uuid_generate_v4(),
+  property_code text unique,
   owner_phone text not null references public.users(phone),
   type text,
   area text,
@@ -53,6 +54,30 @@ create table if not exists public.properties (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create sequence if not exists public.property_code_seq start with 1 increment by 1;
+
+create or replace function public.next_property_code()
+returns text
+language plpgsql
+as $$
+begin
+  return lpad(nextval('public.property_code_seq')::text, 4, '0');
+end;
+$$;
+
+alter table public.properties
+add column if not exists property_code text;
+
+alter table public.properties
+alter column property_code set default public.next_property_code();
+
+update public.properties
+set property_code = public.next_property_code()
+where property_code is null;
+
+create unique index if not exists properties_property_code_key
+on public.properties(property_code);
 
 create table if not exists public.property_media (
   id uuid primary key default uuid_generate_v4(),
@@ -127,6 +152,7 @@ create table if not exists public.places (
 );
 
 create index if not exists properties_status_area_price_idx on public.properties(status, area, price);
+create index if not exists properties_property_code_idx on public.properties(property_code);
 create index if not exists properties_owner_phone_idx on public.properties(owner_phone);
 create index if not exists property_media_property_id_idx on public.property_media(property_id);
 create index if not exists contact_requests_status_idx on public.contact_requests(status);

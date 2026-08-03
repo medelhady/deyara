@@ -18,6 +18,7 @@ create table public.users (
 
 create table public.properties (
   id uuid primary key default uuid_generate_v4(),
+  property_code text unique,
   owner_phone text not null references public.users(phone),
   type text,
   area text,
@@ -33,6 +34,20 @@ create table public.properties (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create sequence public.property_code_seq start with 1 increment by 1;
+
+create or replace function public.next_property_code()
+returns text
+language plpgsql
+as $$
+begin
+  return lpad(nextval('public.property_code_seq')::text, 4, '0');
+end;
+$$;
+
+alter table public.properties
+alter column property_code set default public.next_property_code();
 
 create table public.property_media (
   id uuid primary key default uuid_generate_v4(),
@@ -107,6 +122,7 @@ create table public.places (
 );
 
 create index properties_status_area_price_idx on public.properties(status, area, price);
+create index properties_property_code_idx on public.properties(property_code);
 create index contact_requests_status_idx on public.contact_requests(status);
 create index conversations_phone_created_idx on public.conversations(phone, created_at desc);
 create index conversation_states_updated_at_idx on public.conversation_states(updated_at desc);
