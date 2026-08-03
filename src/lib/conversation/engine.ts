@@ -382,7 +382,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       if (results.length === 0) {
         return {
           debugIntent: "search_property",
-          reply: `لم أجد ${mergedSearch.propertyType ?? "عقارات"} في ${mergedSearch.area} الآن. سأحفظ طلبك، وعند وصول عقار مناسب يمكن تنبيهك بعد تفعيل الإشعارات.`
+          reply: `ما حصلت ${mergedSearch.propertyType ?? "عقار"} في ${mergedSearch.area} الآن. اكتب منطقة أو معلم ثاني ونبحث لك مباشرة.`
         };
       }
 
@@ -394,6 +394,48 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         })
       };
     }
+  }
+
+  if (state.lastSearchQuery && extracted.intent === "unknown") {
+    const areaFromText = knownAreas.find((area) => message.body.includes(area));
+    const text = message.body.trim();
+    const refinedSearch = {
+      ...state.lastSearchQuery,
+      area: areaFromText ?? state.lastSearchQuery.area,
+      searchText: areaFromText ? state.lastSearchQuery.searchText : text
+    };
+    const results = await searchActiveProperties(refinedSearch);
+    const visibleResults = results.slice(0, 5);
+
+    await setConversationState(message.from, {
+      ...state,
+      pendingSearch: undefined,
+      lastSearchResults: results,
+      lastSearchShownCount: visibleResults.length,
+      lastSearchQuery: refinedSearch,
+      selectedPropertyId: undefined,
+      selectedProperty: undefined,
+      selectedPropertyAt: undefined,
+      awaitingContactChoice: undefined,
+      selectedPropertyVideoViewed: undefined,
+      activeContactRequestId: undefined
+    });
+
+    if (results.length === 0) {
+      const placeText = areaFromText ?? text;
+      return {
+        debugIntent: "search_property",
+        reply: `ما حصلت نتيجة مناسبة لـ ${placeText} الآن. جرّب منطقة أو معلم ثاني، مثل: تفرغ زينة أو كارفور.`
+      };
+    }
+
+    return {
+      debugIntent: "search_property",
+      reply: formatSearchResults(visibleResults, refinedSearch, {
+        total: results.length,
+        hasMore: results.length > visibleResults.length
+      })
+    };
   }
 
   if (state.draftProperty && /^(الغاء|إلغاء|احذف|حذف)$/i.test(message.body.trim())) {
@@ -648,7 +690,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           return {
             debugIntent: "search_property",
             reply:
-              "لم أجد عقارًا مطابقًا الآن. سأحفظ طلبك، وعند وصول عقار مناسب يمكن تنبيهك بعد تفعيل الإشعارات."
+              "ما حصلت نتيجة مناسبة الآن. اكتب منطقة أو معلم ثاني ونبحث لك مباشرة."
           };
         }
 
