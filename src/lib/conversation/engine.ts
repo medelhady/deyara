@@ -69,12 +69,13 @@ function formatSearchResults(
   options?: { startIndex?: number; total?: number; hasMore?: boolean }
 ) {
   const typeText = extracted.propertyType ? propertyTypeSingular(extracted.propertyType) : "دار";
-  const areaText = extracted.area ? ` في ${extracted.area}` : "";
+  const searchText = extracted.searchText && extracted.searchText !== "__more__" ? extracted.searchText.trim() : "";
+  const placeText = extracted.area ? ` في ${extracted.area}` : searchText ? ` قريبة من ${searchText}` : "";
   const startIndex = options?.startIndex ?? 0;
   const total = options?.total ?? results.length;
   const moreText = options?.hasMore ? "\n\nلخيارات أكثر اكتب: 0" : "";
 
-  return `متوفر عدد ${total} ${typeText} للإيجار${areaText}:\n\n${results
+  return `متوفر عدد ${total} ${typeText} للإيجار${placeText}:\n\n${results
     .map(
       (property, index) =>
         `${startIndex + index + 1}. ${property.type} في ${property.area}\nالسعر: ${property.price}\nقريبة من: ${property.landmark}`
@@ -442,7 +443,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     const text = message.body.trim();
     const refinedSearch = {
       ...state.lastSearchQuery,
-      area: areaFromText ?? state.lastSearchQuery.area,
+      area: areaFromText,
       searchText: areaFromText ? state.lastSearchQuery.searchText : text
     };
     const results = await searchActiveProperties(refinedSearch);
