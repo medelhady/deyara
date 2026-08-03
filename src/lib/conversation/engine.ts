@@ -89,9 +89,13 @@ function formatSearchResults(
     results
     .map(
       (property, index) =>
-        `${startIndex + index + 1}. ${property.type} في ${property.area}\n💰 السعر: *${formatPrice(property.price)}*\n📍 قريبة من: ${property.landmark}`
+        [
+          `*${startIndex + index + 1}.* ${property.type} في ${property.area}`,
+          `السعر: *${formatPrice(property.price)}*`,
+          `قريبة من: ${property.landmark}`
+        ].join("\n")
     )
-    .join("\n\n"),
+    .join("\n----------------\n"),
     "",
     "اكتب رقم الدار التي أعجبتك، مثلا: *1*",
     "بعد الاختيار نرسل لك التفاصيل والفيديو.",
@@ -823,13 +827,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         return {
           debugIntent: "select_property",
           reply: [
-            `🏠 *${selected.type} في ${selected.area}*`,
+            `*${selected.type} في ${selected.area}*`,
             "",
-            `💰 السعر: *${formatPrice(selected.price)}*`,
-            `🛏️ الغرف: ${selected.rooms ?? "غير محدد"}`,
-            `📍 قريبة من: ${selected.landmark}`,
+            `السعر: *${formatPrice(selected.price)}*`,
+            `الغرف: ${selected.rooms ?? "غير محدد"}`,
+            `قريبة من: ${selected.landmark}`,
             "",
-            "🎥 *الخطوة التالية*",
+            "*الخطوة التالية*",
             "اكتب *2* لمشاهدة فيديو الدار.",
             "بعد الفيديو، إذا عجبتك الدار اكتب *1* لطلب رقم المؤجر."
           ].join("\n")
