@@ -25,6 +25,10 @@ export async function PATCH(
     updates.phrase = String(body.phrase ?? "").trim();
   }
 
+  if ("response_text" in body) {
+    updates.response_text = String(body.response_text ?? "").trim() || null;
+  }
+
   if ("admin_note" in body) {
     updates.admin_note = String(body.admin_note ?? "").trim() || null;
   }

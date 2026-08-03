@@ -484,6 +484,13 @@ select {
   margin: 6px 0 0;
 }
 
+.dictionary-response {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f2fbf7;
+  color: var(--ink);
+}
+
 .approved-box strong {
   display: block;
   margin-bottom: 8px;

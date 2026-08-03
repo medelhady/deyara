@@ -6,6 +6,7 @@ type DictionaryEntry = {
   id: string;
   category: string;
   phrase: string;
+  response_text: string | null;
   active: boolean;
   admin_note: string | null;
   created_at: string;
@@ -23,6 +24,7 @@ export function DictionaryClient() {
   const [entries, setEntries] = useState<DictionaryEntry[]>([]);
   const [category, setCategory] = useState("renter_search");
   const [phrase, setPhrase] = useState("");
+  const [responseText, setResponseText] = useState("");
   const [adminNote, setAdminNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +63,7 @@ export function DictionaryClient() {
       body: JSON.stringify({
         category,
         phrase,
+        response_text: responseText,
         admin_note: adminNote
       })
     });
@@ -73,6 +76,7 @@ export function DictionaryClient() {
     }
 
     setPhrase("");
+    setResponseText("");
     setAdminNote("");
     setEntries((current) => [data.entry, ...current]);
     setSaving(false);
@@ -140,6 +144,16 @@ export function DictionaryClient() {
         </label>
 
         <label>
+          الرد المناسب
+          <textarea
+            value={responseText}
+            onChange={(event) => setResponseText(event.target.value)}
+            placeholder="اختياري. مثال: تمام، في أي منطقة تبحث؟"
+            rows={4}
+          />
+        </label>
+
+        <label>
           ملاحظة داخلية
           <input
             value={adminNote}
@@ -165,6 +179,7 @@ export function DictionaryClient() {
             <div>
               <strong>{entry.phrase}</strong>
               <span>{categoryLabels[entry.category] ?? entry.category}</span>
+              {entry.response_text ? <p className="dictionary-response">الرد: {entry.response_text}</p> : null}
               {entry.admin_note ? <p>{entry.admin_note}</p> : null}
             </div>
             <div className="row-actions">

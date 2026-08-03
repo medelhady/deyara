@@ -35,6 +35,7 @@ export async function POST(request: Request) {
   const body = await request.json();
   const category = String(body.category ?? "");
   const phrase = String(body.phrase ?? "").trim();
+  const responseText = String(body.response_text ?? "").trim() || null;
   const adminNote = String(body.admin_note ?? "").trim() || null;
 
   if (!categories.includes(category) || !phrase) {
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
     .insert({
       category,
       phrase,
+      response_text: responseText,
       admin_note: adminNote,
       active: true
     })

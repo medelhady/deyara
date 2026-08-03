@@ -156,12 +156,16 @@ create table if not exists public.bot_dictionary (
   category text not null check (category in ('greeting', 'intro', 'renter_search', 'owner_listing', 'area')),
   phrase text not null,
   normalized_phrase text generated always as (lower(trim(phrase))) stored,
+  response_text text,
   active boolean not null default true,
   admin_note text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (category, normalized_phrase)
 );
+
+alter table public.bot_dictionary
+add column if not exists response_text text;
 
 create index if not exists properties_status_area_price_idx on public.properties(status, area, price);
 create index if not exists properties_property_code_idx on public.properties(property_code);
