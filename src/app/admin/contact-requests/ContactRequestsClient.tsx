@@ -24,6 +24,11 @@ type ContactRequest = {
   }>;
 };
 
+function whatsappLink(phone: string) {
+  const cleanPhone = phone.replace("whatsapp:", "").replace(/[^\d+]/g, "");
+  return `https://wa.me/${cleanPhone.replace("+", "")}`;
+}
+
 export function ContactRequestsClient() {
   const [requests, setRequests] = useState<ContactRequest[]>([]);
   const [message, setMessage] = useState("جار تحميل طلبات التواصل...");
@@ -92,6 +97,21 @@ export function ContactRequestsClient() {
                 "لم يصل بعد"
               )}
             </p>
+            {request.status === "approved" ? (
+              <div className="approved-box">
+                <strong>بيانات الإرسال للمستأجر</strong>
+                <p>رقم المؤجر: {request.owner_phone}</p>
+                <p>
+                  رابط واتساب:{" "}
+                  <a href={whatsappLink(request.owner_phone)} target="_blank" rel="noreferrer">
+                    {whatsappLink(request.owner_phone)}
+                  </a>
+                </p>
+                <p>
+                  الرسالة: تم قبول الدفع. يمكنك التواصل مع المؤجر على الرقم {request.owner_phone}.
+                </p>
+              </div>
+            ) : null}
           </div>
           <div className="row-actions">
             <button type="button" onClick={() => updateStatus(request.id, "approved")}>
