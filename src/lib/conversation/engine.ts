@@ -24,15 +24,26 @@ function isCasualReply(body: string) {
 
 function canUseCustomDictionaryReply(state: Awaited<ReturnType<typeof getConversationState>>) {
   return !state.draftProperty &&
-    !state.pendingSearch &&
     !state.awaitingContactChoice &&
     !state.awaitingMaxPriceFilter &&
     !state.activeContactRequestId;
 }
 
+function normalizeDictionaryText(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[ـًٌٍَُِّْ]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ");
+}
+
 function findCustomDictionaryReply(body: string, dictionary: Awaited<ReturnType<typeof getRuntimeDictionary>>) {
-  const normalizedBody = body.trim().toLowerCase();
-  return dictionary.customResponses.find((item) => item.phrase.trim().toLowerCase() === normalizedBody)?.responseText;
+  const normalizedBody = normalizeDictionaryText(body);
+  return dictionary.customResponses.find((item) => {
+    const normalizedPhrase = normalizeDictionaryText(item.phrase);
+    return normalizedBody === normalizedPhrase || normalizedBody.includes(normalizedPhrase);
+  })?.responseText;
 }
 
 function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; selectedPropertyAt?: string }) {
