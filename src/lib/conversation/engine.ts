@@ -7,6 +7,7 @@ import type { ConversationResult, DraftProperty, PropertyCandidate } from "./typ
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
+const selectionTtlMs = 15 * 60 * 1000;
 
 function isYes(body: string) {
   return /^(نعم|اي|إي|أجل|تمام|صح|موافق|اكد|أكد)$/i.test(body.trim());
@@ -14,6 +15,14 @@ function isYes(body: string) {
 
 function isNo(body: string) {
   return /^(لا|لأ|كلا|تعديل|الغاء|إلغاء)$/i.test(body.trim());
+}
+
+function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; selectedPropertyAt?: string }) {
+  if (!state.selectedProperty || !state.selectedPropertyAt) {
+    return false;
+  }
+
+  return Date.now() - new Date(state.selectedPropertyAt).getTime() <= selectionTtlMs;
 }
 
 function formatPropertySummary(draft: DraftProperty) {
@@ -386,7 +395,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         await setConversationState(message.from, {
           ...state,
-          lastSearchResults: results
+          lastSearchResults: results,
+          selectedPropertyId: undefined,
+          selectedProperty: undefined,
+          selectedPropertyAt: undefined,
+          activeContactRequestId: undefined
         });
 
         if (results.length === 0) {
@@ -422,7 +435,9 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         await setConversationState(message.from, {
           ...state,
           selectedPropertyId: selected.id,
-          selectedProperty: selected
+          selectedProperty: selected,
+          selectedPropertyAt: new Date().toISOString(),
+          activeContactRequestId: undefined
         });
 
         return {
@@ -432,10 +447,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       }
 
     case "request_contact":
-      if (!state.selectedPropertyId || !state.selectedProperty) {
+      if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
         return {
           debugIntent: "request_contact",
-          reply: "اختر عقارًا أولًا من نتائج البحث، ثم أرسل: طلب تواصل."
+          reply: "اختر عقارًا أولًا من آخر نتائج البحث، ثم أرسل: طلب تواصل."
         };
       }
 
