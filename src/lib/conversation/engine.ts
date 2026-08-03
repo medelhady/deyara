@@ -574,6 +574,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   switch (extracted.intent) {
+    case "greeting":
+      return {
+        debugIntent: "greeting",
+        reply: "وعليكم السلام، أهلًا بيك. نحن الديارة هون لمساعدتكم. تبحث عن دار للكراء أو عندك عقار تحب تعرضه؟"
+      };
+
+    case "intro":
+      return {
+        debugIntent: "intro",
+        reply: "نحن الديارة هون لمساعدتكم. اكتب مثلًا: أريد شقة في عرفات، أو: عندي شقة للإيجار."
+      };
+
     case "add_property": {
       const draftProperty = mergeDraftFromMessage(state.draftProperty ?? {}, extracted, message.body);
       draftProperty.awaitingConfirmation = Boolean(

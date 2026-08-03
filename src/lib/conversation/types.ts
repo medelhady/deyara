@@ -1,4 +1,6 @@
 export type Intent =
+  | "greeting"
+  | "intro"
   | "add_property"
   | "search_property"
   | "select_property"

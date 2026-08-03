@@ -1,4 +1,12 @@
 import type { ExtractedMessage } from "./types";
+import {
+  equalsAny,
+  greetings,
+  includesAny,
+  introPhrases,
+  ownerListingPhrases,
+  renterSearchPhrases
+} from "./local-dictionary";
 
 const areas = ["تفرغ زينة", "لكصر", "عرفات", "تيارت", "دار النعيم", "السبخة", "الميناء", "نواكشوط"];
 const propertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
@@ -11,6 +19,14 @@ function extractNumber(text: string) {
 
 export function extractMessage(text: string): ExtractedMessage {
   const body = text.trim();
+  if (equalsAny(body, greetings)) {
+    return { intent: "greeting" };
+  }
+
+  if (equalsAny(body.toLowerCase(), introPhrases)) {
+    return { intent: "intro" };
+  }
+
   if (body === "0") {
     return { intent: "search_property", searchText: "__more__" };
   }
@@ -32,10 +48,10 @@ export function extractMessage(text: string): ExtractedMessage {
   const searchText = landmarkMatch?.[1]?.trim();
   const mentionsBudget = /حد|اقصى|أقصى|اقل|أقل|أرخص|ما يتجاوز|لا يتجاوز|بحد|ميزانية|بـ|ب /.test(body);
 
-  if (/اريد|أريد|ابحث|أبحث|نبحث|احتاج|أحتاج/.test(body)) {
+  if (includesAny(body, renterSearchPhrases)) {
     return {
       intent: "search_property",
-      propertyType,
+      propertyType: propertyType ?? (body.includes("دار") ? "منزل" : undefined),
       area,
       maxPrice: mentionsBudget ? price : undefined,
       price: mentionsBudget ? undefined : price,
@@ -52,7 +68,7 @@ export function extractMessage(text: string): ExtractedMessage {
     return { intent: "send_payment_receipt" };
   }
 
-  if (/عندي|لدي|للإيجار|للايجار|ايجار|إيجار|منزل|شقة|فيلا/.test(body)) {
+  if (includesAny(body, ownerListingPhrases) || /عندي|لدي|للإيجار|للايجار|ايجار|إيجار|منزل|شقة|فيلا/.test(body)) {
     return {
       intent: "add_property",
       propertyType,
