@@ -22,9 +22,21 @@ type Withdrawal = {
   created_at: string;
 };
 
+type Topup = {
+  id: string;
+  phone: string;
+  points: number | null;
+  receipt_image_url: string | null;
+  status: string;
+  admin_note: string | null;
+  created_at: string;
+};
+
 export function WalletsClient() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [topups, setTopups] = useState<Topup[]>([]);
+  const [topupPoints, setTopupPoints] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("جار تحميل المحافظ...");
 
   async function loadWallets() {
@@ -40,6 +52,7 @@ export function WalletsClient() {
 
     setWallets(data.wallets ?? []);
     setWithdrawals(data.withdrawals ?? []);
+    setTopups(data.topups ?? []);
     setMessage("");
   }
 
@@ -61,6 +74,27 @@ export function WalletsClient() {
     await loadWallets();
   }
 
+  async function updateTopup(id: string, status: "approved" | "rejected") {
+    const response = await fetch(`/api/admin/topups/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        status,
+        points: Number(topupPoints[id] ?? 0)
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.error ?? "تعذر تحديث طلب الشحن.");
+      return;
+    }
+
+    await loadWallets();
+  }
+
   useEffect(() => {
     void loadWallets();
   }, []);
@@ -68,6 +102,48 @@ export function WalletsClient() {
   return (
     <section className="wallets-layout">
       {message ? <p>{message}</p> : null}
+
+      <section className="panel">
+        <h2>طلبات شحن النقاط</h2>
+        {topups.length === 0 ? <p>لا توجد طلبات شحن حتى الآن.</p> : null}
+        <div className="list-panel compact-list">
+          {topups.map((topup) => (
+            <article className="property-row" key={topup.id}>
+              <div>
+                <h2>{topup.phone}</h2>
+                <p>الحالة: {topup.status}</p>
+                <p>النقاط: {topup.points ?? "لم تحدد"}</p>
+                <p>التاريخ: {new Date(topup.created_at).toLocaleString("ar")}</p>
+                <p>
+                  الإيصال:{" "}
+                  {topup.receipt_image_url ? (
+                    <a href={topup.receipt_image_url} target="_blank" rel="noreferrer">
+                      فتح الإيصال
+                    </a>
+                  ) : (
+                    "غير موجود"
+                  )}
+                </p>
+              </div>
+              <div className="row-actions stacked-actions">
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="عدد النقاط"
+                  value={topupPoints[topup.id] ?? ""}
+                  onChange={(event) => setTopupPoints((current) => ({ ...current, [topup.id]: event.target.value }))}
+                />
+                <button type="button" onClick={() => updateTopup(topup.id, "approved")}>
+                  قبول الشحن
+                </button>
+                <button type="button" onClick={() => updateTopup(topup.id, "rejected")}>
+                  رفض
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
       <section className="panel">
         <h2>طلبات السحب</h2>

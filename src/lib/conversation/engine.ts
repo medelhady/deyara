@@ -569,6 +569,33 @@ async function createWithdrawalRequest(phone: string) {
   ].join("\n");
 }
 
+async function createCreditTopupRequest(phone: string, receiptUrl: string) {
+  const supabase = getServiceSupabase();
+  const wallet = await ensureWallet(phone);
+
+  if (!supabase || !wallet) {
+    return "وصل الإيصال، لكن تعذر حفظ طلب الشحن الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const { error } = await supabase.from("credit_topups").insert({
+    phone,
+    receipt_image_url: receiptUrl,
+    status: "pending"
+  });
+
+  if (error) {
+    console.error("Failed to create credit topup", error);
+    return "وصل الإيصال، لكن تعذر حفظ طلب الشحن الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  return [
+    "✅ تم استلام إيصال شحن النقاط.",
+    "",
+    "سيتم مراجعته من الإدارة، وبعد الموافقة تضاف النقاط إلى رصيدك.",
+    "يمكنك كتابة *رصيدي* في أي وقت لمتابعة نقاطك."
+  ].join("\n");
+}
+
 async function getPropertyVideoUrl(propertyId: string) {
   const supabase = getServiceSupabase();
 
@@ -1002,6 +1029,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         reply: receipt.saved
           ? "✅ تم استلام صورة الإيصال. سيتم التحقق من الإدارة، وبعد الموافقة سنرسل رقم المؤجر فقط."
           : "وصلت الصورة، لكن تعذر حفظ الإيصال الآن. حاول مرة أخرى بعد قليل."
+      };
+    }
+
+    if (message.media.some((item) => item.contentType.startsWith("image/"))) {
+      return {
+        debugIntent: "send_payment_receipt",
+        reply: await createCreditTopupRequest(message.from, message.media[0].url)
       };
     }
 
