@@ -39,6 +39,49 @@ function formatPropertySummary(draft: DraftProperty) {
   ].join("\n");
 }
 
+function propertyTypePlural(type?: string) {
+  if (type === "شقة") {
+    return "شقق";
+  }
+
+  if (type === "منزل") {
+    return "منازل";
+  }
+
+  if (type === "غرفة") {
+    return "غرف";
+  }
+
+  if (type === "محل") {
+    return "محلات";
+  }
+
+  return "عقارات";
+}
+
+function propertyTypeSingular(type?: string) {
+  return type ?? "دار";
+}
+
+function formatSearchResults(
+  results: PropertyCandidate[],
+  extracted: ReturnType<typeof extractMessage>,
+  options?: { startIndex?: number; total?: number; hasMore?: boolean }
+) {
+  const typeText = extracted.propertyType ? propertyTypeSingular(extracted.propertyType) : "دار";
+  const areaText = extracted.area ? ` في ${extracted.area}` : "";
+  const startIndex = options?.startIndex ?? 0;
+  const total = options?.total ?? results.length;
+  const moreText = options?.hasMore ? "\n\nلخيارات أكثر اكتب: 0" : "";
+
+  return `متوفر عدد ${total} ${typeText} للإيجار${areaText}:\n\n${results
+    .map(
+      (property, index) =>
+        `${startIndex + index + 1}. ${property.type} في ${property.area}\nالسعر: ${property.price}\nقريبة من: ${property.landmark}`
+    )
+    .join("\n\n")}\n\nاكتب رقم الدار اللي اخترت، مثلا: 1\nالفيديو والتفاصيل الكاملة تظهر بعد اختيار الدار.${moreText}`;
+}
+
 async function submitPropertyForReview(
   ownerPhone: string,
   draft: DraftProperty
@@ -124,7 +167,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
       .filter((property) => !extracted.area || property.area === extracted.area)
       .filter((property) => !extracted.propertyType || property.type === extracted.propertyType)
       .filter((property) => !extracted.maxPrice || property.price <= extracted.maxPrice)
-      .slice(0, 5);
+      .slice(0, 20);
   }
 
   const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms";
@@ -133,7 +176,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     .select(selectColumns)
     .eq("status", "active")
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(20);
 
   if (extracted.area) {
     query = query.ilike("area", `%${extracted.area}%`);
@@ -169,7 +212,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
       .eq("status", "active")
       .or(`area.ilike.%${term}%,landmark.ilike.%${term}%,type.ilike.%${term}%`)
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (extracted.maxPrice) {
       fallbackQuery = fallbackQuery.lte("price", extracted.maxPrice);
@@ -185,7 +228,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     }
   }
 
-  return (data ?? []).slice(0, 5).map((property) => ({
+  return (data ?? []).slice(0, 20).map((property) => ({
     id: property.id,
     propertyCode: property.property_code ?? undefined,
     ownerPhone: property.owner_phone ?? undefined,
@@ -284,6 +327,33 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const extracted = extractMessage(message.body);
   const state = await getConversationState(message.from);
 
+  if (extracted.intent === "search_property" && extracted.searchText === "__more__") {
+    const allResults = state.lastSearchResults ?? [];
+    const shownCount = state.lastSearchShownCount ?? 0;
+    const nextResults = allResults.slice(shownCount, shownCount + 5);
+
+    if (nextResults.length === 0) {
+      return {
+        debugIntent: "search_property",
+        reply: "ما عندي خيارات أكثر حاليًا لنفس البحث. جرّب منطقة أو سعر مختلف."
+      };
+    }
+
+    await setConversationState(message.from, {
+      ...state,
+      lastSearchShownCount: shownCount + nextResults.length
+    });
+
+    return {
+      debugIntent: "search_property",
+      reply: formatSearchResults(nextResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        startIndex: shownCount,
+        total: allResults.length,
+        hasMore: shownCount + nextResults.length < allResults.length
+      })
+    };
+  }
+
   if (state.pendingSearch && extracted.intent === "unknown") {
     const areaFromText = knownAreas.find((area) => message.body.includes(area));
     const mergedSearch = {
@@ -293,11 +363,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     if (mergedSearch.area) {
       const results = await searchActiveProperties(mergedSearch);
+      const visibleResults = results.slice(0, 5);
 
       await setConversationState(message.from, {
         ...state,
         pendingSearch: undefined,
         lastSearchResults: results,
+        lastSearchShownCount: visibleResults.length,
+        lastSearchQuery: mergedSearch,
         selectedPropertyId: undefined,
         selectedProperty: undefined,
         selectedPropertyAt: undefined,
@@ -313,12 +386,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
       return {
         debugIntent: "search_property",
-        reply: `يوجد ${results.length} ${mergedSearch.propertyType ?? "عقارات"} في ${mergedSearch.area}:\n\n${results
-          .map(
-            (property, index) =>
-              `${index + 1}. ${property.title}\nرقم الإعلان: ${property.propertyCode ?? property.id.slice(0, 8)}\nالسعر: ${property.price}\nالمنطقة: ${property.area}\nالمعلم: ${property.landmark}`
-          )
-          .join("\n\n")}\n\nاكتب رقم العقار لعرض التفاصيل بدون أرقام.`
+        reply: formatSearchResults(visibleResults, mergedSearch, {
+          total: results.length,
+          hasMore: results.length > visibleResults.length
+        })
       };
     }
   }
@@ -467,6 +538,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
             ...state,
             pendingSearch: extracted,
             lastSearchResults: undefined,
+            lastSearchShownCount: undefined,
+            lastSearchQuery: undefined,
             selectedPropertyId: undefined,
             selectedProperty: undefined,
             selectedPropertyAt: undefined,
@@ -481,10 +554,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         const results = await searchActiveProperties(extracted);
 
+        const visibleResults = results.slice(0, 5);
+
         await setConversationState(message.from, {
           ...state,
           pendingSearch: undefined,
           lastSearchResults: results,
+          lastSearchShownCount: visibleResults.length,
+          lastSearchQuery: extracted,
           selectedPropertyId: undefined,
           selectedProperty: undefined,
           selectedPropertyAt: undefined,
@@ -501,12 +578,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         return {
           debugIntent: "search_property",
-          reply: `وجدت ${results.length} عقارات مناسبة:\n\n${results
-            .map(
-              (property, index) =>
-                `${index + 1}. ${property.title}\nرقم الإعلان: ${property.propertyCode ?? property.id.slice(0, 8)}\nالسعر: ${property.price}\nالمنطقة: ${property.area}\nالمعلم: ${property.landmark}`
-            )
-            .join("\n\n")}\n\nاكتب رقم العقار لعرض التفاصيل بدون أرقام.`
+          reply: formatSearchResults(visibleResults, extracted, {
+            total: results.length,
+            hasMore: results.length > visibleResults.length
+          })
         };
       }
 
@@ -531,7 +606,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         return {
           debugIntent: "select_property",
-          reply: `رقم الإعلان: ${selected.propertyCode ?? selected.id.slice(0, 8)}\n${selected.title}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nالمنطقة: ${selected.area}\nالمعلم القريب: ${selected.landmark}\n\nالأرقام مخفية. لطلب رقم المؤجر أرسل: طلب تواصل.`
+          reply: `${selected.type} في ${selected.area}\nالسعر: ${selected.price}\nالغرف: ${selected.rooms ?? "غير محدد"}\nقريبة من: ${selected.landmark}\n\nإذا حاب تتواصل مع صاحب العقار، اكتب: طلب تواصل.`
         };
       }
 

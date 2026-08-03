@@ -11,6 +11,14 @@ function extractNumber(text: string) {
 
 export function extractMessage(text: string): ExtractedMessage {
   const body = text.trim();
+  if (body === "0") {
+    return { intent: "search_property", searchText: "__more__" };
+  }
+
+  if (/^(اريد اكثر|أريد أكثر|المزيد|زيادة|زيد|اكثر|أكثر)$/i.test(body)) {
+    return { intent: "search_property", searchText: "__more__" };
+  }
+
   const selected = body.match(/^\d+$/);
   if (selected) {
     return { intent: "select_property", selectedIndex: Number(selected[0]) };
