@@ -9,6 +9,7 @@ import type { ConversationResult, DraftProperty, PropertyCandidate } from "./typ
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
 const selectionTtlMs = 15 * 60 * 1000;
+const minimumWithdrawalPoints = 500;
 
 function isYes(body: string) {
   return /^(نعم|اي|إي|أجل|تمام|صح|موافق|اكد|أكد)$/i.test(body.trim());
@@ -96,6 +97,21 @@ function formatPrice(price: number) {
 
 function formatLandmark(landmark: string) {
   return landmark.replace(/^(قرب|قريبة من|بالقرب من)\s+/i, "").trim();
+}
+
+function normalizePhoneDigits(phone: string) {
+  return phone.replace(/\D/g, "");
+}
+
+function makeReferralCode(phone: string) {
+  const digits = normalizePhoneDigits(phone).slice(-6).padStart(6, "0");
+  return `DY${digits}`;
+}
+
+function makeReferralLink(referralCode: string) {
+  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? process.env.ADMIN_WHATSAPP_NUMBERS?.split(",")[0]?.replace("whatsapp:", "");
+  const text = encodeURIComponent(`ابدأ ${referralCode}`);
+  return whatsappNumber ? `https://wa.me/${normalizePhoneDigits(whatsappNumber)}?text=${text}` : `كود دعوتك: ${referralCode}`;
 }
 
 function formatSearchResults(
@@ -405,6 +421,131 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   return { saved: true, existing: false, id: data.id as string };
 }
 
+async function ensureWallet(phone: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return null;
+  }
+
+  await supabase.from("users").upsert(
+    {
+      phone,
+      role: "renter"
+    },
+    {
+      onConflict: "phone",
+      ignoreDuplicates: true
+    }
+  );
+
+  const { data: existing, error: existingError } = await supabase
+    .from("user_wallets")
+    .select("*")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("Failed to load wallet", existingError);
+    return null;
+  }
+
+  if (existing) {
+    return existing;
+  }
+
+  const { data, error } = await supabase
+    .from("user_wallets")
+    .insert({
+      phone,
+      referral_code: makeReferralCode(phone)
+    })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Failed to create wallet", error);
+    return null;
+  }
+
+  return data;
+}
+
+async function getWalletReply(phone: string) {
+  const wallet = await ensureWallet(phone);
+
+  if (!wallet) {
+    return "تعذر تحميل رصيدك الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const usagePoints = Number(wallet.usage_points ?? 0);
+  const commissionPoints = Number(wallet.commission_points ?? 0);
+  const remaining = Math.max(minimumWithdrawalPoints - commissionPoints, 0);
+  const referralCode = String(wallet.referral_code ?? makeReferralCode(phone));
+
+  return [
+    "رصيدك في الديارة:",
+    "",
+    `نقاط الاستخدام: *${usagePoints}*`,
+    `نقاط التسويق: *${commissionPoints}*`,
+    "",
+    `الحد الأدنى للسحب: *${minimumWithdrawalPoints} نقطة*`,
+    remaining > 0 ? `المتبقي للسحب: *${remaining} نقطة*` : "يمكنك طلب السحب الآن. اكتب: *طلب سحب*",
+    "",
+    "رابط دعوتك:",
+    makeReferralLink(referralCode)
+  ].join("\n");
+}
+
+async function createWithdrawalRequest(phone: string) {
+  const supabase = getServiceSupabase();
+  const wallet = await ensureWallet(phone);
+
+  if (!supabase || !wallet) {
+    return "تعذر إنشاء طلب السحب الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const commissionPoints = Number(wallet.commission_points ?? 0);
+
+  if (commissionPoints < minimumWithdrawalPoints) {
+    return [
+      `رصيد التسويق عندك: *${commissionPoints} نقطة*`,
+      `الحد الأدنى للسحب: *${minimumWithdrawalPoints} نقطة*`,
+      "",
+      `باقي لك *${minimumWithdrawalPoints - commissionPoints} نقطة* حتى تقدر تطلب السحب.`
+    ].join("\n");
+  }
+
+  const { data: existing } = await supabase
+    .from("withdrawal_requests")
+    .select("id,status")
+    .eq("phone", phone)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (existing) {
+    return "عندك طلب سحب قيد المراجعة بالفعل. الإدارة ستراجعه قريبًا.";
+  }
+
+  const { error } = await supabase.from("withdrawal_requests").insert({
+    phone,
+    points: commissionPoints,
+    status: "pending"
+  });
+
+  if (error) {
+    console.error("Failed to create withdrawal request", error);
+    return "تعذر إنشاء طلب السحب الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  return [
+    "تم استلام طلب السحب.",
+    "",
+    `النقاط المطلوبة للسحب: *${commissionPoints} نقطة*`,
+    "سيتم مراجعة الطلب من الإدارة."
+  ].join("\n");
+}
+
 async function getPropertyVideoUrl(propertyId: string) {
   const supabase = getServiceSupabase();
 
@@ -468,6 +609,36 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const extracted = extractMessage(message.body, dictionary);
   const state = await getConversationState(message.from);
   const customReply = findCustomDictionaryReply(message.body, dictionary);
+  const normalizedBody = normalizeDictionaryText(message.body);
+
+  if (/^(رصيدي|نقاطي|كم رصيدي|كم نقاطي|الرصيد)$/.test(normalizedBody)) {
+    return {
+      debugIntent: "intro",
+      reply: await getWalletReply(message.from)
+    };
+  }
+
+  if (/^(رابط دعوتي|كود دعوتي|دعوتي|رابط الاحالة|كود الاحالة|الاحالة)$/.test(normalizedBody)) {
+    const wallet = await ensureWallet(message.from);
+    const referralCode = String(wallet?.referral_code ?? makeReferralCode(message.from));
+
+    return {
+      debugIntent: "intro",
+      reply: [
+        "هذا رابط دعوتك:",
+        makeReferralLink(referralCode),
+        "",
+        "أي شخص يسجل ويشحن عن طريقك تحصل على 30% نقاط تسويق."
+      ].join("\n")
+    };
+  }
+
+  if (/^(طلب سحب|اسحب|سحب نقاط|سحب العمولة)$/.test(normalizedBody)) {
+    return {
+      debugIntent: "intro",
+      reply: await createWithdrawalRequest(message.from)
+    };
+  }
 
   if (customReply && (customReply.category === "greeting" || customReply.category === "intro" || !state.draftProperty)) {
     return {
