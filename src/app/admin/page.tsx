@@ -204,6 +204,9 @@ export default async function AdminPage() {
             <Link className="button secondary" href="/admin/contact-requests">
               طلبات التواصل
             </Link>
+            <Link className="button secondary" href="/admin/dictionary">
+              قاموس البوت
+            </Link>
           </div>
         </article>
       </section>

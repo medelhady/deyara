@@ -292,7 +292,8 @@ label {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -300,6 +301,10 @@ textarea {
   font: inherit;
   color: var(--ink);
   background: #fff;
+}
+
+select {
+  min-height: 44px;
 }
 
 .chips {
@@ -434,6 +439,51 @@ textarea {
   background: #eefaf4;
 }
 
+.dictionary-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 28px;
+  align-items: flex-start;
+}
+
+.dictionary-form {
+  display: grid;
+  gap: 12px;
+}
+
+.dictionary-form h2,
+.dictionary-list h2 {
+  margin-bottom: 4px;
+}
+
+.dictionary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.dictionary-row:first-of-type {
+  border-top: 0;
+}
+
+.dictionary-row strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.dictionary-row span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dictionary-row p {
+  margin: 6px 0 0;
+}
+
 .approved-box strong {
   display: block;
   margin-bottom: 8px;
@@ -535,6 +585,11 @@ textarea {
   }
 
   .property-row {
+    display: grid;
+  }
+
+  .dictionary-layout,
+  .dictionary-row {
     display: grid;
   }
 }

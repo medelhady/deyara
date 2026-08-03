@@ -1,6 +1,7 @@
 ﻿import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { extractMessage } from "./extract";
+import { getRuntimeDictionary } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
 import type { ConversationResult, DraftProperty, PropertyCandidate } from "./types";
@@ -436,7 +437,9 @@ async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) 
 }
 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
-  const extracted = extractMessage(message.body);
+  const dictionary = await getRuntimeDictionary();
+  const activeAreas = [...knownAreas, ...dictionary.areas];
+  const extracted = extractMessage(message.body, dictionary);
   const state = await getConversationState(message.from);
 
   if (state.awaitingMaxPriceFilter) {
@@ -587,7 +590,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.pendingSearch && extracted.intent === "unknown") {
-    const areaFromText = knownAreas.find((area) => message.body.includes(area));
+    const areaFromText = activeAreas.find((area) => message.body.includes(area));
     const mergedSearch = {
       ...state.pendingSearch,
       area: state.pendingSearch.area ?? areaFromText
@@ -629,7 +632,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.lastSearchQuery && extracted.intent === "unknown") {
-    const areaFromText = knownAreas.find((area) => message.body.includes(area));
+    const areaFromText = activeAreas.find((area) => message.body.includes(area));
     const text = message.body.trim();
     const refinedSearch = {
       ...state.lastSearchQuery,

@@ -151,6 +151,18 @@ create table if not exists public.places (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.bot_dictionary (
+  id uuid primary key default uuid_generate_v4(),
+  category text not null check (category in ('greeting', 'intro', 'renter_search', 'owner_listing', 'area')),
+  phrase text not null,
+  normalized_phrase text generated always as (lower(trim(phrase))) stored,
+  active boolean not null default true,
+  admin_note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (category, normalized_phrase)
+);
+
 create index if not exists properties_status_area_price_idx on public.properties(status, area, price);
 create index if not exists properties_property_code_idx on public.properties(property_code);
 create index if not exists properties_owner_phone_idx on public.properties(owner_phone);
@@ -160,6 +172,7 @@ create index if not exists contact_requests_renter_phone_idx on public.contact_r
 create index if not exists conversations_phone_created_idx on public.conversations(phone, created_at desc);
 create index if not exists conversation_states_updated_at_idx on public.conversation_states(updated_at desc);
 create index if not exists places_kind_name_idx on public.places(kind, name);
+create index if not exists bot_dictionary_category_active_idx on public.bot_dictionary(category, active);
 
 create or replace function public.set_updated_at()
 returns trigger
@@ -196,6 +209,11 @@ create trigger conversation_states_set_updated_at
 before update on public.conversation_states
 for each row execute function public.set_updated_at();
 
+drop trigger if exists bot_dictionary_set_updated_at on public.bot_dictionary;
+create trigger bot_dictionary_set_updated_at
+before update on public.bot_dictionary
+for each row execute function public.set_updated_at();
+
 alter table public.users enable row level security;
 alter table public.properties enable row level security;
 alter table public.property_media enable row level security;
@@ -205,6 +223,7 @@ alter table public.payments enable row level security;
 alter table public.conversations enable row level security;
 alter table public.conversation_states enable row level security;
 alter table public.places enable row level security;
+alter table public.bot_dictionary enable row level security;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (

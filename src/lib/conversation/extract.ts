@@ -5,7 +5,8 @@ import {
   includesAny,
   introPhrases,
   ownerListingPhrases,
-  renterSearchPhrases
+  renterSearchPhrases,
+  type RuntimeDictionary
 } from "./local-dictionary";
 
 const areas = ["تفرغ زينة", "لكصر", "عرفات", "تيارت", "دار النعيم", "السبخة", "الميناء", "نواكشوط"];
@@ -17,17 +18,23 @@ function extractNumber(text: string) {
   return match ? Number(match[0]) : undefined;
 }
 
-export function extractMessage(text: string): ExtractedMessage {
+export function extractMessage(text: string, dictionary?: RuntimeDictionary): ExtractedMessage {
   const body = text.trim();
+  const activeGreetings = dictionary?.greetings ?? greetings;
+  const activeIntroPhrases = dictionary?.introPhrases ?? introPhrases;
+  const activeRenterSearchPhrases = dictionary?.renterSearchPhrases ?? renterSearchPhrases;
+  const activeOwnerListingPhrases = dictionary?.ownerListingPhrases ?? ownerListingPhrases;
+  const activeAreas = [...areas, ...(dictionary?.areas ?? [])];
+
   if (/^(مرحب|مرحبا|مرحبتين|اهلا|أهلا|اهلين|أهلين|السلام|السلام عليكم|سلام)$/i.test(body)) {
     return { intent: "greeting" };
   }
 
-  if (equalsAny(body, greetings)) {
+  if (equalsAny(body, activeGreetings)) {
     return { intent: "greeting" };
   }
 
-  if (equalsAny(body.toLowerCase(), introPhrases)) {
+  if (equalsAny(body.toLowerCase(), activeIntroPhrases)) {
     return { intent: "intro" };
   }
 
@@ -45,7 +52,7 @@ export function extractMessage(text: string): ExtractedMessage {
   }
 
   const propertyType = propertyTypes.find((type) => body.includes(type));
-  const area = areas.find((item) => body.includes(item));
+  const area = activeAreas.find((item) => body.includes(item));
   const price = extractNumber(body);
   const roomsMatch = body.match(/(\d+)\s*(غرف|غرفة|غرفه)/);
   const landmarkMatch = body.match(/(?:قريب من|قرب|بجانب|جنب)\s+(.+?)(?:\s+ب|\s+بسعر|$)/);
@@ -63,7 +70,7 @@ export function extractMessage(text: string): ExtractedMessage {
     };
   }
 
-  if (includesAny(body, renterSearchPhrases)) {
+  if (includesAny(body, activeRenterSearchPhrases)) {
     return {
       intent: "search_property",
       propertyType,
@@ -83,7 +90,7 @@ export function extractMessage(text: string): ExtractedMessage {
     return { intent: "send_payment_receipt" };
   }
 
-  if (includesAny(body, ownerListingPhrases) || /عندي|لدي|للإيجار|للايجار|ايجار|إيجار|منزل|شقة|فيلا/.test(body)) {
+  if (includesAny(body, activeOwnerListingPhrases) || /عندي|لدي|للإيجار|للايجار|ايجار|إيجار|منزل|شقة|فيلا/.test(body)) {
     return {
       intent: "add_property",
       propertyType,
