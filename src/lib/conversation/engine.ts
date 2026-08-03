@@ -120,7 +120,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
   let query = supabase
     .from("properties")
-    .select("id,property_code,type,area,landmark,price,rooms")
+    .select("id,property_code,owner_phone,type,area,landmark,price,rooms")
     .eq("status", "active")
     .order("created_at", { ascending: false })
     .limit(5);
@@ -147,6 +147,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
   return (data ?? []).map((property) => ({
     id: property.id,
     propertyCode: property.property_code ?? undefined,
+    ownerPhone: property.owner_phone ?? undefined,
     title: `${property.type ?? "عقار"} في ${property.area ?? "منطقة غير محددة"}`,
     type: property.type ?? "عقار",
     area: property.area ?? "غير محددة",
@@ -154,6 +155,51 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     price: Number(property.price ?? 0),
     rooms: property.rooms ?? undefined
   }));
+}
+
+async function createContactRequest(renterPhone: string, selected: PropertyCandidate) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase || !selected.ownerPhone) {
+    return { saved: false };
+  }
+
+  await supabase.from("users").upsert(
+    {
+      phone: renterPhone,
+      role: "renter"
+    },
+    {
+      onConflict: "phone"
+    }
+  );
+
+  const { data: existing } = await supabase
+    .from("contact_requests")
+    .select("id,status")
+    .eq("property_id", selected.id)
+    .eq("renter_phone", renterPhone)
+    .in("status", ["pending_payment", "pending_admin_review", "approved"])
+    .maybeSingle();
+
+  if (existing) {
+    return { saved: true, existing: true, status: existing.status as string };
+  }
+
+  const { error } = await supabase.from("contact_requests").insert({
+    property_id: selected.id,
+    renter_phone: renterPhone,
+    owner_phone: selected.ownerPhone,
+    status: "pending_payment",
+    fee_amount: Number(process.env.CONTACT_REQUEST_FEE ?? "100")
+  });
+
+  if (error) {
+    console.error("Failed to create contact request", error);
+    return { saved: false, error: error.message };
+  }
+
+  return { saved: true, existing: false };
 }
 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
@@ -327,7 +373,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
         await setConversationState(message.from, {
           ...state,
-          selectedPropertyId: selected.id
+          selectedPropertyId: selected.id,
+          selectedProperty: selected
         });
 
         return {
@@ -337,11 +384,30 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       }
 
     case "request_contact":
-      if (!state.selectedPropertyId) {
+      if (!state.selectedPropertyId || !state.selectedProperty) {
         return {
           debugIntent: "request_contact",
           reply: "اختر عقارًا أولًا من نتائج البحث، ثم أرسل: طلب تواصل."
         };
+      }
+
+      {
+        const request = await createContactRequest(message.from, state.selectedProperty);
+
+        if (!request.saved) {
+          return {
+            debugIntent: "request_contact",
+            reply: "تعذر إنشاء طلب التواصل الآن. حاول مرة أخرى بعد قليل."
+          };
+        }
+
+        if (request.existing) {
+          return {
+            debugIntent: "request_contact",
+            reply:
+              "لديك طلب تواصل سابق لهذا العقار. إذا كنت قد دفعت الرسوم فأرسل صورة الإيصال، وبعد موافقة الإدارة سنرسل رقم المؤجر فقط."
+          };
+        }
       }
 
       return {

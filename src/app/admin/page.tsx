@@ -48,6 +48,9 @@ export default function AdminPage() {
         <Link className="button secondary" href="/admin/properties">
           مراجعة العقارات
         </Link>
+        <Link className="button secondary" href="/admin/contact-requests">
+          طلبات التواصل
+        </Link>
       </section>
     </main>
   );

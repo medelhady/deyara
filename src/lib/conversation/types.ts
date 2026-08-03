@@ -25,6 +25,7 @@ export type ConversationResult = {
 export type PropertyCandidate = {
   id: string;
   propertyCode?: string;
+  ownerPhone?: string;
   title: string;
   type: string;
   area: string;
@@ -47,5 +48,6 @@ export type DraftProperty = {
 export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
   selectedPropertyId?: string;
+  selectedProperty?: PropertyCandidate;
   draftProperty?: DraftProperty;
 };
