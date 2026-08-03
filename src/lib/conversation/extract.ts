@@ -21,14 +21,17 @@ export function extractMessage(text: string): ExtractedMessage {
   const price = extractNumber(body);
   const roomsMatch = body.match(/(\d+)\s*(غرف|غرفة|غرفه)/);
   const landmarkMatch = body.match(/(?:قريب من|قرب|بجانب|جنب)\s+(.+?)(?:\s+ب|\s+بسعر|$)/);
+  const searchText = landmarkMatch?.[1]?.trim();
+  const mentionsBudget = /حد|اقصى|أقصى|اقل|أقل|أرخص|ما يتجاوز|لا يتجاوز|بحد|ميزانية|بـ|ب /.test(body);
 
   if (/اريد|أريد|ابحث|أبحث|نبحث|احتاج|أحتاج/.test(body)) {
     return {
       intent: "search_property",
       propertyType,
       area,
-      maxPrice: /حد|اقصى|أقصى|ما يتجاوز|لا يتجاوز/.test(body) ? price : undefined,
-      price: /حد|اقصى|أقصى|ما يتجاوز|لا يتجاوز/.test(body) ? undefined : price,
+      maxPrice: mentionsBudget ? price : undefined,
+      price: mentionsBudget ? undefined : price,
+      searchText,
       rooms: roomsMatch ? Number(roomsMatch[1]) : undefined
     };
   }

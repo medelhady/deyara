@@ -127,33 +127,65 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
       .slice(0, 5);
   }
 
+  const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms";
   let query = supabase
     .from("properties")
-    .select("id,property_code,owner_phone,type,area,landmark,price,rooms")
+    .select(selectColumns)
     .eq("status", "active")
     .order("created_at", { ascending: false })
-    .limit(5);
+    .limit(10);
 
   if (extracted.area) {
-    query = query.eq("area", extracted.area);
+    query = query.ilike("area", `%${extracted.area}%`);
   }
 
   if (extracted.propertyType) {
-    query = query.eq("type", extracted.propertyType);
+    query = query.ilike("type", `%${extracted.propertyType}%`);
   }
 
   if (extracted.maxPrice) {
     query = query.lte("price", extracted.maxPrice);
   }
 
-  const { data, error } = await query;
+  if (extracted.searchText) {
+    const term = extracted.searchText.replace(/[%_,]/g, "").trim();
+    if (term) {
+      query = query.or(`area.ilike.%${term}%,landmark.ilike.%${term}%,type.ilike.%${term}%`);
+    }
+  }
+
+  let { data, error } = await query;
 
   if (error) {
     console.error("Failed to search active properties", error);
     return [];
   }
 
-  return (data ?? []).map((property) => ({
+  if ((!data || data.length === 0) && extracted.searchText) {
+    const term = extracted.searchText.replace(/[%_,]/g, "").trim();
+    let fallbackQuery = supabase
+      .from("properties")
+      .select(selectColumns)
+      .eq("status", "active")
+      .or(`area.ilike.%${term}%,landmark.ilike.%${term}%,type.ilike.%${term}%`)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (extracted.maxPrice) {
+      fallbackQuery = fallbackQuery.lte("price", extracted.maxPrice);
+    }
+
+    const fallback = await fallbackQuery;
+    data = fallback.data;
+    error = fallback.error;
+
+    if (error) {
+      console.error("Failed fallback active property search", error);
+      return [];
+    }
+  }
+
+  return (data ?? []).slice(0, 5).map((property) => ({
     id: property.id,
     propertyCode: property.property_code ?? undefined,
     ownerPhone: property.owner_phone ?? undefined,

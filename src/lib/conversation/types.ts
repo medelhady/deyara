@@ -13,6 +13,7 @@ export type ExtractedMessage = {
   landmark?: string;
   price?: number;
   maxPrice?: number;
+  searchText?: string;
   rooms?: number;
   selectedIndex?: number;
 };
