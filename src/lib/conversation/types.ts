@@ -44,6 +44,8 @@ export type DraftProperty = {
   price?: number;
   rooms?: number;
   hasVideo?: boolean;
+  videoUrl?: string;
+  videoContentType?: string;
   hasLocation?: boolean;
   awaitingConfirmation?: boolean;
 };

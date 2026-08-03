@@ -102,20 +102,37 @@ async function submitPropertyForReview(
     }
   );
 
-  const { error } = await supabase.from("properties").insert({
-    owner_phone: ownerPhone,
-    type: draft.type ?? "غير محدد",
-    area: draft.area,
-    landmark: draft.landmark,
-    price: draft.price,
-    rooms: draft.rooms,
-    status: "pending_review",
-    description: "تم إنشاء الإعلان من محادثة واتساب."
-  });
+  const { data: property, error } = await supabase
+    .from("properties")
+    .insert({
+      owner_phone: ownerPhone,
+      type: draft.type ?? "غير محدد",
+      area: draft.area,
+      landmark: draft.landmark,
+      price: draft.price,
+      rooms: draft.rooms,
+      status: "pending_review",
+      description: "تم إنشاء الإعلان من محادثة واتساب."
+    })
+    .select("id")
+    .single();
 
   if (error) {
     console.error("Failed to submit property", error);
     return { saved: false, error: error.message };
+  }
+
+  if (draft.videoUrl && property?.id) {
+    const { error: mediaError } = await supabase.from("property_media").insert({
+      property_id: property.id,
+      type: "video",
+      storage_url: draft.videoUrl,
+      content_type: draft.videoContentType ?? "video/mp4"
+    });
+
+    if (mediaError) {
+      console.error("Failed to save property video", mediaError);
+    }
   }
 
   return { saved: true };
@@ -288,6 +305,30 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   }
 
   return { saved: true, existing: false, id: data.id as string };
+}
+
+async function getPropertyVideoUrl(propertyId: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return undefined;
+  }
+
+  const { data, error } = await supabase
+    .from("property_media")
+    .select("storage_url")
+    .eq("property_id", propertyId)
+    .eq("type", "video")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to fetch property video", error);
+    return undefined;
+  }
+
+  return data?.storage_url as string | undefined;
 }
 
 async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) {
@@ -484,10 +525,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
   }
 
-  if (message.media.some((item) => item.contentType.startsWith("video/"))) {
+  const incomingVideo = message.media.find((item) => item.contentType.startsWith("video/"));
+  if (incomingVideo) {
     const draftProperty = {
       ...state.draftProperty,
       hasVideo: true,
+      videoUrl: incomingVideo.url,
+      videoContentType: incomingVideo.contentType,
       awaitingConfirmation: Boolean(state.draftProperty?.area && state.draftProperty?.price && state.draftProperty?.landmark)
     };
     await setConversationState(message.from, {
@@ -603,6 +647,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
     }
 
+    const videoUrl = await getPropertyVideoUrl(state.selectedProperty.id);
+
     await setConversationState(message.from, {
       ...state,
       selectedPropertyVideoViewed: true
@@ -610,8 +656,9 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     return {
       debugIntent: "select_property",
-      reply:
-        "هذا فيديو الدار:\nhttps://example.com/mock-property-video.mp4\n\nإذا عجبتك الدار وتريد رقم المؤجر، اكتب: 1"
+      reply: videoUrl
+        ? `هذا فيديو الدار:\n${videoUrl}\n\nإذا عجبتك الدار وتريد رقم المؤجر، اكتب: 1`
+        : "الفيديو غير متوفر لهذا الإعلان حاليًا. سنراجعه من الإدارة. جرّب اختيار دار ثانية أو اكتب بحث جديد."
     };
   }
 
