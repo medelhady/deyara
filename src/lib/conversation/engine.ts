@@ -17,6 +17,10 @@ function isNo(body: string) {
   return /^(لا|لأ|كلا|تعديل|الغاء|إلغاء)$/i.test(body.trim());
 }
 
+function isCasualReply(body: string) {
+  return /^(تمام|اوكي|أوكي|ok|okay|شكرا|شكرًا|مشكور|يعطيك العافية|زين|حسنًا)$/i.test(body.trim());
+}
+
 function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; selectedPropertyAt?: string }) {
   if (!state.selectedProperty || !state.selectedPropertyAt) {
     return false;
@@ -368,6 +372,13 @@ async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const extracted = extractMessage(message.body);
   const state = await getConversationState(message.from);
+
+  if (extracted.intent === "unknown" && isCasualReply(message.body)) {
+    return {
+      debugIntent: "intro",
+      reply: "تمام، أنا معك. اكتب المنطقة أو المعلم اللي تحب نبحث حوله، أو اكتب: عندي دار للإيجار."
+    };
+  }
 
   if (extracted.intent === "search_property" && extracted.searchText === "__more__") {
     const allResults = state.lastSearchResults ?? [];
