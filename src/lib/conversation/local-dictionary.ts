@@ -9,6 +9,7 @@ export type RuntimeDictionary = {
   ownerListingPhrases: string[];
   areas: string[];
   customResponses: Array<{
+    category: BotDictionaryCategory;
     phrase: string;
     responseText: string;
   }>;
@@ -119,6 +120,7 @@ export async function getRuntimeDictionary(): Promise<RuntimeDictionary> {
 
     if (responseText) {
       dictionary.customResponses.push({
+        category: item.category as BotDictionaryCategory,
         phrase,
         responseText
       });

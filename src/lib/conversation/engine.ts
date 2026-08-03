@@ -22,13 +22,6 @@ function isCasualReply(body: string) {
   return /^(تمام|اوكي|أوكي|ok|okay|شكرا|شكرًا|مشكور|يعطيك العافية|زين|حسنًا)$/i.test(body.trim());
 }
 
-function canUseCustomDictionaryReply(state: Awaited<ReturnType<typeof getConversationState>>) {
-  return !state.draftProperty &&
-    !state.awaitingContactChoice &&
-    !state.awaitingMaxPriceFilter &&
-    !state.activeContactRequestId;
-}
-
 function normalizeDictionaryText(value: string) {
   return value
     .trim()
@@ -40,10 +33,15 @@ function normalizeDictionaryText(value: string) {
 
 function findCustomDictionaryReply(body: string, dictionary: Awaited<ReturnType<typeof getRuntimeDictionary>>) {
   const normalizedBody = normalizeDictionaryText(body);
-  return dictionary.customResponses.find((item) => {
-    const normalizedPhrase = normalizeDictionaryText(item.phrase);
-    return normalizedBody === normalizedPhrase || normalizedBody.includes(normalizedPhrase);
-  })?.responseText;
+  const matches = dictionary.customResponses
+    .map((item) => ({
+      ...item,
+      normalizedPhrase: normalizeDictionaryText(item.phrase)
+    }))
+    .filter((item) => item.normalizedPhrase && (normalizedBody === item.normalizedPhrase || normalizedBody.includes(item.normalizedPhrase)))
+    .sort((first, second) => second.normalizedPhrase.length - first.normalizedPhrase.length);
+
+  return matches[0];
 }
 
 function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; selectedPropertyAt?: string }) {
@@ -465,6 +463,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const activeAreas = [...knownAreas, ...dictionary.areas];
   const extracted = extractMessage(message.body, dictionary);
   const state = await getConversationState(message.from);
+  const customReply = findCustomDictionaryReply(message.body, dictionary);
+
+  if (customReply && (customReply.category === "greeting" || customReply.category === "intro" || !state.draftProperty)) {
+    return {
+      debugIntent: extracted.intent,
+      reply: customReply.responseText
+    };
+  }
 
   if (state.awaitingMaxPriceFilter) {
     const maxPrice = message.body.trim().match(/\d{2,8}/);
@@ -525,17 +531,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "intro",
       reply: "تمام، أنا معك. اكتب المنطقة أو المعلم اللي تحب نبحث حوله، أو اكتب: عندي دار للإيجار."
-    };
-  }
-
-  const customReply = canUseCustomDictionaryReply(state)
-    ? findCustomDictionaryReply(message.body, dictionary)
-    : undefined;
-
-  if (customReply) {
-    return {
-      debugIntent: extracted.intent,
-      reply: customReply
     };
   }
 
