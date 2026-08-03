@@ -15,9 +15,19 @@ type Property = {
   created_at: string;
 };
 
+const statusLabels: Record<string, string> = {
+  all: "الكل",
+  pending_review: "قيد المراجعة",
+  active: "نشط",
+  rejected: "مرفوض",
+  hidden: "مخفي",
+  rented: "تم تأجيره"
+};
+
 export function PropertiesClient() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [message, setMessage] = useState("جار تحميل العقارات...");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function loadProperties() {
     const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
@@ -35,7 +45,7 @@ export function PropertiesClient() {
     setMessage((data.properties ?? []).length ? "" : "لا توجد عقارات حتى الآن.");
   }
 
-  async function updateStatus(id: string, status: "active" | "rejected") {
+  async function updateStatus(id: string, status: "active" | "rejected" | "hidden" | "rented") {
     const response = await fetch(`/api/admin/properties/${id}/status`, {
       method: "PATCH",
       headers: {
@@ -57,10 +67,33 @@ export function PropertiesClient() {
     void loadProperties();
   }, []);
 
+  const counts = properties.reduce<Record<string, number>>(
+    (current, property) => {
+      current.all += 1;
+      current[property.status] = (current[property.status] ?? 0) + 1;
+      return current;
+    },
+    { all: 0 }
+  );
+  const visibleProperties =
+    statusFilter === "all" ? properties : properties.filter((property) => property.status === statusFilter);
+
   return (
     <section className="list-panel">
+      <div className="filters-bar">
+        {Object.entries(statusLabels).map(([status, label]) => (
+          <button
+            className={statusFilter === status ? "active" : ""}
+            type="button"
+            key={status}
+            onClick={() => setStatusFilter(status)}
+          >
+            {label} ({counts[status] ?? 0})
+          </button>
+        ))}
+      </div>
       {message ? <p>{message}</p> : null}
-      {properties.map((property) => (
+      {visibleProperties.map((property) => (
         <article className="property-row" key={property.id}>
           <div>
             <h2>
@@ -70,7 +103,7 @@ export function PropertiesClient() {
             <p>السعر: {property.price ?? "غير محدد"}</p>
             <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
             <p>رقم المؤجر: {property.owner_phone}</p>
-            <p>الحالة: {property.status}</p>
+            <p>الحالة: {statusLabels[property.status] ?? property.status}</p>
           </div>
           <div className="row-actions">
             <button type="button" onClick={() => updateStatus(property.id, "active")}>
@@ -79,9 +112,16 @@ export function PropertiesClient() {
             <button type="button" onClick={() => updateStatus(property.id, "rejected")}>
               رفض
             </button>
+            <button type="button" onClick={() => updateStatus(property.id, "hidden")}>
+              إخفاء
+            </button>
+            <button type="button" onClick={() => updateStatus(property.id, "rented")}>
+              تم تأجيره
+            </button>
           </div>
         </article>
       ))}
+      {!message && visibleProperties.length === 0 ? <p>لا توجد عقارات ضمن هذا الفلتر.</p> : null}
     </section>
   );
 }

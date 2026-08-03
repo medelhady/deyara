@@ -232,6 +232,28 @@ textarea {
   margin-top: 28px;
 }
 
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filters-bar button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.filters-bar button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .property-row {
   display: flex;
   justify-content: space-between;
