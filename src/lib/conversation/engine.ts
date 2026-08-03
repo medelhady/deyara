@@ -94,6 +94,10 @@ function formatPrice(price: number) {
   return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(price)} جديدة`;
 }
 
+function formatLandmark(landmark: string) {
+  return landmark.replace(/^(قرب|قريبة من|بالقرب من)\s+/i, "").trim();
+}
+
 function formatSearchResults(
   results: PropertyCandidate[],
   extracted: ReturnType<typeof extractMessage>,
@@ -115,7 +119,7 @@ function formatSearchResults(
         [
           `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
           `💰 السعر: *${formatPrice(property.price)}*`,
-          `📍 قريبة من: ${property.landmark}`
+          `📍 قريبة من: ${formatLandmark(property.landmark)}`
         ].join("\n")
     )
     .join("\n\n----------------\n\n"),
@@ -998,13 +1002,21 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         return {
           debugIntent: "select_property",
           reply: [
-            `*🏠 دار في ${selected.area}*`,
+            "╭──────────────",
+            `🏠 *دار في ${selected.area}*`,
+            "╰──────────────",
             "",
-            `💰 السعر: *${formatPrice(selected.price)}*`,
-            `🛏 الغرف: ${selected.rooms ?? "غير محدد"}`,
-            `📍 قريبة من: ${selected.landmark}`,
+            "💰 السعر",
+            `*${formatPrice(selected.price)}*`,
             "",
-            "*الخطوة التالية*",
+            "🛏 الغرف",
+            `${selected.rooms ?? "غير محدد"}`,
+            "",
+            "📍 قريبة من",
+            formatLandmark(selected.landmark),
+            "",
+            "━━━━━━━━━━━━━━",
+            "🎥 *الخطوة التالية*",
             "اكتب *2* لمشاهدة فيديو الدار.",
             "بعد الفيديو، إذا عجبتك الدار اكتب *1* لطلب رقم المؤجر."
           ].join("\n")
