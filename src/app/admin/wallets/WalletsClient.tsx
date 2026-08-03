@@ -9,6 +9,7 @@ type Wallet = {
   withdrawn_commission_points: number;
   referral_code: string | null;
   referred_by_phone: string | null;
+  referrals_count: number;
   created_at: string;
 };
 
@@ -99,19 +100,35 @@ export function WalletsClient() {
       <section className="panel">
         <h2>المحافظ</h2>
         {wallets.length === 0 ? <p>لا توجد محافظ حتى الآن.</p> : null}
-        <div className="list-panel compact-list">
-          {wallets.map((wallet) => (
-            <article className="property-row" key={wallet.phone}>
-              <div>
-                <h2>{wallet.phone}</h2>
-                <p>نقاط الاستخدام: {wallet.usage_points}</p>
-                <p>نقاط التسويق: {wallet.commission_points}</p>
-                <p>نقاط مسحوبة: {wallet.withdrawn_commission_points}</p>
-                <p>كود الدعوة: {wallet.referral_code ?? "غير محدد"}</p>
-                <p>جاء عن طريق: {wallet.referred_by_phone ?? "مباشر"}</p>
-              </div>
-            </article>
-          ))}
+        <div className="table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>الرقم</th>
+                <th>رصيد الاستخدام</th>
+                <th>رصيد التسويق</th>
+                <th>الرصيد المسحوب</th>
+                <th>عدد الإحالات</th>
+                <th>كود الدعوة</th>
+                <th>محال من طرف</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wallets.map((wallet) => (
+                <tr key={wallet.phone}>
+                  <td>
+                    <strong>{wallet.phone}</strong>
+                  </td>
+                  <td>{wallet.usage_points}</td>
+                  <td>{wallet.commission_points}</td>
+                  <td>{wallet.withdrawn_commission_points}</td>
+                  <td>{wallet.referrals_count}</td>
+                  <td>{wallet.referral_code ?? "غير محدد"}</td>
+                  <td>{wallet.referred_by_phone ?? "مباشر"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </section>
     </section>

@@ -507,6 +507,43 @@ select {
   margin-top: 14px;
 }
 
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.admin-table {
+  width: 100%;
+  min-width: 920px;
+  border-collapse: collapse;
+  background: var(--surface);
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  vertical-align: middle;
+}
+
+.admin-table th {
+  color: var(--muted);
+  font-size: 13px;
+  background: #fbfaf7;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table strong {
+  color: var(--ink);
+}
+
 .approved-box strong {
   display: block;
   margin-bottom: 8px;
