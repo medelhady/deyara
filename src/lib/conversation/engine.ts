@@ -998,11 +998,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         return {
           debugIntent: "select_property",
           reply: [
-            `*${selected.type} في ${selected.area}*`,
+            `*🏠 دار في ${selected.area}*`,
             "",
-            `السعر: *${formatPrice(selected.price)}*`,
-            `الغرف: ${selected.rooms ?? "غير محدد"}`,
-            `قريبة من: ${selected.landmark}`,
+            `💰 السعر: *${formatPrice(selected.price)}*`,
+            `🛏 الغرف: ${selected.rooms ?? "غير محدد"}`,
+            `📍 قريبة من: ${selected.landmark}`,
             "",
             "*الخطوة التالية*",
             "اكتب *2* لمشاهدة فيديو الدار.",
