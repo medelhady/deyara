@@ -107,18 +107,18 @@ function formatSearchResults(
   const moreText = options?.hasMore ? "\n\nتريد خيارات أكثر؟ اكتب: 0" : "";
 
   return [
-    `🏠 لقيت لك ${total} ${typeText} للإيجار${placeText}`,
+    `🏠 عندنا ظرك ${total} دار للإيجار${placeText}`,
     "",
     results
     .map(
       (property, index) =>
         [
-          `*${startIndex + index + 1}.* ${property.type} في ${property.area}`,
-          `السعر: *${formatPrice(property.price)}*`,
-          `قريبة من: ${property.landmark}`
+          `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
+          `💰 السعر: *${formatPrice(property.price)}*`,
+          `📍 قريبة من: ${property.landmark}`
         ].join("\n")
     )
-    .join("\n----------------\n"),
+    .join("\n\n----------------\n\n"),
     "",
     "اكتب رقم الدار التي أعجبتك، مثلا: *1*",
     "بعد الاختيار نرسل لك التفاصيل والفيديو.",
