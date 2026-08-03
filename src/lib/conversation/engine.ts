@@ -22,6 +22,19 @@ function isCasualReply(body: string) {
   return /^(تمام|اوكي|أوكي|ok|okay|شكرا|شكرًا|مشكور|يعطيك العافية|زين|حسنًا)$/i.test(body.trim());
 }
 
+function canUseCustomDictionaryReply(state: Awaited<ReturnType<typeof getConversationState>>) {
+  return !state.draftProperty &&
+    !state.pendingSearch &&
+    !state.awaitingContactChoice &&
+    !state.awaitingMaxPriceFilter &&
+    !state.activeContactRequestId;
+}
+
+function findCustomDictionaryReply(body: string, dictionary: Awaited<ReturnType<typeof getRuntimeDictionary>>) {
+  const normalizedBody = body.trim().toLowerCase();
+  return dictionary.customResponses.find((item) => item.phrase.trim().toLowerCase() === normalizedBody)?.responseText;
+}
+
 function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; selectedPropertyAt?: string }) {
   if (!state.selectedProperty || !state.selectedPropertyAt) {
     return false;
@@ -501,6 +514,17 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "intro",
       reply: "تمام، أنا معك. اكتب المنطقة أو المعلم اللي تحب نبحث حوله، أو اكتب: عندي دار للإيجار."
+    };
+  }
+
+  const customReply = canUseCustomDictionaryReply(state)
+    ? findCustomDictionaryReply(message.body, dictionary)
+    : undefined;
+
+  if (customReply) {
+    return {
+      debugIntent: extracted.intent,
+      reply: customReply
     };
   }
 

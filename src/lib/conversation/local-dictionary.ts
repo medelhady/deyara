@@ -8,6 +8,10 @@ export type RuntimeDictionary = {
   renterSearchPhrases: string[];
   ownerListingPhrases: string[];
   areas: string[];
+  customResponses: Array<{
+    phrase: string;
+    responseText: string;
+  }>;
 };
 
 export const greetings = [
@@ -84,7 +88,8 @@ export async function getRuntimeDictionary(): Promise<RuntimeDictionary> {
     introPhrases,
     renterSearchPhrases,
     ownerListingPhrases,
-    areas: []
+    areas: [],
+    customResponses: []
   };
   const supabase = getServiceSupabase();
 
@@ -94,7 +99,7 @@ export async function getRuntimeDictionary(): Promise<RuntimeDictionary> {
 
   const { data, error } = await supabase
     .from("bot_dictionary")
-    .select("category, phrase")
+    .select("category, phrase, response_text")
     .eq("active", true)
     .order("created_at", { ascending: false });
 
@@ -108,6 +113,15 @@ export async function getRuntimeDictionary(): Promise<RuntimeDictionary> {
 
     if (!phrase) {
       continue;
+    }
+
+    const responseText = String(item.response_text ?? "").trim();
+
+    if (responseText) {
+      dictionary.customResponses.push({
+        phrase,
+        responseText
+      });
     }
 
     if (item.category === "greeting") {
@@ -136,6 +150,7 @@ export async function getRuntimeDictionary(): Promise<RuntimeDictionary> {
     introPhrases: unique(dictionary.introPhrases),
     renterSearchPhrases: unique(dictionary.renterSearchPhrases),
     ownerListingPhrases: unique(dictionary.ownerListingPhrases),
-    areas: unique(dictionary.areas)
+    areas: unique(dictionary.areas),
+    customResponses: dictionary.customResponses
   };
 }
