@@ -104,8 +104,9 @@ function normalizePhoneDigits(phone: string) {
 }
 
 function makeReferralCode(phone: string) {
-  const digits = normalizePhoneDigits(phone).slice(-6).padStart(6, "0");
-  return `DY${digits}`;
+  const digits = normalizePhoneDigits(phone);
+  const suffix = digits.slice(-4).padStart(4, "0");
+  return `${digits}-${suffix}`;
 }
 
 function makeReferralLink(referralCode: string) {
@@ -451,6 +452,20 @@ async function ensureWallet(phone: string) {
   }
 
   if (existing) {
+    const expectedCode = makeReferralCode(phone);
+    if (!String(existing.referral_code ?? "").includes("-")) {
+      const { data: updated } = await supabase
+        .from("user_wallets")
+        .update({
+          referral_code: expectedCode
+        })
+        .eq("phone", phone)
+        .select("*")
+        .single();
+
+      return updated ?? existing;
+    }
+
     return existing;
   }
 
@@ -484,15 +499,23 @@ async function getWalletReply(phone: string) {
   const referralCode = String(wallet.referral_code ?? makeReferralCode(phone));
 
   return [
-    "رصيدك في الديارة:",
+    "╭──────────────",
+    "💼 *محفظتك في الديارة*",
+    "╰──────────────",
     "",
-    `نقاط الاستخدام: *${usagePoints}*`,
-    `نقاط التسويق: *${commissionPoints}*`,
+    "🏠 نقاط الاستخدام",
+    `*${usagePoints} نقطة*`,
     "",
-    `الحد الأدنى للسحب: *${minimumWithdrawalPoints} نقطة*`,
-    remaining > 0 ? `المتبقي للسحب: *${remaining} نقطة*` : "يمكنك طلب السحب الآن. اكتب: *طلب سحب*",
+    "📣 نقاط التسويق",
+    `*${commissionPoints} نقطة*`,
     "",
-    "رابط دعوتك:",
+    "━━━━━━━━━━━━━━",
+    "💸 السحب",
+    `الحد الأدنى: *${minimumWithdrawalPoints} نقطة*`,
+    remaining > 0 ? `المتبقي: *${remaining} نقطة*` : "يمكنك طلب السحب الآن. اكتب: *طلب سحب*",
+    "",
+    "━━━━━━━━━━━━━━",
+    "🔗 رابط دعوتك",
     makeReferralLink(referralCode)
   ].join("\n");
 }
