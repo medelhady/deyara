@@ -19,6 +19,10 @@ function extractNumber(text: string) {
 
 export function extractMessage(text: string): ExtractedMessage {
   const body = text.trim();
+  if (/^(مرحب|مرحبا|مرحبتين|اهلا|أهلا|اهلين|أهلين|السلام|السلام عليكم|سلام)$/i.test(body)) {
+    return { intent: "greeting" };
+  }
+
   if (equalsAny(body, greetings)) {
     return { intent: "greeting" };
   }
