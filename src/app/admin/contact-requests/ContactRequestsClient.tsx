@@ -29,6 +29,23 @@ function whatsappLink(phone: string) {
   return `https://wa.me/${cleanPhone.replace("+", "")}`;
 }
 
+function deliveryMessage(request: ContactRequest) {
+  return [
+    "✅ تم قبول الدفع.",
+    "",
+    `رقم المؤجر: ${request.owner_phone}`,
+    `رابط واتساب المؤجر: ${whatsappLink(request.owner_phone)}`,
+    "",
+    `العقار: ${request.properties?.type ?? "عقار"} في ${request.properties?.area ?? "غير محددة"}`,
+    `رقم الإعلان: ${request.properties?.property_code ?? request.id.slice(0, 8)}`
+  ].join("\n");
+}
+
+function renterWhatsAppLink(request: ContactRequest) {
+  const cleanPhone = request.renter_phone.replace("whatsapp:", "").replace(/[^\d+]/g, "");
+  return `https://wa.me/${cleanPhone.replace("+", "")}?text=${encodeURIComponent(deliveryMessage(request))}`;
+}
+
 export function ContactRequestsClient() {
   const [requests, setRequests] = useState<ContactRequest[]>([]);
   const [message, setMessage] = useState("جار تحميل طلبات التواصل...");
@@ -65,6 +82,11 @@ export function ContactRequestsClient() {
     }
 
     await loadRequests();
+  }
+
+  async function copyDeliveryMessage(request: ContactRequest) {
+    await navigator.clipboard.writeText(deliveryMessage(request));
+    setMessage("تم نسخ رسالة المستأجر.");
   }
 
   useEffect(() => {
@@ -110,6 +132,14 @@ export function ContactRequestsClient() {
                 <p>
                   الرسالة: تم قبول الدفع. يمكنك التواصل مع المؤجر على الرقم {request.owner_phone}.
                 </p>
+                <div className="inline-actions">
+                  <button type="button" onClick={() => copyDeliveryMessage(request)}>
+                    نسخ الرسالة
+                  </button>
+                  <a href={renterWhatsAppLink(request)} target="_blank" rel="noreferrer">
+                    فتح واتساب للمستأجر
+                  </a>
+                </div>
               </div>
             ) : null}
           </div>

@@ -282,6 +282,26 @@ textarea {
   color: var(--accent);
 }
 
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.inline-actions a,
+.inline-actions button {
+  min-height: 36px;
+  border: 1px solid #9fd4bf;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
 @media (max-width: 860px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
