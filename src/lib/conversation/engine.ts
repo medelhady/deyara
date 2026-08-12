@@ -422,6 +422,83 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   return { saved: true, existing: false, id: data.id as string };
 }
 
+async function spendPointForContact(renterPhone: string, selected: PropertyCandidate) {
+  const supabase = getServiceSupabase();
+  const wallet = await ensureWallet(renterPhone);
+
+  if (!supabase || !wallet) {
+    return {
+      ok: false,
+      reply: "تعذر قراءة رصيدك الآن. حاول مرة أخرى بعد قليل."
+    };
+  }
+
+  const usagePoints = Number(wallet.usage_points ?? 0);
+
+  if (usagePoints <= 0) {
+    return {
+      ok: false,
+      reply: [
+        "رصيدك الحالي: *0 نقطة*",
+        "",
+        "عرض رقم المؤجر يحتاج *1 نقطة*.",
+        "لشحن النقاط أرسل صورة إيصال الشحن هنا، وبعد موافقة الإدارة تضاف النقاط لرصيدك."
+      ].join("\n")
+    };
+  }
+
+  const request = await createContactRequest(renterPhone, selected);
+
+  if (!request.saved) {
+    return {
+      ok: false,
+      reply: "تعذر إنشاء طلب التواصل الآن. حاول مرة أخرى بعد قليل."
+    };
+  }
+
+  if (request.existing) {
+    return {
+      ok: true,
+      id: request.id,
+      reply: "عندك طلب تواصل سابق لهذه الدار. إذا كان الطلب مقبولًا ستصلك بيانات المؤجر من الإدارة."
+    };
+  }
+
+  const { error: walletError } = await supabase
+    .from("user_wallets")
+    .update({
+      usage_points: usagePoints - 1
+    })
+    .eq("phone", renterPhone);
+
+  if (walletError) {
+    console.error("Failed to spend contact point", walletError);
+    return {
+      ok: false,
+      reply: "تعذر خصم النقطة الآن. حاول مرة أخرى بعد قليل."
+    };
+  }
+
+  await supabase.from("credit_transactions").insert({
+    phone: renterPhone,
+    kind: "contact_reveal",
+    usage_points_delta: -1,
+    related_contact_request_id: request.id,
+    admin_note: "خصم نقطة لطلب رقم المؤجر"
+  });
+
+  return {
+    ok: true,
+    id: request.id,
+    reply: [
+      "تم خصم *1 نقطة* من رصيدك.",
+      `رصيدك المتبقي: *${usagePoints - 1} نقطة*`,
+      "",
+      "تم إرسال طلب رقم المؤجر للإدارة. بعد الموافقة سنرسل لك الرقم."
+    ].join("\n")
+  };
+}
+
 async function ensureWallet(phone: string) {
   const supabase = getServiceSupabase();
 
@@ -484,6 +561,62 @@ async function ensureWallet(phone: string) {
   }
 
   return data;
+}
+
+async function applyReferralCode(phone: string, body: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return undefined;
+  }
+
+  const referralCode = body.match(/\b\d{8,15}-\d{4}\b/)?.[0];
+
+  if (!referralCode) {
+    return undefined;
+  }
+
+  const wallet = await ensureWallet(phone);
+
+  if (!wallet) {
+    return "تعذر تسجيل كود الدعوة الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  if (wallet.referred_by_phone) {
+    return "تم تسجيلك سابقًا عبر كود دعوة. لا يمكن تغيير المحيل بعد التسجيل.";
+  }
+
+  if (String(wallet.referral_code ?? "") === referralCode) {
+    return "لا يمكن استخدام كود دعوتك لنفسك.";
+  }
+
+  const { data: referrer, error } = await supabase
+    .from("user_wallets")
+    .select("phone")
+    .eq("referral_code", referralCode)
+    .maybeSingle();
+
+  if (error || !referrer) {
+    return "كود الدعوة غير صحيح. تأكد من الكود وأرسله مرة أخرى.";
+  }
+
+  const { error: updateError } = await supabase
+    .from("user_wallets")
+    .update({
+      referred_by_phone: referrer.phone
+    })
+    .eq("phone", phone);
+
+  if (updateError) {
+    console.error("Failed to apply referral code", updateError);
+    return "تعذر تسجيل كود الدعوة الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  return [
+    "✅ تم تسجيل كود الدعوة بنجاح.",
+    "",
+    "عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *30%* نقاط تسويق."
+  ].join("\n");
 }
 
 async function getWalletReply(phone: string) {
@@ -660,6 +793,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const state = await getConversationState(message.from);
   const customReply = findCustomDictionaryReply(message.body, dictionary);
   const normalizedBody = normalizeDictionaryText(message.body);
+
+  const referralReply = await applyReferralCode(message.from, message.body);
+  if (referralReply) {
+    return {
+      debugIntent: "intro",
+      reply: referralReply
+    };
+  }
 
   if (/^(رصيدي|نقاطي|كم رصيدي|كم نقاطي|الرصيد)$/.test(normalizedBody)) {
     return {
@@ -1082,12 +1223,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
     }
 
-    const request = await createContactRequest(message.from, state.selectedProperty);
+    const request = await spendPointForContact(message.from, state.selectedProperty);
 
-    if (!request.saved) {
+    if (!request.ok) {
       return {
         debugIntent: "request_contact",
-        reply: "تعذر إنشاء طلب التواصل الآن. حاول مرة أخرى بعد قليل."
+        reply: request.reply
       };
     }
 
@@ -1099,9 +1240,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     return {
       debugIntent: "request_contact",
-      reply: request.existing
-        ? "عندك طلب تواصل سابق لهذه الدار.\n\nإذا دفعت الرسوم، أرسل صورة الإيصال هنا. بعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
-        : "تمام. لطلب رقم المؤجر، ادفع رسوم الطلب ثم أرسل صورة الإيصال هنا.\n\nبعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
+      reply: request.reply
     };
   }
 
@@ -1276,41 +1415,24 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         };
       }
 
-      {
-        const request = await createContactRequest(message.from, state.selectedProperty);
+      const contactRequest = await spendPointForContact(message.from, state.selectedProperty);
 
-        if (!request.saved) {
-          return {
-            debugIntent: "request_contact",
-            reply: "تعذر إنشاء طلب التواصل الآن. حاول مرة أخرى بعد قليل."
-          };
-        }
-
-        if (request.existing) {
-          await setConversationState(message.from, {
-            ...state,
-            awaitingContactChoice: false,
-            activeContactRequestId: request.id
-          });
-
-          return {
-            debugIntent: "request_contact",
-            reply:
-              "عندك طلب تواصل سابق لهذه الدار.\n\nإذا دفعت الرسوم، أرسل صورة الإيصال هنا. بعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
-          };
-        }
-
-        await setConversationState(message.from, {
-          ...state,
-          awaitingContactChoice: false,
-          activeContactRequestId: request.id
-        });
+      if (!contactRequest.ok) {
+        return {
+          debugIntent: "request_contact",
+          reply: contactRequest.reply
+        };
       }
+
+      await setConversationState(message.from, {
+        ...state,
+        awaitingContactChoice: false,
+        activeContactRequestId: contactRequest.id
+      });
 
       return {
         debugIntent: "request_contact",
-        reply:
-          "تمام. لطلب رقم المؤجر، ادفع رسوم الطلب ثم أرسل صورة الإيصال هنا.\n\nبعد موافقة الإدارة نرسل لك رقم المؤجر فقط."
+        reply: contactRequest.reply
       };
 
     case "send_payment_receipt":
