@@ -27,9 +27,58 @@ function normalizeDictionaryText(value: string) {
   return value
     .trim()
     .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/[ة]/g, "ه")
+    .replace(/[ى]/g, "ي")
     .replace(/[ـًٌٍَُِّْ]/g, "")
     .replace(/[^\p{L}\p{N}\s]/gu, "")
     .replace(/\s+/g, " ");
+}
+
+function editDistance(first: string, second: string) {
+  const distances = Array.from({ length: first.length + 1 }, (_, index) => index);
+
+  for (let secondIndex = 1; secondIndex <= second.length; secondIndex += 1) {
+    let previous = distances[0];
+    distances[0] = secondIndex;
+
+    for (let firstIndex = 1; firstIndex <= first.length; firstIndex += 1) {
+      const current = distances[firstIndex];
+      distances[firstIndex] =
+        first[firstIndex - 1] === second[secondIndex - 1]
+          ? previous
+          : Math.min(previous, distances[firstIndex], distances[firstIndex - 1]) + 1;
+      previous = current;
+    }
+  }
+
+  return distances[first.length];
+}
+
+function findAreaCandidate(body: string, areas: string[]) {
+  const normalizedBody = normalizeDictionaryText(body);
+  const compactBody = normalizedBody.replace(/\s/g, "");
+
+  const matches = areas
+    .map((area) => {
+      const normalizedArea = normalizeDictionaryText(area);
+      const compactArea = normalizedArea.replace(/\s/g, "");
+      const directMatch = normalizedBody.includes(normalizedArea) || compactBody.includes(compactArea);
+      const prefixMatch =
+        compactBody.length >= 4 && (compactArea.startsWith(compactBody) || compactBody.startsWith(compactArea));
+      const distance = editDistance(compactBody, compactArea);
+      const distanceMatch = compactBody.length >= 4 && distance <= (compactArea.length <= 6 ? 1 : 2);
+
+      return {
+        area,
+        score: directMatch ? 3 : prefixMatch ? 2 : distanceMatch ? 1 : 0,
+        distance
+      };
+    })
+    .filter((item) => item.score > 0)
+    .sort((first, second) => second.score - first.score || first.distance - second.distance);
+
+  return matches[0]?.area;
 }
 
 function findCustomDictionaryReply(body: string, dictionary: Awaited<ReturnType<typeof getRuntimeDictionary>>) {
@@ -290,9 +339,10 @@ function getNextPropertyQuestion(draft: DraftProperty) {
 function mergeDraftFromMessage(
   draft: DraftProperty,
   extracted: ReturnType<typeof extractMessage>,
-  body: string
+  body: string,
+  activeAreas = knownAreas
 ) {
-  const areaFromText = knownAreas.find((area) => body.includes(area));
+  const areaFromText = findAreaCandidate(body, activeAreas);
   const numericAnswer = body.trim().match(/^\d{2,8}$/);
 
   return {
@@ -827,7 +877,16 @@ async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
-  const extracted = extractMessage(message.body, dictionary);
+  let extracted = extractMessage(message.body, dictionary);
+  const fuzzyArea = findAreaCandidate(message.body, activeAreas);
+  if (!extracted.area && fuzzyArea) {
+    extracted = {
+      ...extracted,
+      intent: extracted.intent === "unknown" ? "search_property" : extracted.intent,
+      area: fuzzyArea,
+      searchText: undefined
+    };
+  }
   const state = await getConversationState(message.from);
   const customReply = findCustomDictionaryReply(message.body, dictionary);
   const normalizedBody = normalizeDictionaryText(message.body);
@@ -1034,7 +1093,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.pendingSearch && extracted.intent === "unknown") {
-    const areaFromText = activeAreas.find((area) => message.body.includes(area));
+    const areaFromText = findAreaCandidate(message.body, activeAreas);
     const mergedSearch = {
       ...state.pendingSearch,
       area: state.pendingSearch.area ?? areaFromText
@@ -1076,7 +1135,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.lastSearchQuery && extracted.intent === "unknown") {
-    const areaFromText = activeAreas.find((area) => message.body.includes(area));
+    const areaFromText = findAreaCandidate(message.body, activeAreas);
     const text = message.body.trim();
     const refinedSearch = {
       ...state.lastSearchQuery,
@@ -1225,7 +1284,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.draftProperty && (extracted.intent === "unknown" || extracted.intent === "select_property")) {
-    const draftProperty = mergeDraftFromMessage(state.draftProperty, extracted, message.body);
+    const draftProperty = mergeDraftFromMessage(state.draftProperty, extracted, message.body, activeAreas);
 
     if (!draftProperty.landmark && state.draftProperty.area && state.draftProperty.price) {
       draftProperty.landmark = message.body.trim();
@@ -1319,7 +1378,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
 
     case "add_property": {
-      const draftProperty = mergeDraftFromMessage(state.draftProperty ?? {}, extracted, message.body);
+      const draftProperty = mergeDraftFromMessage(state.draftProperty ?? {}, extracted, message.body, activeAreas);
       draftProperty.awaitingConfirmation = Boolean(
         draftProperty.area && draftProperty.price && draftProperty.landmark && draftProperty.hasVideo
       );
