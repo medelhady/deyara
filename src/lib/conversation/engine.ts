@@ -172,12 +172,13 @@ function getPointsPaymentNumber() {
   );
 }
 
-function getPointsTopupInstructions() {
+function getPointsTopupInstructions(options?: { currentBalance?: number }) {
   const paymentNumber = getPointsPaymentNumber();
+  const currentBalance = options?.currentBalance;
 
   if (!paymentNumber) {
     return [
-      "شحن النقاط غير مفعل حاليًا.",
+      "⚠️ *شحن النقاط غير مفعل حاليًا*",
       "",
       "الإدارة تحتاج تضيف رقم الدفع في إعدادات النظام حتى نقدر نستقبل طلبات الشحن."
     ].join("\n");
@@ -188,16 +189,17 @@ function getPointsTopupInstructions() {
     "💳 *شحن نقاط الديارة*",
     "╰──────────────",
     "",
-    "لإظهار رقم المؤجر تحتاج *1 نقطة*.",
+    ...(currentBalance !== undefined ? [`💼 رصيدك الحالي: *${currentBalance} نقطة*`, ""] : []),
+    "🔐 عرض رقم المؤجر يحتاج *1 نقطة*.",
     "",
-    "1️⃣ حوّل مبلغ الشحن إلى الرقم:",
+    "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
     `*${paymentNumber.replace("whatsapp:", "")}*`,
     "",
-    "2️⃣ بعد التحويل أرسل صورة الإيصال هنا في نفس الشات.",
+    "2️⃣ بعد التحويل أرسل صورة الإيصال هنا.",
     "",
     "3️⃣ بعد موافقة الإدارة تضاف النقاط لرصيدك مباشرة.",
     "",
-    "لمعرفة رصيدك اكتب: *رصيدي*"
+    "📌 لمتابعة رصيدك اكتب: *رصيدي*"
   ].join("\n");
 }
 
@@ -525,13 +527,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   if (usagePoints <= 0) {
     return {
       ok: false,
-      reply: [
-        "رصيدك الحالي: *0 نقطة*",
-        "",
-        "عرض رقم المؤجر يحتاج *1 نقطة*.",
-        "",
-        getPointsTopupInstructions()
-      ].join("\n")
+      reply: getPointsTopupInstructions({ currentBalance: usagePoints })
     };
   }
 
