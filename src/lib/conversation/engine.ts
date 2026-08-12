@@ -115,6 +115,43 @@ function makeReferralLink(referralCode: string) {
   return whatsappNumber ? `https://wa.me/${normalizePhoneDigits(whatsappNumber)}?text=${text}` : `كود دعوتك: ${referralCode}`;
 }
 
+function getPointsPaymentNumber() {
+  return (
+    process.env.POINTS_PAYMENT_NUMBER ??
+    process.env.ADMIN_WHATSAPP_NUMBERS?.split(",")[0]?.replace("whatsapp:", "") ??
+    ""
+  );
+}
+
+function getPointsTopupInstructions() {
+  const paymentNumber = getPointsPaymentNumber();
+
+  if (!paymentNumber) {
+    return [
+      "شحن النقاط غير مفعل حاليًا.",
+      "",
+      "الإدارة تحتاج تضيف رقم الدفع في إعدادات النظام حتى نقدر نستقبل طلبات الشحن."
+    ].join("\n");
+  }
+
+  return [
+    "╭──────────────",
+    "💳 *شحن نقاط الديارة*",
+    "╰──────────────",
+    "",
+    "لإظهار رقم المؤجر تحتاج *1 نقطة*.",
+    "",
+    "1️⃣ حوّل مبلغ الشحن إلى الرقم:",
+    `*${paymentNumber.replace("whatsapp:", "")}*`,
+    "",
+    "2️⃣ بعد التحويل أرسل صورة الإيصال هنا في نفس الشات.",
+    "",
+    "3️⃣ بعد موافقة الإدارة تضاف النقاط لرصيدك مباشرة.",
+    "",
+    "لمعرفة رصيدك اكتب: *رصيدي*"
+  ].join("\n");
+}
+
 function formatSearchResults(
   results: PropertyCandidate[],
   extracted: ReturnType<typeof extractMessage>,
@@ -442,7 +479,8 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
         "رصيدك الحالي: *0 نقطة*",
         "",
         "عرض رقم المؤجر يحتاج *1 نقطة*.",
-        "لشحن النقاط أرسل صورة إيصال الشحن هنا، وبعد موافقة الإدارة تضاف النقاط لرصيدك."
+        "",
+        getPointsTopupInstructions()
       ].join("\n")
     };
   }
@@ -1438,7 +1476,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     case "send_payment_receipt":
       return {
         debugIntent: "send_payment_receipt",
-        reply: "أرسل صورة الإيصال هنا. سيتم التحقق من الإدارة خلال دقائق."
+        reply: getPointsTopupInstructions()
       };
 
     default:
