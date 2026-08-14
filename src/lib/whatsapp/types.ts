@@ -1,5 +1,5 @@
 export type IncomingWhatsAppMessage = {
-  provider: "twilio";
+  provider: "twilio" | "meta";
   messageId?: string;
   from: string;
   to?: string;
