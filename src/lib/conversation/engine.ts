@@ -1088,7 +1088,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (state.pendingSearch && extracted.intent === "unknown") {
+  if (state.pendingSearch && extracted.intent === "unknown" && !state.draftProperty) {
     const areaFromText = findAreaCandidate(message.body, activeAreas);
     const mergedSearch = {
       ...state.pendingSearch,
@@ -1130,7 +1130,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
   }
 
-  if (state.lastSearchQuery && extracted.intent === "unknown") {
+  if (state.lastSearchQuery && extracted.intent === "unknown" && !state.draftProperty) {
     const areaFromText = findAreaCandidate(message.body, activeAreas);
     const text = message.body.trim();
     const refinedSearch = {
