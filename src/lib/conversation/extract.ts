@@ -70,6 +70,19 @@ export function extractMessage(text: string, dictionary?: RuntimeDictionary): Ex
     };
   }
 
+  const hasOwnershipSignal = /عندي|لدي/.test(body);
+
+  if (hasOwnershipSignal || includesAny(body, activeOwnerListingPhrases)) {
+    return {
+      intent: "add_property",
+      propertyType,
+      area,
+      landmark: landmarkMatch?.[1]?.trim(),
+      price,
+      rooms: roomsMatch ? Number(roomsMatch[1]) : undefined
+    };
+  }
+
   if (includesAny(body, activeRenterSearchPhrases)) {
     return {
       intent: "search_property",
@@ -88,17 +101,6 @@ export function extractMessage(text: string, dictionary?: RuntimeDictionary): Ex
 
   if (/ايصال|إيصال|وصل|حوالة|دفعت|حولت/.test(body)) {
     return { intent: "send_payment_receipt" };
-  }
-
-  if (includesAny(body, activeOwnerListingPhrases) || /عندي|لدي|للإيجار|للايجار|ايجار|إيجار|منزل|شقة|فيلا/.test(body)) {
-    return {
-      intent: "add_property",
-      propertyType,
-      area,
-      landmark: landmarkMatch?.[1]?.trim(),
-      price,
-      rooms: roomsMatch ? Number(roomsMatch[1]) : undefined
-    };
   }
 
   return { intent: "unknown" };
