@@ -875,15 +875,15 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const activeAreas = [...knownAreas, ...dictionary.areas];
   let extracted = extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
+  const state = await getConversationState(message.from);
   if (!extracted.area && fuzzyArea) {
     extracted = {
       ...extracted,
-      intent: extracted.intent === "unknown" ? "search_property" : extracted.intent,
+      intent: extracted.intent === "unknown" && !state.draftProperty ? "search_property" : extracted.intent,
       area: fuzzyArea,
       searchText: undefined
     };
   }
-  const state = await getConversationState(message.from);
   const customReply = findCustomDictionaryReply(message.body, dictionary);
   const normalizedBody = normalizeDictionaryText(message.body);
 
