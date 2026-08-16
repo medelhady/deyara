@@ -10,6 +10,7 @@ const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشه
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
 const selectionTtlMs = 15 * 60 * 1000;
 const minimumWithdrawalPoints = 500;
+const propertyListingFeePoints = 2000;
 
 function isYes(body: string) {
   return /^(نعم|اي|إي|أجل|تمام|صح|موافق|اكد|أكد)$/i.test(body.trim());
@@ -509,6 +510,57 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   }
 
   return { saved: true, existing: false, id: data.id as string };
+}
+
+async function spendPointsForListing(ownerPhone: string) {
+  const supabase = getServiceSupabase();
+  const wallet = await ensureWallet(ownerPhone);
+
+  if (!supabase || !wallet) {
+    return {
+      ok: false,
+      reply: "تعذر قراءة رصيدك الآن. حاول مرة أخرى بعد قليل."
+    };
+  }
+
+  const usagePoints = Number(wallet.usage_points ?? 0);
+
+  if (usagePoints < propertyListingFeePoints) {
+    return {
+      ok: false,
+      reply: getPointsTopupInstructions({ currentBalance: usagePoints })
+    };
+  }
+
+  const { error: walletError } = await supabase
+    .from("user_wallets")
+    .update({
+      usage_points: usagePoints - propertyListingFeePoints
+    })
+    .eq("phone", ownerPhone);
+
+  if (walletError) {
+    console.error("Failed to spend listing points", walletError);
+    return {
+      ok: false,
+      reply: "تعذر خصم النقاط الآن. حاول مرة أخرى بعد قليل."
+    };
+  }
+
+  await supabase.from("credit_transactions").insert({
+    phone: ownerPhone,
+    kind: "property_listing",
+    usage_points_delta: -propertyListingFeePoints,
+    admin_note: "خصم نقاط نشر إعلان عقار"
+  });
+
+  return {
+    ok: true,
+    reply: [
+      `تم خصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
+      `رصيدك المتبقي: *${usagePoints - propertyListingFeePoints} نقطة*`
+    ].join("\n")
+  };
 }
 
 async function spendPointForContact(renterPhone: string, selected: PropertyCandidate) {
@@ -1186,6 +1238,15 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   if (state.draftProperty?.awaitingConfirmation) {
     if (isYes(message.body)) {
+      const spend = await spendPointsForListing(message.from);
+
+      if (!spend.ok) {
+        return {
+          debugIntent: "add_property",
+          reply: spend.reply
+        };
+      }
+
       const submission = await submitPropertyForReview(message.from, state.draftProperty);
 
       await setConversationState(message.from, {
@@ -1196,7 +1257,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       return {
         debugIntent: "add_property",
         reply: submission.saved
-          ? "✅ تم إرسال الإعلان إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
+          ? `✅ ${spend.reply}\n\nتم إرسال الإعلان إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.`
           : "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
       };
     }
