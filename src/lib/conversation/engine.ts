@@ -173,7 +173,7 @@ function getPointsPaymentNumber() {
   );
 }
 
-function getPointsTopupInstructions(options?: { currentBalance?: number }) {
+function getPointsTopupInstructions(options?: { currentBalance?: number; purposeText?: string }) {
   const paymentNumber = getPointsPaymentNumber();
   const currentBalance = options?.currentBalance;
 
@@ -191,7 +191,7 @@ function getPointsTopupInstructions(options?: { currentBalance?: number }) {
     "╰──────────────",
     "",
     ...(currentBalance !== undefined ? [`💼 رصيدك الحالي: *${currentBalance} نقطة*`, ""] : []),
-    "🔐 عرض رقم المؤجر يحتاج *1 نقطة*.",
+    options?.purposeText ?? "🔐 عرض رقم المؤجر يحتاج *1 نقطة*.",
     "",
     "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
     `*${paymentNumber.replace("whatsapp:", "")}*`,
@@ -528,7 +528,7 @@ async function spendPointsForListing(ownerPhone: string) {
   if (usagePoints < propertyListingFeePoints) {
     return {
       ok: false,
-      reply: getPointsTopupInstructions({ currentBalance: usagePoints })
+      reply: getPointsTopupInstructions({ currentBalance: usagePoints, purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.` })
     };
   }
 
