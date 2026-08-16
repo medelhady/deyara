@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type WithdrawalStatus = 'paid' | 'rejected' | 'pending';
 
@@ -21,6 +21,15 @@ type Referral = {
   type: string;
   code: string;
   from: string;
+};
+
+type CreditTopup = {
+  id: string;
+  phone: string;
+  points: number | null;
+  receipt_image_url: string | null;
+  status: string;
+  created_at: string;
 };
 
 const sealStyle: Record<WithdrawalStatus, { c: string; bg: string; icon: string }> = {
@@ -60,6 +69,53 @@ const cols: { key: keyof Referral; label: string }[] = [
 ];
 
 export function WalletsClient() {
+  const [creditTopups, setCreditTopups] = useState<CreditTopup[]>([]);
+  const [topupMessage, setTopupMessage] = useState('جار تحميل طلبات الشحن...');
+  const [topupPointsInput, setTopupPointsInput] = useState<Record<string, string>>({});
+
+  async function loadCreditTopups() {
+    const response = await fetch(`/api/admin/credit-topups?t=${Date.now()}`, { cache: 'no-store' });
+    const data = await response.json();
+
+    if (data.mode === 'mock') {
+      setTopupMessage('Supabase غير مربوط بعد.');
+      setCreditTopups([]);
+      return;
+    }
+
+    const pending = (data.creditTopups ?? []).filter((item: CreditTopup) => item.status === 'pending');
+    setCreditTopups(pending);
+    setTopupMessage(pending.length ? '' : 'لا توجد طلبات شحن حتى الآن.');
+  }
+
+  async function updateTopupStatus(id: string, status: 'approved' | 'rejected') {
+    const points = Number(topupPointsInput[id] ?? '0');
+
+    if (status === 'approved' && (!points || points <= 0)) {
+      showToast('أدخل عدد النقاط قبل القبول');
+      return;
+    }
+
+    const response = await fetch(`/api/admin/credit-topups/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(status === 'approved' ? { status, points } : { status })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      showToast(data.error ?? 'تعذر تحديث طلب الشحن.');
+      return;
+    }
+
+    showToast(status === 'approved' ? 'تم قبول الشحن وإضافة النقاط' : 'تم رفض طلب الشحن');
+    await loadCreditTopups();
+  }
+
+  useEffect(() => {
+    void loadCreditTopups();
+  }, []);
+
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(initialWithdrawals);
   const [sortKey, setSortKey] = useState<keyof Referral>('refs');
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -186,6 +242,48 @@ export function WalletsClient() {
             </div>
           ))}
         </div>
+
+        <div className="wc-section-head">
+          <h2>طلبات شحن النقاط</h2>
+          <div className="wc-line" />
+          <span className="wc-tag">{creditTopups.length} قيد الانتظار</span>
+        </div>
+
+        {topupMessage ? <p>{topupMessage}</p> : null}
+
+        {creditTopups.map((t) => (
+          <div className="wc-card" key={t.id}>
+            <div className="wc-ribbon" style={{ backgroundImage: 'repeating-linear-gradient(-45deg, var(--amber) 0 5px, var(--amber) 5px 10px)' }} />
+            <div className="wc-body">
+              <div className="wc-seal" style={{ background: 'var(--amber-bg)', color: 'var(--amber)', borderColor: 'var(--amber)' }}>…</div>
+              <div className="wc-info">
+                <div className="wc-phone-row" onClick={() => copyPhone(t.phone)}>
+                  <span className="wc-phone">{t.phone}</span>
+                </div>
+                <div className="wc-meta">
+                  <span>التاريخ <b>{new Date(t.created_at).toLocaleString('ar')}</b></span>
+                  {t.receipt_image_url ? (
+                    <a href={t.receipt_image_url} target="_blank" rel="noreferrer">فتح الإيصال</a>
+                  ) : (
+                    <span>لا يوجد إيصال</span>
+                  )}
+                </div>
+              </div>
+              <input
+                type="number"
+                placeholder="عدد النقاط"
+                className="wc-search"
+                style={{ width: 110, marginBottom: 0 }}
+                value={topupPointsInput[t.id] ?? ''}
+                onChange={(e) => setTopupPointsInput((prev) => ({ ...prev, [t.id]: e.target.value }))}
+              />
+            </div>
+            <div className="wc-actions">
+              <button className="wc-btn" style={{ borderColor: 'var(--green)', color: 'var(--green)' }} onClick={() => updateTopupStatus(t.id, 'approved')}>قبول وإضافة النقاط</button>
+              <button className="wc-btn" style={{ borderColor: 'var(--rust)', color: 'var(--rust)' }} onClick={() => updateTopupStatus(t.id, 'rejected')}>رفض</button>
+            </div>
+          </div>
+        ))}
 
         <div className="wc-section-head">
           <h2>طلبات السحب</h2>
