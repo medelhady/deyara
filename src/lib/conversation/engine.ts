@@ -1,6 +1,7 @@
 ﻿import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { extractMessage } from "./extract";
+import { aiExtractMessage } from "./ai-extract";
 import { getRuntimeDictionary } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
@@ -925,7 +926,7 @@ async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) 
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
-  let extracted = extractMessage(message.body, dictionary);
+  let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas])) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
   const state = await getConversationState(message.from);
   if (!extracted.area && fuzzyArea) {
