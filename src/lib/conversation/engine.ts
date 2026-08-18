@@ -582,6 +582,12 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   return { saved: true, existing: false, id: data.id as string };
 }
 
+async function getUsagePoints(phone: string) {
+  const wallet = await ensureWallet(phone);
+
+  return wallet ? Number(wallet.usage_points ?? 0) : null;
+}
+
 export async function spendPointsForListing(ownerPhone: string) {
   const supabase = getServiceSupabase();
 
@@ -626,20 +632,65 @@ export async function spendPointsForListing(ownerPhone: string) {
     };
   }
 
-  await supabase.from("credit_transactions").insert({
+  const { error: ledgerError } = await supabase.from("credit_transactions").insert({
     phone: ownerPhone,
     kind: "property_listing",
     usage_points_delta: -propertyListingFeePoints,
     admin_note: "خصم نقاط نشر إعلان عقار"
   });
 
+  if (ledgerError) {
+    // The points are already gone, so keep going, but do not lose the fact silently.
+    console.error("Failed to record the listing fee transaction", ledgerError);
+  }
+
   return {
     ok: true,
+    spentPoints: propertyListingFeePoints,
+    remainingPoints: usagePoints - propertyListingFeePoints,
     reply: [
       `تم خصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
       `رصيدك المتبقي: *${usagePoints - propertyListingFeePoints} نقطة*`
     ].join("\n")
   };
+}
+
+// The card an owner gets when their listing is published, matching the one a renter gets with an
+// owner number: what the listing is, what it cost, and what is left.
+export function formatListingApproval(
+  property: {
+    type?: string | null;
+    area?: string | null;
+    price?: number | null;
+    rooms?: number | null;
+    landmark?: string | null;
+    property_code?: string | null;
+    id?: string;
+  },
+  note: string[] = []
+) {
+  return [
+    "╭──────────────",
+    `🏠 *${property.type ?? "دار"} في ${property.area ?? "منطقة غير محددة"}*`,
+    "╰──────────────",
+    "",
+    "💰 السعر",
+    `*${property.price ? formatPrice(Number(property.price)) : "غير محدد"}*`,
+    "",
+    "🛏 الغرف",
+    `${property.rooms ?? "غير محدد"}`,
+    "",
+    "📍 قريبة من",
+    property.landmark ? formatLandmark(property.landmark) : "غير محدد",
+    "",
+    "🔖 رقم الإعلان",
+    `*${property.property_code ?? property.id?.slice(0, 8) ?? "غير محدد"}*`,
+    "",
+    "━━━━━━━━━━━━━━",
+    "✅ *تمت الموافقة ونُشر إعلانك*",
+    "صار ظاهرًا للمستأجرين في نتائج البحث.",
+    ...(note.length ? ["", "━━━━━━━━━━━━━━", ...note] : [])
+  ].join("\n");
 }
 
 async function spendPointForContact(renterPhone: string, selected: PropertyCandidate) {
@@ -1416,16 +1467,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   if (state.draftProperty?.awaitingConfirmation) {
     if (isYes(message.body)) {
-      const spend = await spendPointsForListing(message.from);
-
-      if (!spend.ok) {
-        return {
-          debugIntent: "add_property",
-          reply: spend.reply
-        };
-      }
-
+      // Submitting is free. The fee is taken when an admin publishes, so nothing is charged for a
+      // listing that ends up rejected.
       const submission = await submitPropertyForReview(message.from, state.draftProperty);
+      const balance = await getUsagePoints(message.from);
 
       await setConversationState(message.from, {
         ...state,
@@ -1435,7 +1480,21 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       return {
         debugIntent: "add_property",
         reply: submission.saved
-          ? `✅ ${spend.reply}\n\nتم إرسال الإعلان إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.`
+          ? [
+              "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
+              "",
+              `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
+              ...(balance === null
+                ? []
+                : [
+                    `💼 رصيدك الآن: *${balance} نقطة*`,
+                    ...(balance < propertyListingFeePoints
+                      ? ["", "⚠️ رصيدك لا يكفي للنشر. اشحن قبل المراجعة حتى لا يتأخر إعلانك."]
+                      : [])
+                  ]),
+              "",
+              "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
+            ].join("\n")
           : "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
       };
     }

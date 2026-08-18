@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getConversationState, setConversationState } from "@/lib/conversation/store";
-import { fulfillPendingContactRequest, spendPointsForListing, submitPropertyForReview } from "@/lib/conversation/engine";
+import { fulfillPendingContactRequest, submitPropertyForReview } from "@/lib/conversation/engine";
 import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
 
 export const dynamic = "force-dynamic";
@@ -81,26 +81,24 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       admin_note: "شحن رصيد مُعتمد من الإدارة"
     });
 
+    // A draft that is still awaiting confirmation predates the move of the listing fee to approval
+    // time. Submitting costs nothing now, so send it straight to review.
     const conversationState = await getConversationState(topup.phone);
     const draft = conversationState.draftProperty;
 
     if (draft?.awaitingConfirmation) {
-      const spend = await spendPointsForListing(topup.phone);
+      const submission = await submitPropertyForReview(topup.phone, draft);
 
-      if (spend.ok) {
-        const submission = await submitPropertyForReview(topup.phone, draft);
+      await setConversationState(topup.phone, {
+        ...conversationState,
+        draftProperty: undefined
+      });
 
-        await setConversationState(topup.phone, {
-          ...conversationState,
-          draftProperty: undefined
-        });
-
+      if (submission.saved) {
         try {
           await metaWhatsAppProvider.sendText(
             topup.phone,
-            submission.saved
-              ? `✅ ${spend.reply}\n\nتم إرسال الإعلان إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.`
-              : "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
+            "✅ تم إرسال إعلانك إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
           );
         } catch (notifyError) {
           console.error("Failed to notify owner about auto-submitted listing", notifyError);

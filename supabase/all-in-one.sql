@@ -182,7 +182,7 @@ create table if not exists public.user_wallets (
 create table if not exists public.credit_transactions (
   id uuid primary key default uuid_generate_v4(),
   phone text not null references public.users(phone) on delete cascade,
-  kind text not null check (kind in ('topup', 'contact_reveal', 'referral_commission', 'withdrawal', 'admin_adjustment')),
+  kind text not null check (kind in ('topup', 'topup_approved', 'contact_reveal', 'property_listing', 'referral_commission', 'withdrawal', 'admin_adjustment')),
   usage_points_delta integer not null default 0,
   commission_points_delta integer not null default 0,
   related_phone text references public.users(phone),
