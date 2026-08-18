@@ -50,6 +50,7 @@ export type DraftProperty = {
   videoContentType?: string;
   hasLocation?: boolean;
   awaitingConfirmation?: boolean;
+  updatedAt?: string;
 };
 
 export type ConversationState = {

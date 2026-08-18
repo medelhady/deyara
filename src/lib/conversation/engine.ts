@@ -10,6 +10,7 @@ import type { ConversationResult, DraftProperty, ExtractedMessage, PropertyCandi
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
 const selectionTtlMs = 15 * 60 * 1000;
+const draftTtlMs = 60 * 60 * 1000;
 const minimumWithdrawalPoints = 500;
 const propertyListingFeePoints = 2000;
 
@@ -102,6 +103,26 @@ function hasFreshSelection(state: { selectedProperty?: PropertyCandidate; select
   }
 
   return Date.now() - new Date(state.selectedPropertyAt).getTime() <= selectionTtlMs;
+}
+
+// Stamped on every change so an abandoned listing draft stops hijacking the conversation.
+function touchDraft(draft: DraftProperty): DraftProperty {
+  return { ...draft, updatedAt: new Date().toISOString() };
+}
+
+export function isDraftFresh(draft: DraftProperty) {
+  // Drafts saved before this field existed carry no timestamp, and those are the stuck ones.
+  if (!draft.updatedAt) {
+    return false;
+  }
+
+  const updatedAt = new Date(draft.updatedAt).getTime();
+
+  if (Number.isNaN(updatedAt)) {
+    return false;
+  }
+
+  return Date.now() - updatedAt <= draftTtlMs;
 }
 
 function formatPropertySummary(draft: DraftProperty) {
@@ -1023,7 +1044,14 @@ export function normalizeGenericSearchText(extracted: ExtractedMessage): Extract
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
-  const state = await getConversationState(message.from);
+  const storedState = await getConversationState(message.from);
+  const draftExpired = Boolean(storedState.draftProperty && !isDraftFresh(storedState.draftProperty));
+
+  if (draftExpired) {
+    await setConversationState(message.from, { ...storedState, draftProperty: undefined });
+  }
+
+  const state = draftExpired ? { ...storedState, draftProperty: undefined } : storedState;
   const contextHint = buildContextHint(state);
   let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas], contextHint)) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
@@ -1365,10 +1393,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     if (isNo(message.body)) {
       await setConversationState(message.from, {
         ...state,
-        draftProperty: {
+        draftProperty: touchDraft({
           ...state.draftProperty,
           awaitingConfirmation: false
-        }
+        })
       });
 
       return {
@@ -1381,13 +1409,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   const incomingVideo = message.media.find((item) => item.contentType.startsWith("video/"));
   if (incomingVideo) {
-    const draftProperty = {
+    const draftProperty = touchDraft({
       ...state.draftProperty,
       hasVideo: true,
       videoUrl: incomingVideo.url,
       videoContentType: incomingVideo.contentType,
       awaitingConfirmation: Boolean(state.draftProperty?.area && state.draftProperty?.price && state.draftProperty?.landmark)
-    };
+    });
     await setConversationState(message.from, {
       ...state,
       draftProperty
@@ -1400,10 +1428,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (message.location) {
-    const draftProperty = {
+    const draftProperty = touchDraft({
       ...state.draftProperty,
       hasLocation: true
-    };
+    });
     await setConversationState(message.from, {
       ...state,
       draftProperty
@@ -1467,7 +1495,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     await setConversationState(message.from, {
       ...state,
-      draftProperty
+      draftProperty: touchDraft(draftProperty)
     });
 
     return {
@@ -1556,7 +1584,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
       await setConversationState(message.from, {
         ...state,
-        draftProperty
+        draftProperty: touchDraft(draftProperty)
       });
 
       return {
