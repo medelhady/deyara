@@ -2,7 +2,7 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { extractMessage } from "./extract";
 import { aiExtractMessage } from "./ai-extract";
-import { getRuntimeDictionary } from "./local-dictionary";
+import { getRuntimeDictionary, includesAny } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
 import { storePropertyMedia } from "@/lib/whatsapp/media";
@@ -1140,6 +1140,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas], contextHint)) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
   extracted = normalizeGenericSearchText(extracted);
+
+  // GPT reads some dialect searches ("لاي منزل للايجار") as an owner offering a house, and then the
+  // renter is walked through the listing questions. Nobody offers a property without saying so, and
+  // the regex fallback gets these right, so a renter phrase with no ownership word wins.
+  if (
+    extracted.intent === "add_property" &&
+    !state.draftProperty &&
+    !/عندي|لدي|عندنا|املك|أملك|نأجر|ناجر/.test(message.body) &&
+    includesAny(message.body, dictionary.renterSearchPhrases)
+  ) {
+    extracted = { ...extracted, intent: "search_property" };
+  }
   if (!extracted.area && fuzzyArea) {
     extracted = {
       ...extracted,
@@ -1575,9 +1587,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const draftAwaitsPrice = Boolean(state.draftProperty?.area && !state.draftProperty?.price);
   // A bare number that indexes the last search results is the renter picking a property. It must win
   // over an unfinished listing draft parked in the same conversation, since one phone can be both a
-  // renter and an owner. The draft still wins while it is waiting for a price.
+  // renter and an owner. While a draft is open the message has to be nothing but that number: GPT
+  // pulls an index out of any sentence with a number word in it, and "بانتيك عشرة" as an answer to
+  // the landmark question was selecting the tenth result of a search from an earlier session.
   const selectsFromLastResults =
     extracted.intent === "select_property" &&
+    (!state.draftProperty || /^\d+$/.test(trimmedBody)) &&
     !(draftAwaitsPrice && /^\d{2,8}$/.test(trimmedBody)) &&
     Boolean(extracted.selectedIndex && state.lastSearchResults?.[extracted.selectedIndex - 1]);
 
