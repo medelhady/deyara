@@ -5,7 +5,7 @@ import { aiExtractMessage } from "./ai-extract";
 import { getRuntimeDictionary } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
-import type { ConversationResult, DraftProperty, PropertyCandidate } from "./types";
+import type { ConversationResult, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
@@ -965,6 +965,61 @@ function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>
   return undefined;
 }
 
+const knownPropertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
+
+// Words that describe *what* is wanted, never *where*. GPT often returns them inside searchText
+// ("منزل للايجار"), which would otherwise be searched as if it were a place name.
+const genericSearchWords = [
+  ...knownPropertyTypes,
+  "شقه",
+  "غرفه",
+  "دار",
+  "بيت",
+  "سكن",
+  "عقار",
+  "للإيجار",
+  "للايجار",
+  "الإيجار",
+  "الايجار",
+  "إيجار",
+  "ايجار",
+  "للكراء",
+  "الكراء",
+  "كراء",
+  "في",
+  "عن",
+  "ابحث",
+  "أبحث",
+  "نبحث",
+  "ندور",
+  "اريد",
+  "أريد"
+];
+
+function stripGenericSearchWords(text: string) {
+  return text
+    .split(/\s+/)
+    .filter((word) => word && !genericSearchWords.includes(word))
+    .join(" ")
+    .trim();
+}
+
+// A searchText made only of generic words names no place. Dropping it makes the search branch
+// ask for the area instead of querying the database for "منزل للايجار" and reporting no results.
+export function normalizeGenericSearchText(extracted: ExtractedMessage): ExtractedMessage {
+  const rawSearchText = extracted.searchText?.trim();
+
+  if (!rawSearchText || stripGenericSearchWords(rawSearchText)) {
+    return extracted;
+  }
+
+  return {
+    ...extracted,
+    propertyType: extracted.propertyType ?? knownPropertyTypes.find((type) => rawSearchText.includes(type)),
+    searchText: undefined
+  };
+}
+
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
@@ -972,10 +1027,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const contextHint = buildContextHint(state);
   let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas], contextHint)) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
-  const knownPropertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
-  if (!extracted.propertyType && extracted.searchText && knownPropertyTypes.includes(extracted.searchText.trim())) {
-    extracted = { ...extracted, propertyType: extracted.searchText.trim(), searchText: undefined };
-  }
+  extracted = normalizeGenericSearchText(extracted);
   if (!extracted.area && fuzzyArea) {
     extracted = {
       ...extracted,
