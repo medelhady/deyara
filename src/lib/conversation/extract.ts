@@ -57,20 +57,43 @@ export function extractMessage(text: string, dictionary?: RuntimeDictionary): Ex
   const roomsMatch = body.match(/(\d+)\s*(غرف|غرفة|غرفه)/);
   const landmarkMatch = body.match(/(?:قريب من|قرب|بجانب|جنب)\s+(.+?)(?:\s+ب|\s+بسعر|$)/);
   const searchText = landmarkMatch?.[1]?.trim();
-  const mentionsBudget = /حد|اقصى|أقصى|اقل|أقل|أرخص|ما يتجاوز|لا يتجاوز|بحد|ميزانية|بـ|ب /.test(body);
+  const budgetPatterns = [
+    /(?:^|\s)(?:بحد|الحد|حد)\s*(?:اقصى|أقصى)/,
+    /(?:^|\s)(?:اقل|أقل)\s*من/,
+    /ما يتجاوز|لا يتجاوز|ميزانية/,
+    /(?:^|\s)بـ?\s*\d/
+  ];
+  const mentionsBudget = budgetPatterns.some((pattern) => pattern.test(body));
+  const mentionsCheaper = /(?:^|\s)(?:ارخص|أرخص|الأرخص)(?:$|\s)/.test(body);
+  const mentionsPricier = /(?:^|\s)(?:اغلى|أغلى|الأغلى)(?:$|\s)/.test(body);
   const wantsCheapest = /^(ارخص|أرخص|الأرخص|اقل سعر|أقل سعر|رخيص|الرخيص)$/i.test(body);
   const wantsExpensive = /^(اغلى|أغلى|الأغلى|اعلى سعر|أعلى سعر)$/i.test(body);
 
-  if (wantsCheapest || wantsExpensive || mentionsBudget || roomsMatch) {
+  const hasOwnershipSignal = /عندي|لدي/.test(body);
+  const hasRequestPhrase =
+    hasOwnershipSignal ||
+    includesAny(body, activeOwnerListingPhrases) ||
+    includesAny(body, activeRenterSearchPhrases);
+  // A self-contained request ("أريد شقة في تفرغ زينة بحد أقصى 2450") starts a new search instead of
+  // refining the previous one, while a bare filter ("أرخص"، "غرفتين") still refines.
+  const startsNewRequest = hasRequestPhrase && Boolean(area || propertyType);
+
+  if (
+    !startsNewRequest &&
+    (wantsCheapest || wantsExpensive || mentionsBudget || mentionsCheaper || mentionsPricier || roomsMatch)
+  ) {
     return {
       intent: "refine_search",
       maxPrice: mentionsBudget ? price : undefined,
       rooms: roomsMatch ? Number(roomsMatch[1]) : undefined,
-      sortBy: wantsCheapest ? "cheapest" : wantsExpensive ? "expensive" : undefined
+      sortBy:
+        wantsCheapest || mentionsCheaper
+          ? "cheapest"
+          : wantsExpensive || mentionsPricier
+            ? "expensive"
+            : undefined
     };
   }
-
-  const hasOwnershipSignal = /عندي|لدي/.test(body);
 
   if (hasOwnershipSignal || includesAny(body, activeOwnerListingPhrases)) {
     return {

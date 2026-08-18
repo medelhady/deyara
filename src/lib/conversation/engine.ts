@@ -515,9 +515,18 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
 
 export async function spendPointsForListing(ownerPhone: string) {
   const supabase = getServiceSupabase();
+
+  // Simulator mode: without Supabase there is no wallet to charge, so let the listing through.
+  if (!supabase) {
+    return {
+      ok: true,
+      reply: `تم خصم ${propertyListingFeePoints} نقطة (محاكاة فقط، بدون ربط قاعدة البيانات).`
+    };
+  }
+
   const wallet = await ensureWallet(ownerPhone);
 
-  if (!supabase || !wallet) {
+  if (!wallet) {
     return {
       ok: false,
       reply: "تعذر قراءة رصيدك الآن. حاول مرة أخرى بعد قليل."
@@ -1121,7 +1130,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (extracted.intent === "refine_search") {
+  if (extracted.intent === "refine_search" && !state.draftProperty) {
     const allResults = state.lastSearchResults ?? [];
 
     if (allResults.length === 0) {
@@ -1379,7 +1388,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (state.draftProperty && (extracted.intent === "unknown" || extracted.intent === "select_property")) {
+  if (
+    state.draftProperty &&
+    (extracted.intent === "unknown" || extracted.intent === "select_property" || extracted.intent === "refine_search")
+  ) {
     const draftProperty = mergeDraftFromMessage(state.draftProperty, extracted, message.body, activeAreas);
 
     if (!draftProperty.landmark && state.draftProperty.area && state.draftProperty.price) {
