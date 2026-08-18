@@ -499,7 +499,7 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
       property_id: selected.id,
       renter_phone: renterPhone,
       owner_phone: selected.ownerPhone,
-      status: "pending_payment",
+      status: "approved",
       fee_amount: Number(process.env.CONTACT_REQUEST_FEE ?? "100")
     })
     .select("id")
@@ -631,7 +631,8 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
       "تم خصم *1 نقطة* من رصيدك.",
       `رصيدك المتبقي: *${usagePoints - 1} نقطة*`,
       "",
-      "تم إرسال طلب رقم المؤجر للإدارة. بعد الموافقة سنرسل لك الرقم."
+      `📱 رقم المؤجر: *${selected.ownerPhone}*`,
+      `🔗 رابط واتساب: https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`
     ].join("\n")
   };
 }
