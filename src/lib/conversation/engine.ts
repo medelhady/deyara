@@ -610,6 +610,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   if (usagePoints <= 0) {
     return {
       ok: false,
+      reason: "insufficient_points" as const,
       reply: getPointsTopupInstructions({ currentBalance: usagePoints })
     };
   }
@@ -665,6 +666,33 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
       `🔗 رابط واتساب: https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`
     ].join("\n")
   };
+}
+
+// Called after an admin approves a top-up, so a renter who ran out of points gets the owner number
+// without having to ask again.
+export async function fulfillPendingContactRequest(phone: string) {
+  const state = await getConversationState(phone);
+  const pending = state.pendingContactProperty;
+
+  if (!pending) {
+    return null;
+  }
+
+  const request = await spendPointForContact(phone, pending);
+
+  if (!request.ok) {
+    // Keep it pending: the balance may still be short, and a later top-up should retry.
+    return null;
+  }
+
+  await setConversationState(phone, {
+    ...state,
+    pendingContactProperty: undefined,
+    awaitingContactChoice: false,
+    activeContactRequestId: request.id
+  });
+
+  return request.reply;
 }
 
 async function ensureWallet(phone: string) {
@@ -1522,6 +1550,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     const request = await spendPointForContact(message.from, state.selectedProperty);
 
     if (!request.ok) {
+      if (request.reason === "insufficient_points") {
+        await setConversationState(message.from, {
+          ...state,
+          pendingContactProperty: state.selectedProperty
+        });
+      }
+
       return {
         debugIntent: "request_contact",
         reply: request.reply
@@ -1531,7 +1566,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     await setConversationState(message.from, {
       ...state,
       awaitingContactChoice: false,
-      activeContactRequestId: request.id
+      activeContactRequestId: request.id,
+      pendingContactProperty: undefined
     });
 
     return {
@@ -1714,6 +1750,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       const contactRequest = await spendPointForContact(message.from, state.selectedProperty);
 
       if (!contactRequest.ok) {
+        if (contactRequest.reason === "insufficient_points") {
+          await setConversationState(message.from, {
+            ...state,
+            pendingContactProperty: state.selectedProperty
+          });
+        }
+
         return {
           debugIntent: "request_contact",
           reply: contactRequest.reply
@@ -1723,7 +1766,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       await setConversationState(message.from, {
         ...state,
         awaitingContactChoice: false,
-        activeContactRequestId: contactRequest.id
+        activeContactRequestId: contactRequest.id,
+        pendingContactProperty: undefined
       });
 
       return {

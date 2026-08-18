@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getConversationState, setConversationState } from "@/lib/conversation/store";
-import { spendPointsForListing, submitPropertyForReview } from "@/lib/conversation/engine";
+import { fulfillPendingContactRequest, spendPointsForListing, submitPropertyForReview } from "@/lib/conversation/engine";
 import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +105,16 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         } catch (notifyError) {
           console.error("Failed to notify owner about auto-submitted listing", notifyError);
         }
+      }
+    }
+
+    const contactReply = await fulfillPendingContactRequest(topup.phone);
+
+    if (contactReply) {
+      try {
+        await metaWhatsAppProvider.sendText(topup.phone, contactReply);
+      } catch (notifyError) {
+        console.error("Failed to send owner contact after approved topup", notifyError);
       }
     }
   }

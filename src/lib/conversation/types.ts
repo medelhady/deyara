@@ -66,4 +66,6 @@ export type ConversationState = {
   activeContactRequestId?: string;
   awaitingMaxPriceFilter?: boolean;
   draftProperty?: DraftProperty;
+  // Contact request the renter could not pay for yet. Fulfilled automatically once a top-up is approved.
+  pendingContactProperty?: PropertyCandidate;
 };
