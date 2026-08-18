@@ -1440,8 +1440,19 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
+  const trimmedBody = message.body.trim();
+  const draftAwaitsPrice = Boolean(state.draftProperty?.area && !state.draftProperty?.price);
+  // A bare number that indexes the last search results is the renter picking a property. It must win
+  // over an unfinished listing draft parked in the same conversation, since one phone can be both a
+  // renter and an owner. The draft still wins while it is waiting for a price.
+  const selectsFromLastResults =
+    extracted.intent === "select_property" &&
+    !(draftAwaitsPrice && /^\d{2,8}$/.test(trimmedBody)) &&
+    Boolean(extracted.selectedIndex && state.lastSearchResults?.[extracted.selectedIndex - 1]);
+
   if (
     state.draftProperty &&
+    !selectsFromLastResults &&
     (extracted.intent === "unknown" || extracted.intent === "select_property" || extracted.intent === "refine_search")
   ) {
     const draftProperty = mergeDraftFromMessage(state.draftProperty, extracted, message.body, activeAreas);
