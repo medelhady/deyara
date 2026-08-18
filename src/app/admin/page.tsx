@@ -8,11 +8,26 @@ type DashboardStats = {
   totalProperties: number;
   activeProperties: number;
   pendingProperties: number;
-  pendingContactRequests: number;
-  approvedContactRequests: number;
+  rejectedProperties: number;
+  contactReveals: number;
+  pendingTopups: number;
+  pendingWithdrawals: number;
   conversationsToday: number;
   owners: number;
   renters: number;
+};
+
+const emptyStats: DashboardStats = {
+  totalProperties: 0,
+  activeProperties: 0,
+  pendingProperties: 0,
+  rejectedProperties: 0,
+  contactReveals: 0,
+  pendingTopups: 0,
+  pendingWithdrawals: 0,
+  conversationsToday: 0,
+  owners: 0,
+  renters: 0
 };
 
 async function countRows(
@@ -45,16 +60,7 @@ async function loadDashboardStats(): Promise<DashboardStats> {
   const supabase = getServiceSupabase();
 
   if (!supabase) {
-    return {
-      totalProperties: 0,
-      activeProperties: 0,
-      pendingProperties: 0,
-      pendingContactRequests: 0,
-      approvedContactRequests: 0,
-      conversationsToday: 0,
-      owners: 0,
-      renters: 0
-    };
+    return emptyStats;
   }
 
   const today = new Date();
@@ -64,8 +70,10 @@ async function loadDashboardStats(): Promise<DashboardStats> {
     totalProperties,
     activeProperties,
     pendingProperties,
-    pendingContactRequests,
-    approvedContactRequests,
+    rejectedProperties,
+    contactReveals,
+    pendingTopups,
+    pendingWithdrawals,
     owners,
     renters,
     conversations
@@ -73,8 +81,10 @@ async function loadDashboardStats(): Promise<DashboardStats> {
     countRows("properties"),
     countRows("properties", [{ column: "status", value: "active" }]),
     countRows("properties", [{ column: "status", value: "pending_review" }]),
-    countRows("contact_requests", [{ column: "status", value: "pending_admin_review" }]),
+    countRows("properties", [{ column: "status", value: "rejected" }]),
     countRows("contact_requests", [{ column: "status", value: "approved" }]),
+    countRows("credit_topups", [{ column: "status", value: "pending" }]),
+    countRows("withdrawal_requests", [{ column: "status", value: "pending" }]),
     countRows("users", [{ column: "role", value: "owner" }]),
     countRows("users", [{ column: "role", value: "renter" }]),
     supabase
@@ -87,8 +97,10 @@ async function loadDashboardStats(): Promise<DashboardStats> {
     totalProperties,
     activeProperties,
     pendingProperties,
-    pendingContactRequests,
-    approvedContactRequests,
+    rejectedProperties,
+    contactReveals,
+    pendingTopups,
+    pendingWithdrawals,
     owners,
     renters,
     conversationsToday: conversations.count ?? 0
@@ -101,31 +113,44 @@ function formatNumber(value: number) {
 
 export default async function AdminPage() {
   const stats = await loadDashboardStats();
+
+  // Only what an admin still decides by hand. Releasing an owner number is automatic now.
   const reviewItems = [
     {
       title: "عقارات بانتظار المراجعة",
+      note: "إعلانات مؤجرين لم تُنشر بعد",
       value: stats.pendingProperties,
       href: "/admin/properties",
       action: "مراجعة العقارات"
     },
     {
-      title: "إيصالات تحتاج موافقة",
-      value: stats.pendingContactRequests,
-      href: "/admin/contact-requests",
-      action: "مراجعة الطلبات"
+      title: "إيصالات شحن بانتظار الموافقة",
+      note: "بعد الموافقة تُضاف النقاط فورًا",
+      value: stats.pendingTopups,
+      href: "/admin/wallets",
+      action: "مراجعة الشحن"
+    },
+    {
+      title: "طلبات سحب بانتظار الدفع",
+      note: "عمولات تسويق طلب أصحابها سحبها",
+      value: stats.pendingWithdrawals,
+      href: "/admin/wallets",
+      action: "مراجعة السحوبات"
     }
   ];
+
+  const waitingCount = reviewItems.reduce((total, item) => total + item.value, 0);
 
   const cards = [
     {
       title: "العقارات",
       value: stats.totalProperties,
-      note: `${formatNumber(stats.activeProperties)} نشط الآن`
+      note: `${formatNumber(stats.activeProperties)} منشور، ${formatNumber(stats.pendingProperties)} بانتظار المراجعة`
     },
     {
-      title: "طلبات التواصل",
-      value: stats.pendingContactRequests,
-      note: `${formatNumber(stats.approvedContactRequests)} طلب مقبول`
+      title: "أرقام سُلّمت",
+      value: stats.contactReveals,
+      note: "كل رقم يعني نقطة مخصومة من مستأجر"
     },
     {
       title: "محادثات اليوم",
@@ -139,13 +164,44 @@ export default async function AdminPage() {
     }
   ];
 
+  const sections = [
+    {
+      title: "العقارات",
+      note: "مراجعة الإعلانات ونشرها أو رفضها، ومشاهدة الفيديو والمعلم.",
+      href: "/admin/properties",
+      action: "فتح العقارات"
+    },
+    {
+      title: "النقاط والإحالات",
+      note: "اعتماد إيصالات الشحن، ومتابعة السحوبات وأرصدة المحافظ.",
+      href: "/admin/wallets",
+      action: "فتح النقاط"
+    },
+    {
+      title: "قاموس البوت",
+      note: "كلمات البحث والمناطق والردود المخصصة التي يفهمها البوت.",
+      href: "/admin/dictionary",
+      action: "فتح القاموس"
+    },
+    {
+      title: "المحاكي",
+      note: "تجربة محادثة كاملة دون إرسال أي رسالة واتساب حقيقية.",
+      href: "/admin/simulator",
+      action: "فتح المحاكي"
+    }
+  ];
+
   return (
     <main className="admin-shell" dir="rtl">
       <header className="admin-hero">
         <div>
           <p className="eyebrow">Admin only</p>
           <h1>لوحة إدارة الديارة</h1>
-          <p>متابعة العقارات، الموافقات، وطلبات التواصل من مكان واحد.</p>
+          <p>
+            {waitingCount > 0
+              ? `عندك ${formatNumber(waitingCount)} عنصر ينتظر قرارك.`
+              : "لا شيء ينتظر قرارك الآن."}
+          </p>
         </div>
         <div className="hero-actions">
           <span className="status">MVP</span>
@@ -155,22 +211,12 @@ export default async function AdminPage() {
         </div>
       </header>
 
-      <section className="stats-grid" aria-label="إحصائيات المنصة">
-        {cards.map((card) => (
-          <article className="metric-card" key={card.title}>
-            <span>{card.title}</span>
-            <strong>{formatNumber(card.value)}</strong>
-            <p>{card.note}</p>
-          </article>
-        ))}
-      </section>
-
       <section className="dashboard-grid">
         <article className="panel priority-panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">اليوم</p>
-              <h2>الأشياء التي تحتاج قرارًا</h2>
+              <p className="eyebrow">يحتاج قرارك</p>
+              <h2>المهام اليدوية</h2>
             </div>
           </div>
 
@@ -179,6 +225,7 @@ export default async function AdminPage() {
               <div>
                 <strong>{formatNumber(item.value)}</strong>
                 <span>{item.title}</span>
+                <span>{item.note}</span>
               </div>
               <Link className="button secondary" href={item.href}>
                 {item.action}
@@ -190,28 +237,48 @@ export default async function AdminPage() {
         <article className="panel">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">اختبار</p>
-              <h2>واتساب قبل الإطلاق</h2>
+              <p className="eyebrow">تلقائي</p>
+              <h2>ما لا يحتاج تدخلك</h2>
             </div>
           </div>
-          <p>
-            جرّب إضافة عقار، البحث، مشاهدة الفيديو، ثم طلب الرقم قبل ربط رقم واتساب الحقيقي.
-          </p>
-          <div className="quick-actions">
-            <Link className="button" href="/admin/simulator">
-              فتح المحاكي
-            </Link>
-            <Link className="button secondary" href="/admin/contact-requests">
-              طلبات التواصل
-            </Link>
-            <Link className="button secondary" href="/admin/dictionary">
-              قاموس البوت
-            </Link>
-            <Link className="button secondary" href="/admin/wallets">
-              النقاط والإحالات
-            </Link>
+          <p>هذه الخطوات صار البوت ينفذها وحده، ولا تنتظر أي موافقة منك:</p>
+          <div className="chips">
+            <span>تسليم رقم المؤجر بعد خصم النقطة</span>
+            <span>إرسال الرقم تلقائيًا بعد اعتماد الشحن</span>
+            <span>إشعار المؤجر بقبول إعلانه أو رفضه</span>
+            <span>إلغاء مسودة الإعلان المهملة بعد ساعة</span>
           </div>
         </article>
+      </section>
+
+      <section className="stats-grid" aria-label="إحصائيات المنصة">
+        {cards.map((card) => (
+          <article className="metric-card" key={card.title}>
+            <span>{card.title}</span>
+            <strong>{formatNumber(card.value)}</strong>
+            <p>{card.note}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">الأقسام</p>
+            <h2>كل صفحات الإدارة</h2>
+          </div>
+        </div>
+        <div className="grid">
+          {sections.map((section) => (
+            <article className="metric-card" key={section.title}>
+              <span>{section.title}</span>
+              <p>{section.note}</p>
+              <Link className="button secondary" href={section.href}>
+                {section.action}
+              </Link>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="panel flow-panel">
@@ -225,8 +292,21 @@ export default async function AdminPage() {
           <span>المؤجر يرسل العقار والفيديو</span>
           <span>الإدارة توافق على النشر</span>
           <span>المستأجر يبحث ويشاهد الفيديو</span>
-          <span>يدفع الرسوم ويرسل الإيصال</span>
-          <span>الإدارة ترسل رقم المؤجر بعد الموافقة</span>
+          <span>تُخصم نقطة من رصيد المستأجر</span>
+          <span>يصله رقم المؤجر فورًا</span>
+        </div>
+        <div className="panel-header" style={{ marginTop: 22 }}>
+          <div>
+            <p className="eyebrow">تدفق النقاط</p>
+            <h2>كيف يشحن المستخدم رصيده</h2>
+          </div>
+        </div>
+        <div className="flow-steps">
+          <span>ينفد رصيد المستأجر</span>
+          <span>يحوّل المبلغ لرقم الدفع</span>
+          <span>يرسل صورة الإيصال للبوت</span>
+          <span>الإدارة تعتمد الشحن</span>
+          <span>النقاط تُضاف ويكمل طلبه تلقائيًا</span>
         </div>
       </section>
     </main>

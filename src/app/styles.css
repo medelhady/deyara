@@ -314,6 +314,15 @@ select {
   margin: 14px 0;
 }
 
+.chips span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: var(--muted);
+  background: #fbfaf7;
+  line-height: 1.6;
+}
+
 .chips button {
   border: 1px solid var(--line);
   border-radius: 999px;
