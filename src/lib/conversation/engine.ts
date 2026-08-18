@@ -264,7 +264,7 @@ function refineSearchResults(
   return refined;
 }
 
-async function submitPropertyForReview(
+export async function submitPropertyForReview(
   ownerPhone: string,
   draft: DraftProperty
 ) {
@@ -513,7 +513,7 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
   return { saved: true, existing: false, id: data.id as string };
 }
 
-async function spendPointsForListing(ownerPhone: string) {
+export async function spendPointsForListing(ownerPhone: string) {
   const supabase = getServiceSupabase();
   const wallet = await ensureWallet(ownerPhone);
 

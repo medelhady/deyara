@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { getConversationState, setConversationState } from "@/lib/conversation/store";
+import { spendPointsForListing, submitPropertyForReview } from "@/lib/conversation/engine";
+import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +80,33 @@ export async function PATCH(request: Request, { params }: { params: { id: string
       usage_points_delta: topupPoints,
       admin_note: "شحن رصيد مُعتمد من الإدارة"
     });
+
+    const conversationState = await getConversationState(topup.phone);
+    const draft = conversationState.draftProperty;
+
+    if (draft?.awaitingConfirmation) {
+      const spend = await spendPointsForListing(topup.phone);
+
+      if (spend.ok) {
+        const submission = await submitPropertyForReview(topup.phone, draft);
+
+        await setConversationState(topup.phone, {
+          ...conversationState,
+          draftProperty: undefined
+        });
+
+        try {
+          await metaWhatsAppProvider.sendText(
+            topup.phone,
+            submission.saved
+              ? `✅ ${spend.reply}\n\nتم إرسال الإعلان إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.`
+              : "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
+          );
+        } catch (notifyError) {
+          console.error("Failed to notify owner about auto-submitted listing", notifyError);
+        }
+      }
+    }
   }
 
   return NextResponse.json({ creditTopup: data });
