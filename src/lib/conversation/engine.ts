@@ -671,17 +671,6 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     };
   }
 
-  if (request.existing) {
-    return {
-      ok: true,
-      id: request.id,
-      reply: formatOwnerContact(selected, [
-        "سبق أن دفعت مقابل هذه الدار.",
-        "لم نخصم منك أي نقطة هذه المرة."
-      ])
-    };
-  }
-
   const { error: walletError } = await supabase
     .from("user_wallets")
     .update({
@@ -709,6 +698,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     ok: true,
     id: request.id,
     reply: formatOwnerContact(selected, [
+      ...(request.existing ? ["🔁 طلب مكرر لنفس الدار."] : []),
       "تم خصم *1 نقطة* من رصيدك.",
       `رصيدك المتبقي: *${usagePoints - 1} نقطة*`
     ])
@@ -1093,7 +1083,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     await setConversationState(message.from, { ...storedState, draftProperty: undefined });
   }
 
-  const state = draftExpired ? { ...storedState, draftProperty: undefined } : storedState;
+  let state = draftExpired ? { ...storedState, draftProperty: undefined } : storedState;
   const contextHint = buildContextHint(state);
   let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas], contextHint)) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
@@ -1108,6 +1098,15 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
   const customReply = findCustomDictionaryReply(message.body, dictionary);
   const normalizedBody = normalizeDictionaryText(message.body);
+
+  // "منزل اخر"، "دار اخرى"، "وريني غيرها" ask for the next results, not for a cheaper price. GPT
+  // reads them as a refinement, which used to drop the renter into the max price question.
+  if (
+    /(^|\s)(اخر|اخري|غيرها|غيره|ثاني|ثانيه)($|\s)/.test(normalizedBody) &&
+    (state.lastSearchResults?.length ?? 0) > 0
+  ) {
+    extracted = { intent: "search_property", searchText: "__more__" };
+  }
 
   const referralReply = await applyReferralCode(message.from, message.body);
   if (referralReply) {
@@ -1163,15 +1162,15 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (state.awaitingMaxPriceFilter) {
-    const maxPrice = message.body.trim().match(/\d{2,8}/);
+  if (state.awaitingMaxPriceFilter && !message.body.trim().match(/\d{2,8}/)) {
+    // The renter answered with something other than a price. Repeating the question trapped them in
+    // a loop, so drop it and let the message be handled on its own terms.
+    state = { ...state, awaitingMaxPriceFilter: false };
+    await setConversationState(message.from, state);
+  }
 
-    if (!maxPrice) {
-      return {
-        debugIntent: "search_property",
-        reply: "أقل من كم؟ اكتب الرقم فقط، مثلا: 2500"
-      };
-    }
+  if (state.awaitingMaxPriceFilter) {
+    const maxPrice = message.body.trim().match(/\d{2,8}/)!;
 
     const allResults = state.lastSearchResults ?? [];
     const refinedResults = refineSearchResults(allResults, {
@@ -1270,7 +1269,15 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
       return {
         debugIntent: "search_property",
-        reply: "أقل من كم؟ اكتب الرقم فقط، مثلا: 2500"
+        reply: [
+          "تحب نضيّق البحث كيف؟",
+          "",
+          "💰 سعر أقصى — اكتب الرقم، مثلا: *2500*",
+          "🛏 عدد الغرف — اكتب: *غرفتين*",
+          "↕️ الترتيب — اكتب: *أرخص* أو *أغلى*",
+          "🏠 دار غير هذه — اكتب: *اخرى*",
+          "📍 منطقة ثانية — اكتب اسمها، مثلا: *عرفات*"
+        ].join("\n")
       };
     }
 
