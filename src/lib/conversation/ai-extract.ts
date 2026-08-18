@@ -12,7 +12,7 @@ const allowedIntents: Intent[] = [
   "unknown"
 ];
 
-function buildSystemPrompt(areas: string[]) {
+function buildSystemPrompt(areas: string[], contextHint?: string) {
   return [
     "أنت مساعد يحلل رسائل واتساب لمنصة عقارية اسمها الديارة، تعمل بالعربية (لهجات مختلطة موريتانية وخليجية وفصحى).",
     "مهمتك: تحديد نية المستخدم (intent) واستخراج الحقول ذات الصلة فقط، وإرجاعها بصيغة JSON صارمة.",
@@ -32,13 +32,24 @@ function buildSystemPrompt(areas: string[]) {
     "",
     `أسماء مناطق معروفة (استخدمها إن وردت أو شابهتها): ${areas.join("، ")}.`,
     "",
+    ...(contextHint
+      ? [
+          "سياق مهم جداً عن حالة المحادثة الحالية — يجب اعتماده بشكل أساسي عند تحديد النية:",
+          contextHint,
+          ""
+        ]
+      : []),
     "أرجع فقط JSON بالحقول التالية (احذف أي حقل غير منطبق، لا تخترع قيماً):",
     `{"intent": "...", "propertyType": "شقة|منزل|فيلا|غرفة|محل|مكتب", "area": "...", "landmark": "...", "price": رقم, "maxPrice": رقم, "searchText": "...", "rooms": رقم, "selectedIndex": رقم, "sortBy": "cheapest|expensive"}`,
     "لا تكتب أي نص خارج JSON."
   ].join("\n");
 }
 
-export async function aiExtractMessage(text: string, areas: string[]): Promise<ExtractedMessage | null> {
+export async function aiExtractMessage(
+  text: string,
+  areas: string[],
+  contextHint?: string
+): Promise<ExtractedMessage | null> {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
@@ -57,7 +68,7 @@ export async function aiExtractMessage(text: string, areas: string[]): Promise<E
         temperature: 0,
         response_format: { type: "json_object" },
         messages: [
-          { role: "system", content: buildSystemPrompt(areas) },
+          { role: "system", content: buildSystemPrompt(areas, contextHint) },
           { role: "user", content: text }
         ]
       })

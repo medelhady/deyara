@@ -924,12 +924,45 @@ async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) 
   return { saved: true };
 }
 
+function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>>) {
+  if (state.draftProperty && !state.draftProperty.awaitingConfirmation) {
+    const draft = state.draftProperty;
+
+    if (!draft.area) {
+      return "البوت سأل المستخدم للتو عن منطقة عقاره الذي يريد عرضه للإيجار (يملكه). اعتبر أي رد نصي بسيط (اسم منطقة) استكمالاً لإضافة العقار (add_property)، وليس بحثاً جديداً.";
+    }
+
+    if (!draft.price) {
+      return "البوت سأل المستخدم للتو عن سعر إيجار العقار الذي يعرضه (يملكه). اعتبر أي رقم أو رد نصي استكمالاً لإضافة العقار (add_property).";
+    }
+
+    if (!draft.landmark) {
+      return "البوت سأل المستخدم للتو عن أقرب معلم لعقاره الذي يعرضه (يملكه). اعتبر أي رد نصي استكمالاً لإضافة العقار (add_property)، وليس بحثاً جديداً أو منطقة بحث.";
+    }
+  }
+
+  if (state.pendingSearch && !state.pendingSearch.area) {
+    return "البوت سأل المستخدم للتو عن المنطقة التي يبحث فيها عن عقار للإيجار. اعتبر أي رد نصي بسيط (اسم منطقة) استكمالاً للبحث (search_property)، إلا إذا صرح المستخدم بوضوح أنه يملك عقاراً (عندي/لدي).";
+  }
+
+  if (state.awaitingContactChoice) {
+    return "البوت ينتظر من المستخدم اختيار 1 (لطلب رقم المؤجر) أو 2 (لمشاهدة الفيديو).";
+  }
+
+  if (state.awaitingMaxPriceFilter) {
+    return "البوت سأل المستخدم عن الحد الأقصى للسعر لتصفية نتائج بحث سابق.";
+  }
+
+  return undefined;
+}
+
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
-  let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas])) ?? extractMessage(message.body, dictionary);
-  const fuzzyArea = findAreaCandidate(message.body, activeAreas);
   const state = await getConversationState(message.from);
+  const contextHint = buildContextHint(state);
+  let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas], contextHint)) ?? extractMessage(message.body, dictionary);
+  const fuzzyArea = findAreaCandidate(message.body, activeAreas);
   const knownPropertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
   if (!extracted.propertyType && extracted.searchText && knownPropertyTypes.includes(extracted.searchText.trim())) {
     extracted = { ...extracted, propertyType: extracted.searchText.trim(), searchText: undefined };
