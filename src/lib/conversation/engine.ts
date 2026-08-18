@@ -485,6 +485,13 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
   }));
 }
 
+function formatOwnerContact(selected: PropertyCandidate) {
+  return [
+    `📱 رقم المؤجر: *${selected.ownerPhone}*`,
+    `🔗 رابط واتساب: https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`
+  ];
+}
+
 async function createContactRequest(renterPhone: string, selected: PropertyCandidate) {
   const supabase = getServiceSupabase();
 
@@ -508,10 +515,29 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
     .eq("property_id", selected.id)
     .eq("renter_phone", renterPhone)
     .in("status", ["pending_payment", "pending_admin_review", "approved"])
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
-  if (existing) {
+  // Already paid for: hand the number over again without charging a second point.
+  if (existing?.status === "approved") {
     return { saved: true, existing: true, id: existing.id as string, status: existing.status as string };
+  }
+
+  // Left over from when contact requests waited for an admin. Access is paid with points now, so
+  // approve the row instead of stranding the renter behind a review that no longer happens.
+  if (existing) {
+    const { error: approveError } = await supabase
+      .from("contact_requests")
+      .update({ status: "approved" })
+      .eq("id", existing.id);
+
+    if (approveError) {
+      console.error("Failed to approve a pending contact request", approveError);
+      return { saved: false, error: approveError.message };
+    }
+
+    return { saved: true, existing: false, id: existing.id as string };
   }
 
   const { data, error } = await supabase
@@ -628,7 +654,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     return {
       ok: true,
       id: request.id,
-      reply: "عندك طلب تواصل سابق لهذه الدار. إذا كان الطلب مقبولًا ستصلك بيانات المؤجر من الإدارة."
+      reply: ["سبق أن دفعت مقابل هذه الدار، وهذا رقم المؤجر مرة أخرى:", "", ...formatOwnerContact(selected)].join("\n")
     };
   }
 
@@ -662,8 +688,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
       "تم خصم *1 نقطة* من رصيدك.",
       `رصيدك المتبقي: *${usagePoints - 1} نقطة*`,
       "",
-      `📱 رقم المؤجر: *${selected.ownerPhone}*`,
-      `🔗 رابط واتساب: https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`
+      ...formatOwnerContact(selected)
     ].join("\n")
   };
 }
@@ -947,39 +972,6 @@ async function getPropertyVideoUrl(propertyId: string) {
   }
 
   return data?.storage_url as string | undefined;
-}
-
-async function savePaymentReceipt(contactRequestId: string, receiptUrl: string) {
-  const supabase = getServiceSupabase();
-
-  if (!supabase) {
-    return { saved: false };
-  }
-
-  const { error: paymentError } = await supabase.from("payments").insert({
-    contact_request_id: contactRequestId,
-    receipt_image_url: receiptUrl,
-    status: "pending"
-  });
-
-  if (paymentError) {
-    console.error("Failed to save payment receipt", paymentError);
-    return { saved: false, error: paymentError.message };
-  }
-
-  const { error: requestError } = await supabase
-    .from("contact_requests")
-    .update({
-      status: "pending_admin_review"
-    })
-    .eq("id", contactRequestId);
-
-  if (requestError) {
-    console.error("Failed to update contact request after receipt", requestError);
-    return { saved: false, error: requestError.message };
-  }
-
-  return { saved: true };
 }
 
 function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>>) {
@@ -1472,17 +1464,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (message.media.length > 0) {
-    if (state.activeContactRequestId && message.media.some((item) => item.contentType.startsWith("image/"))) {
-      const receipt = await savePaymentReceipt(state.activeContactRequestId, message.media[0].url);
-
-      return {
-        debugIntent: "send_payment_receipt",
-        reply: receipt.saved
-          ? "✅ تم استلام صورة الإيصال. سيتم التحقق من الإدارة، وبعد الموافقة سنرسل رقم المؤجر فقط."
-          : "وصلت الصورة، لكن تعذر حفظ الإيصال الآن. حاول مرة أخرى بعد قليل."
-      };
-    }
-
+    // Every receipt image is a points top-up now. Access to an owner number is paid from the balance,
+    // so a receipt must never be attached to a contact request or send it back for admin review.
     if (message.media.some((item) => item.contentType.startsWith("image/"))) {
       return {
         debugIntent: "send_payment_receipt",
