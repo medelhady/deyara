@@ -5,6 +5,7 @@ import { aiExtractMessage } from "./ai-extract";
 import { getRuntimeDictionary } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
+import { storePropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -1458,10 +1459,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   const incomingVideo = message.media.find((item) => item.contentType.startsWith("video/"));
   if (incomingVideo) {
+    // Copy it now: the WhatsApp link expires long before the owner confirms the listing.
+    const storedPath = await storePropertyMedia(incomingVideo.url, incomingVideo.contentType, message.from);
+
     const draftProperty = touchDraft({
       ...state.draftProperty,
       hasVideo: true,
-      videoUrl: incomingVideo.url,
+      videoUrl: storedPath ?? incomingVideo.url,
       videoContentType: incomingVideo.contentType,
       awaitingConfirmation: Boolean(state.draftProperty?.area && state.draftProperty?.price && state.draftProperty?.landmark)
     });

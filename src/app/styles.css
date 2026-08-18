@@ -667,3 +667,22 @@ select {
     display: grid;
   }
 }
+
+.property-video {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  max-width: 320px;
+}
+
+.property-video video {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #000;
+}
+
+.media-missing {
+  margin-top: 12px;
+  color: var(--muted);
+}

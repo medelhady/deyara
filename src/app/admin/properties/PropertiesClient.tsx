@@ -13,6 +13,7 @@ type Property = {
   rooms: number | null;
   status: string;
   created_at: string;
+  media?: Array<{ type: string; url: string | null; contentType: string | null }>;
 };
 
 const statusLabels: Record<string, string> = {
@@ -23,6 +24,24 @@ const statusLabels: Record<string, string> = {
   hidden: "مخفي",
   rented: "تم تأجيره"
 };
+
+function PropertyVideo({ media }: { media?: Property["media"] }) {
+  const video = media?.find((item) => item.type === "video" && item.url);
+
+  if (!video?.url) {
+    // The video is required before review, so say plainly that it is missing.
+    return <p className="media-missing">🎥 لا يوجد فيديو محفوظ لهذا الإعلان.</p>;
+  }
+
+  return (
+    <div className="property-video">
+      <video src={video.url} controls preload="metadata" playsInline />
+      <a href={video.url} target="_blank" rel="noreferrer">
+        فتح الفيديو في نافذة جديدة
+      </a>
+    </div>
+  );
+}
 
 export function PropertiesClient() {
   const [properties, setProperties] = useState<Property[]>([]);
@@ -104,6 +123,7 @@ export function PropertiesClient() {
             <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
             <p>رقم المؤجر: {property.owner_phone}</p>
             <p>الحالة: {statusLabels[property.status] ?? property.status}</p>
+            <PropertyVideo media={property.media} />
           </div>
           <div className="row-actions">
             <button type="button" onClick={() => updateStatus(property.id, "active")}>
