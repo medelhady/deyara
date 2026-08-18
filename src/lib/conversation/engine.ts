@@ -196,7 +196,7 @@ function getPointsPaymentNumber() {
   );
 }
 
-function getPointsTopupInstructions(options?: { currentBalance?: number; purposeText?: string }) {
+export function getPointsTopupInstructions(options?: { currentBalance?: number; purposeText?: string }) {
   const paymentNumber = getPointsPaymentNumber();
   const currentBalance = options?.currentBalance;
 
@@ -1489,25 +1489,39 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         draftProperty: undefined
       });
 
+      if (!submission.saved) {
+        return {
+          debugIntent: "add_property",
+          reply: "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
+        };
+      }
+
+      // Too little to publish: send the same top-up card a renter gets, so the owner has the
+      // payment number and the steps rather than just being told to top up.
+      if (balance !== null && balance < propertyListingFeePoints) {
+        return {
+          debugIntent: "add_property",
+          reply: [
+            "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
+            "",
+            getPointsTopupInstructions({
+              currentBalance: balance,
+              purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.`
+            })
+          ].join("\n")
+        };
+      }
+
       return {
         debugIntent: "add_property",
-        reply: submission.saved
-          ? [
-              "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
-              "",
-              `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
-              ...(balance === null
-                ? []
-                : [
-                    `💼 رصيدك الآن: *${balance} نقطة*`,
-                    ...(balance < propertyListingFeePoints
-                      ? ["", "⚠️ رصيدك لا يكفي للنشر. اشحن قبل المراجعة حتى لا يتأخر إعلانك."]
-                      : [])
-                  ]),
-              "",
-              "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
-            ].join("\n")
-          : "✅ تم تأكيد الإعلان في المحاكي. عند ربط Supabase سيتم حفظه تلقائيًا وإرساله للإدارة للمراجعة."
+        reply: [
+          "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
+          "",
+          `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
+          ...(balance === null ? [] : [`💼 رصيدك الآن: *${balance} نقطة*`]),
+          "",
+          "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
+        ].join("\n")
       };
     }
 
