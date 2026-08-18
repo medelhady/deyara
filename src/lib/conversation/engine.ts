@@ -485,11 +485,32 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
   }));
 }
 
-function formatOwnerContact(selected: PropertyCandidate) {
+// The renter may get this long after picking the house, so it repeats which one it is instead of
+// sending a bare phone number.
+export function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
   return [
-    `📱 رقم المؤجر: *${selected.ownerPhone}*`,
-    `🔗 رابط واتساب: https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`
-  ];
+    "╭──────────────",
+    `🏠 *${selected.type ?? "دار"} في ${selected.area}*`,
+    "╰──────────────",
+    "",
+    "💰 السعر",
+    `*${formatPrice(selected.price)}*`,
+    "",
+    "🛏 الغرف",
+    `${selected.rooms ?? "غير محدد"}`,
+    "",
+    "📍 قريبة من",
+    formatLandmark(selected.landmark),
+    ...(selected.propertyCode ? ["", "🔖 كود الدار", `*${selected.propertyCode}*`] : []),
+    "",
+    "━━━━━━━━━━━━━━",
+    "📱 *رقم المؤجر*",
+    `*${selected.ownerPhone?.replace("whatsapp:", "")}*`,
+    "",
+    "🔗 محادثة مباشرة",
+    `https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`,
+    ...(note.length ? ["", "━━━━━━━━━━━━━━", ...note] : [])
+  ].join("\n");
 }
 
 async function createContactRequest(renterPhone: string, selected: PropertyCandidate) {
@@ -654,7 +675,10 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     return {
       ok: true,
       id: request.id,
-      reply: ["سبق أن دفعت مقابل هذه الدار، وهذا رقم المؤجر مرة أخرى:", "", ...formatOwnerContact(selected)].join("\n")
+      reply: formatOwnerContact(selected, [
+        "سبق أن دفعت مقابل هذه الدار.",
+        "لم نخصم منك أي نقطة هذه المرة."
+      ])
     };
   }
 
@@ -684,12 +708,10 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   return {
     ok: true,
     id: request.id,
-    reply: [
+    reply: formatOwnerContact(selected, [
       "تم خصم *1 نقطة* من رصيدك.",
-      `رصيدك المتبقي: *${usagePoints - 1} نقطة*`,
-      "",
-      ...formatOwnerContact(selected)
-    ].join("\n")
+      `رصيدك المتبقي: *${usagePoints - 1} نقطة*`
+    ])
   };
 }
 
