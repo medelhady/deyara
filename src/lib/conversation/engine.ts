@@ -929,6 +929,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   let extracted = (await aiExtractMessage(message.body, [...knownAreas, ...dictionary.areas])) ?? extractMessage(message.body, dictionary);
   const fuzzyArea = findAreaCandidate(message.body, activeAreas);
   const state = await getConversationState(message.from);
+  const knownPropertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
+  if (!extracted.propertyType && extracted.searchText && knownPropertyTypes.includes(extracted.searchText.trim())) {
+    extracted = { ...extracted, propertyType: extracted.searchText.trim(), searchText: undefined };
+  }
   if (!extracted.area && fuzzyArea) {
     extracted = {
       ...extracted,
@@ -1183,7 +1187,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
   }
 
-  if (state.lastSearchQuery && extracted.intent === "unknown" && !state.draftProperty) {
+  if (state.lastSearchQuery && extracted.intent === "unknown" && !state.draftProperty && message.media.length === 0) {
     const areaFromText = findAreaCandidate(message.body, activeAreas);
     const text = message.body.trim();
     const refinedSearch = {
