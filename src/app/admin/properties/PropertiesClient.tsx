@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Property = {
   id: string;
@@ -25,16 +25,35 @@ const statusLabels: Record<string, string> = {
   rented: "تم تأجيره"
 };
 
-function PropertyVideo({ media }: { media?: Property["media"] }) {
+const unknownArea = "بدون مقاطعة";
+
+function formatPrice(price: number | null) {
+  return price === null ? "غير محدد" : `${new Intl.NumberFormat("en-US").format(price)} جديدة`;
+}
+
+function PropertyVideo({ media, startOpen }: { media?: Property["media"]; startOpen: boolean }) {
+  // Approved listings keep the video folded away: it was already watched to approve them, and it is
+  // the heaviest thing on the page. A listing waiting for review opens straight to it.
+  const [open, setOpen] = useState(startOpen);
   const video = media?.find((item) => item.type === "video" && item.url);
 
   if (!video?.url) {
-    // The video is required before review, so say plainly that it is missing.
     return <p className="media-missing">🎥 لا يوجد فيديو محفوظ لهذا الإعلان.</p>;
+  }
+
+  if (!open) {
+    return (
+      <button className="log-toggle" type="button" onClick={() => setOpen(true)}>
+        ▸ 🎥 عرض الفيديو
+      </button>
+    );
   }
 
   return (
     <div className="property-video">
+      <button className="log-toggle" type="button" onClick={() => setOpen(false)}>
+        ▾ 🎥 إخفاء الفيديو
+      </button>
       <video src={video.url} controls preload="metadata" playsInline />
       <a href={video.url} target="_blank" rel="noreferrer">
         فتح الفيديو في نافذة جديدة
@@ -47,6 +66,8 @@ export function PropertiesClient() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [message, setMessage] = useState("جار تحميل العقارات...");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [openAreas, setOpenAreas] = useState<Record<string, boolean>>({});
+  const [openProperty, setOpenProperty] = useState<string | null>(null);
 
   async function loadProperties() {
     const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
@@ -79,6 +100,7 @@ export function PropertiesClient() {
       return;
     }
 
+    setMessage("");
     await loadProperties();
   }
 
@@ -94,8 +116,26 @@ export function PropertiesClient() {
     },
     { all: 0 }
   );
+
   const visibleProperties =
     statusFilter === "all" ? properties : properties.filter((property) => property.status === statusFilter);
+
+  const areas = useMemo(() => {
+    const grouped = new Map<string, Property[]>();
+
+    for (const property of visibleProperties) {
+      const area = property.area?.trim() || unknownArea;
+      grouped.set(area, [...(grouped.get(area) ?? []), property]);
+    }
+
+    return Array.from(grouped.entries())
+      .map(([area, items]) => ({
+        area,
+        items,
+        pending: items.filter((item) => item.status === "pending_review").length
+      }))
+      .sort((first, second) => second.items.length - first.items.length);
+  }, [visibleProperties]);
 
   return (
     <section className="list-panel">
@@ -111,37 +151,77 @@ export function PropertiesClient() {
           </button>
         ))}
       </div>
+
       {message ? <p>{message}</p> : null}
-      {visibleProperties.map((property) => (
-        <article className="property-row" key={property.id}>
-          <div>
-            <h2>
-              {property.type ?? "عقار"} في {property.area ?? "منطقة غير محددة"}
-            </h2>
-            <p>رقم الإعلان: {property.property_code ?? property.id.slice(0, 8)}</p>
-            <p>السعر: {property.price ?? "غير محدد"}</p>
-            <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
-            <p>رقم المؤجر: {property.owner_phone}</p>
-            <p>الحالة: {statusLabels[property.status] ?? property.status}</p>
-            <PropertyVideo media={property.media} />
-          </div>
-          <div className="row-actions">
-            <button type="button" onClick={() => updateStatus(property.id, "active")}>
-              موافقة
+
+      {areas.map((group) => {
+        const isOpen = openAreas[group.area] ?? false;
+
+        return (
+          <article className="area-group" key={group.area}>
+            <button
+              className="area-header"
+              type="button"
+              onClick={() => setOpenAreas((current) => ({ ...current, [group.area]: !isOpen }))}
+            >
+              <span>
+                {isOpen ? "▾" : "▸"} 📍 {group.area}
+              </span>
+              <span className="area-counts">
+                {group.items.length} عقار
+                {group.pending > 0 ? ` — ${group.pending} بانتظار المراجعة` : ""}
+              </span>
             </button>
-            <button type="button" onClick={() => updateStatus(property.id, "rejected")}>
-              رفض
-            </button>
-            <button type="button" onClick={() => updateStatus(property.id, "hidden")}>
-              إخفاء
-            </button>
-            <button type="button" onClick={() => updateStatus(property.id, "rented")}>
-              تم تأجيره
-            </button>
-          </div>
-        </article>
-      ))}
-      {!message && visibleProperties.length === 0 ? <p>لا توجد عقارات ضمن هذا الفلتر.</p> : null}
+
+            {isOpen
+              ? group.items.map((property) => {
+                  const expanded = openProperty === property.id;
+                  const reference = property.property_code ?? property.id.slice(0, 8);
+
+                  return (
+                    <div className="property-entry" key={property.id}>
+                      <button
+                        className="property-summary"
+                        type="button"
+                        onClick={() => setOpenProperty(expanded ? null : property.id)}
+                      >
+                        <span>
+                          {expanded ? "▾" : "▸"} *{reference}* — {property.type ?? "عقار"} — {formatPrice(property.price)}
+                        </span>
+                        <span className="area-counts">{statusLabels[property.status] ?? property.status}</span>
+                      </button>
+
+                      {expanded ? (
+                        <div className="property-detail">
+                          <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
+                          <p>الغرف: {property.rooms ?? "غير محدد"}</p>
+                          <p>رقم المؤجر: {property.owner_phone}</p>
+                          <PropertyVideo media={property.media} startOpen={property.status === "pending_review"} />
+                          <div className="row-actions">
+                            <button type="button" onClick={() => updateStatus(property.id, "active")}>
+                              موافقة
+                            </button>
+                            <button type="button" onClick={() => updateStatus(property.id, "rejected")}>
+                              رفض
+                            </button>
+                            <button type="button" onClick={() => updateStatus(property.id, "hidden")}>
+                              إخفاء
+                            </button>
+                            <button type="button" onClick={() => updateStatus(property.id, "rented")}>
+                              تم تأجيره
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              : null}
+          </article>
+        );
+      })}
+
+      {!message && areas.length === 0 ? <p>لا توجد عقارات ضمن هذا الفلتر.</p> : null}
     </section>
   );
 }

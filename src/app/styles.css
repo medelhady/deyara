@@ -764,3 +764,51 @@ select {
   overflow-y: auto;
   max-height: 620px;
 }
+
+.area-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.area-header,
+.property-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.area-header {
+  font-weight: 600;
+  background: #fbfaf7;
+}
+
+.area-counts {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.property-entry {
+  border-top: 1px solid var(--line);
+}
+
+.property-detail {
+  display: grid;
+  gap: 6px;
+  padding: 0 16px 16px;
+}
+
+.property-detail p {
+  margin: 0;
+  color: var(--muted);
+}
