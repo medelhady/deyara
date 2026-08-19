@@ -8,6 +8,7 @@ import { getConversationState, setConversationState } from "./store";
 import { storePropertyMedia } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notify-admins";
+import { handleAdminCommand } from "./admin-commands";
 import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -1380,6 +1381,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         "إذا كنت ترى أن هذا خطأ، تواصل مع الإدارة."
       ].join("\n")
     };
+  }
+
+  // Admin instructions run before any conversation state is touched. Anything that is not a command
+  // returns null, so an admin can still use the bot as a renter or an owner with the same number.
+  const adminReply = await handleAdminCommand(message.from, message.body);
+
+  if (adminReply) {
+    return { debugIntent: "intro", reply: adminReply };
   }
 
   const storedState = await getConversationState(message.from);
