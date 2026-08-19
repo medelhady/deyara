@@ -1415,6 +1415,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   ) {
     extracted = { ...extracted, intent: "search_property" };
   }
+  // While a draft is being filled, the message answers the question the bot just asked. Landmarks
+  // often carry an area name ("كراج لكصر"), and GPT reads those as a search, which used to abandon
+  // the half-filled listing and show search results instead.
+  if (
+    extracted.intent === "search_property" &&
+    state.draftProperty &&
+    !state.draftProperty.awaitingConfirmation &&
+    !includesAny(message.body, dictionary.renterSearchPhrases)
+  ) {
+    extracted = { ...extracted, intent: "unknown" };
+  }
+
   if (!extracted.area && fuzzyArea) {
     extracted = {
       ...extracted,
@@ -1896,6 +1908,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     (extracted.intent === "unknown" || extracted.intent === "select_property" || extracted.intent === "refine_search")
   ) {
     const draftProperty = mergeDraftFromMessage(state.draftProperty, extracted, message.body, activeAreas);
+
+    // "كراج لكصر" as a landmark must not move a listing that is already in another district. The
+    // area is only still open to change once the landmark has been given, which is the edit flow.
+    if (!state.draftProperty.landmark && state.draftProperty.area) {
+      draftProperty.area = state.draftProperty.area;
+    }
 
     if (!draftProperty.landmark && state.draftProperty.area && state.draftProperty.price) {
       draftProperty.landmark = message.body.trim();
