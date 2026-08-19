@@ -178,6 +178,12 @@ export default async function AdminPage() {
       action: "فتح النقاط"
     },
     {
+      title: "المستخدمون",
+      note: "كل من تحدث مع البوت، مع إيقاف أي رقم يُساء استخدامه ورفعه لاحقًا.",
+      href: "/admin/users",
+      action: "فتح المستخدمين"
+    },
+    {
       title: "قاموس البوت",
       note: "كلمات البحث والمناطق والردود المخصصة التي يفهمها البوت.",
       href: "/admin/dictionary",

@@ -936,6 +936,33 @@ async function getWalletReply(phone: string) {
   ].join("\n");
 }
 
+// A blocked number gets one explanation and nothing else. Runs before any state is read or written
+// so a blocked user cannot keep a draft or a search alive.
+async function isBlocked(phone: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("blocked_at")
+    .eq("phone", phone)
+    .maybeSingle();
+
+  if (error) {
+    // A missing column means blocking was never migrated in, so nobody is blocked.
+    if (!error.message?.includes("blocked_at")) {
+      console.error("Failed to read the block state", error);
+    }
+
+    return false;
+  }
+
+  return Boolean(data?.blocked_at);
+}
+
 async function getOwnerListingsReply(ownerPhone: string) {
   const supabase = getServiceSupabase();
 
@@ -1311,6 +1338,19 @@ export function normalizeGenericSearchText(extracted: ExtractedMessage): Extract
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
+  if (await isBlocked(message.from)) {
+    return {
+      debugIntent: "unknown",
+      reply: [
+        "⛔ *حسابك موقوف حاليًا*",
+        "",
+        "لا يمكنك استخدام الديارة في الوقت الحالي.",
+        "",
+        "إذا كنت ترى أن هذا خطأ، تواصل مع الإدارة."
+      ].join("\n")
+    };
+  }
+
   const storedState = await getConversationState(message.from);
   const draftExpired = Boolean(storedState.draftProperty && !isDraftFresh(storedState.draftProperty));
 
