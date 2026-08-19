@@ -1296,7 +1296,7 @@ async function getPropertyVideoUrl(propertyId: string) {
   return data?.storage_url as string | undefined;
 }
 
-function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>>) {
+export function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>>) {
   if (state.draftProperty && !state.draftProperty.awaitingConfirmation) {
     const draft = state.draftProperty;
 
