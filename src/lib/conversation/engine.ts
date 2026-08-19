@@ -178,16 +178,63 @@ function normalizePhoneDigits(phone: string) {
   return phone.replace(/\D/g, "");
 }
 
-function makeReferralCode(phone: string) {
-  const digits = normalizePhoneDigits(phone);
-  const suffix = digits.slice(-4).padStart(4, "0");
-  return `${digits}-${suffix}`;
+// No I, L, O, 0 or 1: the code gets read aloud and retyped, so lookalikes cost more than the few
+// characters they add. 31^4 is roughly 900k codes, far more than this will ever need.
+const referralAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function randomReferralCode() {
+  let code = "";
+
+  for (let index = 0; index < 4; index += 1) {
+    code += referralAlphabet[Math.floor(Math.random() * referralAlphabet.length)];
+  }
+
+  return code;
 }
 
-function makeReferralLink(referralCode: string) {
-  const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? process.env.ADMIN_WHATSAPP_NUMBERS?.split(",")[0]?.replace("whatsapp:", "");
+/**
+ * Returns the marketer's code, minting one on first use. The old codes were the phone number
+ * itself, which put it inside every invite message the marketer forwarded.
+ */
+async function getOrCreateReferralCode(phone: string) {
+  const supabase = getServiceSupabase();
+  const wallet = await ensureWallet(phone);
+  const existing = wallet?.referral_code as string | null | undefined;
+
+  if (existing) {
+    return existing;
+  }
+
+  if (!supabase) {
+    return randomReferralCode();
+  }
+
+  // The column is unique, so a collision fails the update rather than duplicating a code.
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const candidate = randomReferralCode();
+    const { error } = await supabase
+      .from("user_wallets")
+      .update({ referral_code: candidate })
+      .eq("phone", phone);
+
+    if (!error) {
+      return candidate;
+    }
+
+    console.error("Referral code collision, retrying", error.message);
+  }
+
+  return null;
+}
+
+async function makeReferralLink(referralCode: string) {
+  // The link must open the bot. It used to fall back to the first admin number, which sent every
+  // invited person to a personal WhatsApp instead.
+  const { botWhatsAppNumber } = await getSettings();
   const text = encodeURIComponent(`ابدأ ${referralCode}`);
-  return whatsappNumber ? `https://wa.me/${normalizePhoneDigits(whatsappNumber)}?text=${text}` : `كود دعوتك: ${referralCode}`;
+  return botWhatsAppNumber
+    ? `https://wa.me/${normalizePhoneDigits(botWhatsAppNumber)}?text=${text}`
+    : `كود دعوتك: ${referralCode}`;
 }
 
 
@@ -835,28 +882,13 @@ async function ensureWallet(phone: string) {
   }
 
   if (existing) {
-    const expectedCode = makeReferralCode(phone);
-    if (!String(existing.referral_code ?? "").includes("-")) {
-      const { data: updated } = await supabase
-        .from("user_wallets")
-        .update({
-          referral_code: expectedCode
-        })
-        .eq("phone", phone)
-        .select("*")
-        .single();
-
-      return updated ?? existing;
-    }
-
     return existing;
   }
 
   const { data, error } = await supabase
     .from("user_wallets")
     .insert({
-      phone,
-      referral_code: makeReferralCode(phone)
+      phone
     })
     .select("*")
     .single();
@@ -876,7 +908,12 @@ async function applyReferralCode(phone: string, body: string) {
     return undefined;
   }
 
-  const referralCode = body.match(/\b\d{8,15}-\d{4}\b/)?.[0];
+  // The link sends "ابدأ A7K2". A bare four character token is accepted too, as long as it has a
+  // letter in it, so a plain number is never mistaken for a code.
+  const prefixed = body.match(/(?:\u0627\u0628\u062f\u0623|\u0627\u0628\u062f\u0627|\u0628\u062f\u0621|start)\s+([A-Za-z0-9]{4})\b/);
+  const standalone = body.trim().match(/^([A-Za-z0-9]{4})$/);
+  const candidate = (prefixed?.[1] ?? standalone?.[1] ?? "").toUpperCase();
+  const referralCode = /[A-Z]/.test(candidate) ? candidate : undefined;
 
   if (!referralCode) {
     return undefined;
@@ -909,7 +946,8 @@ async function applyReferralCode(phone: string, body: string) {
   const { error: updateError } = await supabase
     .from("user_wallets")
     .update({
-      referred_by_phone: referrer.phone
+      referred_by_phone: referrer.phone,
+      referred_at: new Date().toISOString()
     })
     .eq("phone", phone);
 
@@ -921,7 +959,7 @@ async function applyReferralCode(phone: string, body: string) {
   return [
     "✅ تم تسجيل كود الدعوة بنجاح.",
     "",
-    "عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *30%* نقاط تسويق."
+    `عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *${(await getSettings()).referralCommissionPercent}%* نقاط تسويق.`
   ].join("\n");
 }
 
@@ -936,7 +974,7 @@ async function getWalletReply(phone: string) {
   const usagePoints = Number(wallet.usage_points ?? 0);
   const commissionPoints = Number(wallet.commission_points ?? 0);
   const remaining = Math.max(minimumWithdrawalPoints - commissionPoints, 0);
-  const referralCode = String(wallet.referral_code ?? makeReferralCode(phone));
+  const referralCode = (await getOrCreateReferralCode(phone)) ?? "—";
 
   return [
     "╭──────────────",
@@ -956,7 +994,7 @@ async function getWalletReply(phone: string) {
     "",
     "━━━━━━━━━━━━━━",
     "🔗 رابط دعوتك",
-    makeReferralLink(referralCode)
+    await makeReferralLink(referralCode)
   ].join("\n");
 }
 
@@ -1531,8 +1569,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (/^(رابط دعوتي|كود دعوتي|دعوتي|رابط الاحالة|كود الاحالة|الاحالة)$/.test(normalizedBody)) {
-    const wallet = await ensureWallet(message.from);
-    const referralCode = String(wallet?.referral_code ?? makeReferralCode(message.from));
+    const referralCode = (await getOrCreateReferralCode(message.from)) ?? "—";
 
     return {
       debugIntent: "intro",
@@ -1546,7 +1583,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         "",
         "━━━━━━━━━━━━━━",
         "رابط الدعوة",
-        makeReferralLink(referralCode),
+        await makeReferralLink(referralCode),
         "",
         "━━━━━━━━━━━━━━",
         "📣 عمولتك",

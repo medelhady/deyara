@@ -134,7 +134,7 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
 
   const { data: wallet, error: walletFetchError } = await supabase
     .from("user_wallets")
-    .select("usage_points,referred_by_phone")
+    .select("usage_points,referred_by_phone,referred_at")
     .eq("phone", phone)
     .maybeSingle();
 
@@ -168,7 +168,12 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
     console.error("Failed to record the approved topup", ledgerError);
   }
 
-  await payReferralCommission(phone, wallet.referred_by_phone as string | null, points);
+  await payReferralCommission(
+    phone,
+    wallet.referred_by_phone as string | null,
+    points,
+    wallet.referred_at as string | null
+  );
 
   // A draft still awaiting confirmation predates the move of the listing fee to approval time.
   const conversationState = await getConversationState(phone);
@@ -208,7 +213,12 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
   };
 }
 
-async function payReferralCommission(phone: string, referrerPhone: string | null, points: number) {
+async function payReferralCommission(
+  phone: string,
+  referrerPhone: string | null,
+  points: number,
+  referredAt: string | null
+) {
   if (!referrerPhone) {
     return;
   }
@@ -219,7 +229,18 @@ async function payReferralCommission(phone: string, referrerPhone: string | null
     return;
   }
 
-  const { referralCommissionPercent } = await getSettings();
+  const { referralCommissionPercent, referralWindowMonths } = await getSettings();
+
+  // The commission runs for a fixed window from the day the referred person joined, not from their
+  // first top-up, so a dormant referral does not pay forever.
+  if (referredAt && referralWindowMonths > 0) {
+    const expiresAt = new Date(referredAt);
+    expiresAt.setMonth(expiresAt.getMonth() + referralWindowMonths);
+
+    if (Date.now() > expiresAt.getTime()) {
+      return;
+    }
+  }
   const commission = Math.floor((points * referralCommissionPercent) / 100);
 
   if (commission <= 0) {

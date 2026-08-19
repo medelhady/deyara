@@ -16,5 +16,7 @@ insert into public.app_settings (key, value) values
   ('referral_commission_percent', '30'),
   ('minimum_withdrawal_points', '500'),
   ('points_payment_number', ''),
-  ('admin_notify_numbers', '')
+  ('admin_notify_numbers', ''),
+  ('bot_whatsapp_number', ''),
+  ('referral_window_months', '12')
 on conflict (key) do nothing;

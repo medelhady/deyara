@@ -6,6 +6,8 @@ export type AppSettings = {
   referralCommissionPercent: number;
   minimumWithdrawalPoints: number;
   pointsPaymentNumber: string;
+  botWhatsAppNumber: string;
+  referralWindowMonths: number;
   adminNotifyNumbers: string;
 };
 
@@ -61,6 +63,22 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "botWhatsAppNumber",
+    column: "bot_whatsapp_number",
+    label: "رقم واتساب البوت",
+    hint: "الرقم الذي تفتح عليه روابط الدعوة محادثة مع البوت. بصيغة دولية كاملة مثل 22248404036.",
+    kind: "text",
+    fallback: () => process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ""
+  },
+  {
+    key: "referralWindowMonths",
+    column: "referral_window_months",
+    label: "مدة عمولة الإحالة (شهر)",
+    hint: "تُحتسب العمولة على شحنات المُحال خلال هذه المدة من تاريخ تسجيله، ثم تتوقف.",
+    kind: "number",
+    fallback: () => "12"
   },
   {
     key: "pointsPaymentNumber",
