@@ -1456,10 +1456,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   // "منزل اخر"، "دار اخرى"، "وريني غيرها" ask for the next results, not for a cheaper price. GPT
   // reads them as a refinement, which used to drop the renter into the max price question.
-  if (
-    /(^|\s)(اخر|اخري|غيرها|غيره|ثاني|ثانيه)($|\s)/.test(normalizedBody) &&
-    (state.lastSearchResults?.length ?? 0) > 0
-  ) {
+  // "0" is the shortcut the results list itself advertises, and GPT reads it as picking option zero,
+  // which matches nothing and answers "ما لقيت هذا الرقم".
+  const asksForMoreResults =
+    /^[0٠]$/.test(message.body.trim()) ||
+    /^(المزيد|مزيد|اكثر|زيد|زد|عرض المزيد|خيارات اخري)$/.test(normalizedBody) ||
+    /(^|\s)(اخر|اخري|غيرها|غيره|ثاني|ثانيه)($|\s)/.test(normalizedBody);
+
+  if (asksForMoreResults && (state.lastSearchResults?.length ?? 0) > 0) {
     extracted = { intent: "search_property", searchText: "__more__" };
   }
 
