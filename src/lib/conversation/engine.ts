@@ -314,7 +314,7 @@ export async function submitPropertyForReview(
       status: "pending_review",
       description: "تم إنشاء الإعلان من محادثة واتساب."
     })
-    .select("id")
+    .select("id,property_code")
     .single();
 
   if (error) {
@@ -335,19 +335,29 @@ export async function submitPropertyForReview(
     }
   }
 
+  // The admin acts on this from WhatsApp, so the message has to carry the reference the commands
+  // take, and the commands themselves ready to copy.
+  const reference = (property?.property_code as string | null) ?? String(property?.id ?? "").slice(0, 8);
+
   await notifyAdmins([
     "🏠 *إعلان عقار جديد بانتظار المراجعة*",
     "",
+    `🔖 رقم الإعلان: *${reference}*`,
     `📱 المؤجر: ${ownerPhone.replace("whatsapp:", "")}`,
     `🏷 النوع: ${draft.type ?? "غير محدد"}`,
     `📍 المنطقة: ${draft.area ?? "غير محددة"}`,
     `💰 السعر: ${draft.price ?? "غير محدد"}`,
     `🎥 الفيديو: ${draft.hasVideo ? "مرفق" : "غير مرفق"}`,
     "",
-    "افتح لوحة الإدارة ← العقارات لمراجعته."
+    "━━━━━━━━━━━━━━",
+    "للتنفيذ من هنا مباشرة:",
+    `*قبول ${reference}*`,
+    `*رفض ${reference} السبب*`,
+    "",
+    "🎥 لمشاهدة الفيديو افتح لوحة الإدارة ← العقارات."
   ]);
 
-  return { saved: true };
+  return { saved: true, id: property?.id as string | undefined, propertyCode: reference };
 }
 
 function getNextPropertyQuestion(draft: DraftProperty) {
@@ -1239,13 +1249,19 @@ async function createCreditTopupRequest(phone: string, receiptUrl: string) {
     return "وصل الإيصال، لكن تعذر حفظ طلب الشحن الآن. حاول مرة أخرى بعد قليل.";
   }
 
+  const senderDigits = phone.replace("whatsapp:", "").replace(/\D/g, "");
+
   await notifyAdmins([
     "💳 *طلب شحن نقاط جديد*",
     "",
-    `📱 من: ${phone.replace("whatsapp:", "")}`,
+    `📱 من: ${senderDigits}`,
     `💼 رصيده الحالي: ${Number(wallet.usage_points ?? 0)} نقطة`,
     "",
-    "افتح لوحة الإدارة ← النقاط والإحالات لاعتماده."
+    "━━━━━━━━━━━━━━",
+    "للاعتماد من هنا مباشرة، اكتب الأمر مع عدد النقاط:",
+    `*شحن ${senderDigits} 2000*`,
+    "",
+    "🧾 لمشاهدة صورة الإيصال افتح لوحة الإدارة ← النقاط والإحالات."
   ]);
 
   return [
