@@ -716,3 +716,24 @@ select {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.log-toggle {
+  margin-top: 18px;
+  padding: 10px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.inline-actions input,
+.panel-header input {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  max-width: 160px;
+}

@@ -7,7 +7,8 @@ import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
 import { storePropertyMedia } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
-import type { ConversationResult, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
+import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
@@ -935,6 +936,190 @@ async function getWalletReply(phone: string) {
   ].join("\n");
 }
 
+async function getOwnerListingsReply(ownerPhone: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return "تعذر قراءة عقاراتك الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const { data, error } = await supabase
+    .from("properties")
+    .select("status,property_code,area,price")
+    .eq("owner_phone", ownerPhone);
+
+  if (error) {
+    console.error("Failed to read owner listings", error);
+    return "تعذر قراءة عقاراتك الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const listings = data ?? [];
+
+  if (listings.length === 0) {
+    return [
+      "📋 *ملخص عقاراتك في الديارة*",
+      "",
+      "ما عندك أي عقار مسجل حتى الآن.",
+      "",
+      'اكتب "عندي دار للإيجار" لإضافة عقار جديد.'
+    ].join("\n");
+  }
+
+  const countBy = (status: string) => listings.filter((item) => item.status === status).length;
+  const rented = countBy("rented");
+  const active = countBy("active");
+  const pending = countBy("pending_review");
+  const rejected = countBy("rejected");
+  const hidden = countBy("hidden");
+
+  return [
+    "📋 *ملخص عقاراتك في الديارة*",
+    "",
+    `🏠 إجمالي العقارات: ${listings.length}`,
+    `✅ منشورة ومتاحة الآن: ${active}`,
+    `⏳ قيد المراجعة: ${pending}`,
+    `🔒 مؤجرة حاليًا: ${rented}`,
+    ...(hidden > 0 ? [`🙈 مخفية: ${hidden}`] : []),
+    ...(rejected > 0 ? [`❌ مرفوضة: ${rejected}`] : []),
+    "",
+    ...(active > 0
+      ? ['لتعليم دار كمؤجرة اكتب: *تم تأجير* ثم رقم الإعلان.', ""]
+      : []),
+    'اكتب "عندي دار للإيجار" لإضافة عقار جديد.'
+  ].join("\n");
+}
+
+// The owner marks their own listing as rented, so it leaves search results immediately instead of
+// waiting for an admin.
+async function markListingRented(ownerPhone: string, reference: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return "تعذر تحديث العقار الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const code = reference.trim();
+
+  const { data: listings, error } = await supabase
+    .from("properties")
+    .select("id,property_code,status,area,type")
+    .eq("owner_phone", ownerPhone)
+    .in("status", ["active", "pending_review", "hidden"]);
+
+  if (error) {
+    console.error("Failed to look up the owner listing", error);
+    return "تعذر تحديث العقار الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const candidates = listings ?? [];
+  const target =
+    candidates.find((item) => String(item.property_code ?? "") === code) ??
+    candidates.find((item) => String(item.id).startsWith(code)) ??
+    (candidates.length === 1 && !code ? candidates[0] : undefined);
+
+  if (!target) {
+    return [
+      "ما لقيت إعلانًا بهذا الرقم باسمك.",
+      "",
+      'اكتب "إجاراتي" لعرض عقاراتك وأرقام إعلاناتها.'
+    ].join("\n");
+  }
+
+  const { error: updateError } = await supabase
+    .from("properties")
+    .update({ status: "rented", updated_at: new Date().toISOString() })
+    .eq("id", target.id);
+
+  if (updateError) {
+    console.error("Failed to mark the listing as rented", updateError);
+    return "تعذر تحديث العقار الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  const cancelled = await cancelContactRequestsForProperty(String(target.id));
+
+  return [
+    "✅ *تم تحديث الإعلان*",
+    "",
+    `🏠 ${target.type ?? "دار"} في ${target.area ?? "منطقة غير محددة"}`,
+    `🔖 رقم الإعلان: *${target.property_code ?? String(target.id).slice(0, 8)}*`,
+    "",
+    "صار مؤجَّرًا ولم يعد يظهر في نتائج البحث.",
+    ...(cancelled > 0 ? ["", `أبلغنا *${cancelled}* مستأجرًا كانوا مهتمين بأن الدار لم تعد متاحة.`] : []),
+    "",
+    'لإعادة عرضه لاحقًا تواصل مع الإدارة، أو اكتب "عندي دار للإيجار" لإضافة عقار جديد.'
+  ].join("\n");
+}
+
+/** Closes anything still in flight for a property that just left the market, and tells the renters. */
+async function cancelContactRequestsForProperty(propertyId: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return 0;
+  }
+
+  const notified = new Set<string>();
+
+  const { data: openRequests } = await supabase
+    .from("contact_requests")
+    .select("id,renter_phone")
+    .eq("property_id", propertyId)
+    .in("status", ["pending_payment", "pending_admin_review"]);
+
+  for (const request of openRequests ?? []) {
+    notified.add(String(request.renter_phone));
+  }
+
+  if ((openRequests ?? []).length > 0) {
+    const { error } = await supabase
+      .from("contact_requests")
+      .update({ status: "expired" })
+      .eq("property_id", propertyId)
+      .in("status", ["pending_payment", "pending_admin_review"]);
+
+    if (error) {
+      console.error("Failed to expire contact requests for a rented property", error);
+    }
+  }
+
+  // Renters who were told to top up before paying still hold this property in their state.
+  const { data: waiting } = await supabase
+    .from("conversation_states")
+    .select("phone,state")
+    .filter("state->pendingContactProperty->>id", "eq", propertyId);
+
+  for (const row of waiting ?? []) {
+    const state = (row.state ?? {}) as ConversationState;
+
+    await setConversationState(String(row.phone), {
+      ...state,
+      pendingContactProperty: undefined,
+      awaitingContactChoice: undefined
+    });
+
+    notified.add(String(row.phone));
+  }
+
+  for (const phone of notified) {
+    try {
+      await metaWhatsAppProvider.sendText(
+        phone,
+        [
+          "🔒 *الدار التي كنت مهتمًا بها لم تعد متاحة*",
+          "",
+          "تم تأجيرها للتو، وألغينا طلبك دون خصم أي نقطة.",
+          "",
+          "اكتب المنطقة التي تبحث فيها ونعرض لك خيارات أخرى."
+        ].join("\n")
+      );
+    } catch (notifyError) {
+      console.error("Failed to tell a renter the property was rented", notifyError);
+    }
+  }
+
+  return notified.size;
+}
+
 async function createWithdrawalRequest(phone: string) {
   const { minimumWithdrawalPoints } = await getSettings();
   const supabase = getServiceSupabase();
@@ -1182,6 +1367,22 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "intro",
       reply: await getWalletReply(message.from)
+    };
+  }
+
+  if (/^(اجاراتي|ايجاراتي|عقاراتي|دياري|اعلاناتي|املاكي|عقاري)$/.test(normalizedBody)) {
+    return {
+      debugIntent: "intro",
+      reply: await getOwnerListingsReply(message.from)
+    };
+  }
+
+  const rentedCommand = normalizedBody.match(/^(?:تم تاجير|تم تأجير|تاجرت|اجرت|تم كراء|تم الكراء)\s*(.*)$/);
+
+  if (rentedCommand) {
+    return {
+      debugIntent: "intro",
+      reply: await markListingRented(message.from, rentedCommand[1] ?? "")
     };
   }
 
