@@ -1485,6 +1485,17 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     extracted = { intent: "search_property", searchText: "__more__" };
   }
 
+  // A bare number while results are on screen is the renter picking one. GPT returns "unknown" for
+  // it often enough, and the unknown branch then searched the database for "15" as if it were a
+  // place name and answered "ما حصلت نتيجة مناسبة لـ 15". Only numbers that actually index the
+  // results are taken, so an amount like 2500 keeps its old meaning.
+  const bareNumber = message.body.trim().match(/^(\d{1,3})$/);
+
+  // Not when the number is the paging shortcut, which is claimed just above.
+  if (bareNumber && !asksForMoreResults && (state.lastSearchResults?.length ?? 0) > 0) {
+    extracted = { intent: "select_property", selectedIndex: Number(bareNumber[1]) };
+  }
+
   const referralReply = await applyReferralCode(message.from, message.body);
   if (referralReply) {
     return {
