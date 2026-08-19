@@ -7,6 +7,7 @@ import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
 import { storePropertyMedia } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
+import { notifyAdmins } from "@/lib/notify-admins";
 import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -332,6 +333,18 @@ export async function submitPropertyForReview(
       console.error("Failed to save property video", mediaError);
     }
   }
+
+  await notifyAdmins([
+    "🏠 *إعلان عقار جديد بانتظار المراجعة*",
+    "",
+    `📱 المؤجر: ${ownerPhone.replace("whatsapp:", "")}`,
+    `🏷 النوع: ${draft.type ?? "غير محدد"}`,
+    `📍 المنطقة: ${draft.area ?? "غير محددة"}`,
+    `💰 السعر: ${draft.price ?? "غير محدد"}`,
+    `🎥 الفيديو: ${draft.hasVideo ? "مرفق" : "غير مرفق"}`,
+    "",
+    "افتح لوحة الإدارة ← العقارات لمراجعته."
+  ]);
 
   return { saved: true };
 }
@@ -1189,6 +1202,15 @@ async function createWithdrawalRequest(phone: string) {
     return "تعذر إنشاء طلب السحب الآن. حاول مرة أخرى بعد قليل.";
   }
 
+  await notifyAdmins([
+    "💸 *طلب سحب عمولة جديد*",
+    "",
+    `📱 من: ${phone.replace("whatsapp:", "")}`,
+    `📣 النقاط المطلوبة: ${commissionPoints} نقطة`,
+    "",
+    "افتح لوحة الإدارة ← النقاط والإحالات لتسويته."
+  ]);
+
   return [
     "تم استلام طلب السحب.",
     "",
@@ -1215,6 +1237,15 @@ async function createCreditTopupRequest(phone: string, receiptUrl: string) {
     console.error("Failed to create credit topup", error);
     return "وصل الإيصال، لكن تعذر حفظ طلب الشحن الآن. حاول مرة أخرى بعد قليل.";
   }
+
+  await notifyAdmins([
+    "💳 *طلب شحن نقاط جديد*",
+    "",
+    `📱 من: ${phone.replace("whatsapp:", "")}`,
+    `💼 رصيده الحالي: ${Number(wallet.usage_points ?? 0)} نقطة`,
+    "",
+    "افتح لوحة الإدارة ← النقاط والإحالات لاعتماده."
+  ]);
 
   return [
     "✅ تم استلام إيصال شحن النقاط.",

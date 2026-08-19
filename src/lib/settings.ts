@@ -6,6 +6,7 @@ export type AppSettings = {
   referralCommissionPercent: number;
   minimumWithdrawalPoints: number;
   pointsPaymentNumber: string;
+  adminNotifyNumbers: string;
 };
 
 export type SettingKey = keyof AppSettings;
@@ -52,6 +53,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "أقل رصيد عمولة يسمح بطلب السحب.",
     kind: "number",
     fallback: () => "500"
+  },
+  {
+    key: "adminNotifyNumbers",
+    column: "admin_notify_numbers",
+    label: "أرقام تنبيهات الإدارة",
+    hint: "أرقام واتساب تصلها التنبيهات عند وصول طلب جديد. افصل بينها بفاصلة، واتركه فارغًا لإيقاف التنبيهات.",
+    kind: "text",
+    fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
   },
   {
     key: "pointsPaymentNumber",

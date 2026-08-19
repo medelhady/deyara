@@ -15,5 +15,6 @@ insert into public.app_settings (key, value) values
   ('listing_fee_points', '2000'),
   ('referral_commission_percent', '30'),
   ('minimum_withdrawal_points', '500'),
-  ('points_payment_number', '')
+  ('points_payment_number', ''),
+  ('admin_notify_numbers', '')
 on conflict (key) do nothing;
