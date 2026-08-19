@@ -58,7 +58,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "adminNotifyNumbers",
     column: "admin_notify_numbers",
     label: "أرقام تنبيهات الإدارة",
-    hint: "أرقام واتساب تصلها التنبيهات عند وصول طلب جديد. افصل بينها بفاصلة، واتركه فارغًا لإيقاف التنبيهات.",
+    hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
   },

@@ -15,6 +15,7 @@ export function SettingsClient() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("جار تحميل الإعدادات...");
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
 
   async function loadSettings() {
     const response = await fetch(`/api/admin/settings?t=${Date.now()}`, { cache: "no-store" });
@@ -52,6 +53,29 @@ export function SettingsClient() {
     }
   }
 
+  async function sendTestNotification() {
+    setIsTesting(true);
+    setMessage("جار إرسال تنبيه تجريبي...");
+
+    try {
+      const response = await fetch("/api/admin/settings/test-notify", { method: "POST" });
+      const data = await response.json();
+
+      if (!data.configured) {
+        setMessage(`⚠️ ${data.message}`);
+        return;
+      }
+
+      const lines = (data.results ?? []).map((result: { number: string; ok: boolean; error: string | null }) =>
+        result.ok ? `✅ ${result.number}: وصلت` : `❌ ${result.number}: ${result.error}`
+      );
+
+      setMessage(lines.join("\n"));
+    } finally {
+      setIsTesting(false);
+    }
+  }
+
   useEffect(() => {
     void loadSettings();
   }, []);
@@ -69,7 +93,7 @@ export function SettingsClient() {
         هذه القيم يقرأها البوت مباشرة. أي تعديل هنا يسري على المحادثات الجارية دون إعادة نشر.
       </p>
 
-      {message ? <p>{message}</p> : null}
+      {message ? <p style={{ whiteSpace: "pre-line" }}>{message}</p> : null}
 
       <div className="settings-grid">
         {rows.map((row) => (
@@ -91,6 +115,14 @@ export function SettingsClient() {
         </button>
         <button className="button secondary" type="button" onClick={() => void loadSettings()} disabled={isSaving}>
           تراجع عن التعديلات
+        </button>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => void sendTestNotification()}
+          disabled={isSaving || isTesting}
+        >
+          إرسال تنبيه تجريبي
         </button>
       </div>
     </section>
