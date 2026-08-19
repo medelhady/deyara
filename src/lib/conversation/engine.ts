@@ -956,10 +956,54 @@ async function applyReferralCode(phone: string, body: string) {
     return "تعذر تسجيل كود الدعوة الآن. حاول مرة أخرى بعد قليل.";
   }
 
+  const { referralCommissionPercent, referralWelcomePoints } = await getSettings();
+
+  // A welcome grant makes the marketer's pitch concrete ("سجل عن طريقي وخذ أول رقم مجانًا") and
+  // costs the marketer nothing to keep track of.
+  if (referralWelcomePoints > 0) {
+    const { error: grantError } = await supabase
+      .from("user_wallets")
+      .update({ usage_points: Number(wallet.usage_points ?? 0) + referralWelcomePoints })
+      .eq("phone", phone);
+
+    if (grantError) {
+      console.error("Failed to grant referral welcome points", grantError);
+    } else {
+      const { error: ledgerError } = await supabase.from("credit_transactions").insert({
+        phone,
+        kind: "admin_adjustment",
+        usage_points_delta: referralWelcomePoints,
+        related_phone: referrer.phone,
+        admin_note: "نقاط ترحيب للتسجيل عبر دعوة"
+      });
+
+      if (ledgerError) {
+        console.error("Failed to record the welcome grant", ledgerError);
+      }
+    }
+  }
+
+  // Told as it happens, so the marketer can chase the first top-up while the contact is still warm.
+  try {
+    await metaWhatsAppProvider.sendText(
+      referrer.phone as string,
+      [
+        "🎉 *شخص جديد سجّل عن طريق رابطك!*",
+        "",
+        `ذكّره بالشحن حتى تحصل على *${referralCommissionPercent}%* من كل شحنة يقوم بها.`,
+        "",
+        "📌 لمتابعة إحالاتك اكتب: *إحالاتي*"
+      ].join("\n")
+    );
+  } catch (notifyError) {
+    console.error("Failed to tell the referrer about a new signup", notifyError);
+  }
+
   return [
     "✅ تم تسجيل كود الدعوة بنجاح.",
+    ...(referralWelcomePoints > 0 ? ["", `🎁 أضفنا لك *${referralWelcomePoints} نقطة* هدية ترحيب.`] : []),
     "",
-    `عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *${(await getSettings()).referralCommissionPercent}%* نقاط تسويق.`
+    `عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *${referralCommissionPercent}%* نقاط تسويق.`
   ].join("\n");
 }
 

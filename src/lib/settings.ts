@@ -8,6 +8,7 @@ export type AppSettings = {
   pointsPaymentNumber: string;
   botWhatsAppNumber: string;
   referralWindowMonths: number;
+  referralWelcomePoints: number;
   adminNotifyNumbers: string;
 };
 
@@ -63,6 +64,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "referralWelcomePoints",
+    column: "referral_welcome_points",
+    label: "نقاط ترحيب للمسجّل عبر دعوة",
+    hint: "تُمنح فورًا لمن يسجل عبر رابط مسوّق. اجعلها 0 لإيقافها.",
+    kind: "number",
+    fallback: () => "1"
   },
   {
     key: "botWhatsAppNumber",
