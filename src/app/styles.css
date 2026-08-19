@@ -737,3 +737,30 @@ select {
   font: inherit;
   max-width: 160px;
 }
+
+.thread-row {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.thread-row.active {
+  border-color: var(--accent);
+}
+
+.thread-row span,
+.thread-row small {
+  color: var(--muted);
+}
+
+.phone-preview {
+  overflow-y: auto;
+  max-height: 620px;
+}
