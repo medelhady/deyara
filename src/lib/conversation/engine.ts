@@ -1227,6 +1227,136 @@ async function cancelContactRequestsForProperty(propertyId: string) {
   return notified.size;
 }
 
+/** Enough of the number for the marketer to recognise who it is, without handing them the rest. */
+function maskPhone(phone: string) {
+  const digits = normalizePhoneDigits(phone);
+
+  return digits.length > 7 ? `+${digits.slice(0, 3)}•••${digits.slice(-4)}` : `•••${digits.slice(-4)}`;
+}
+
+type ReferralRow = {
+  phone: string;
+  topups: number;
+  commission: number;
+};
+
+/** Reads every referral of one marketer in three queries rather than one per person. */
+async function loadReferrals(phone: string): Promise<ReferralRow[] | null> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const { data: referred, error } = await supabase
+    .from("user_wallets")
+    .select("phone,referred_at")
+    .eq("referred_by_phone", phone)
+    .order("referred_at", { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.error("Failed to read referrals", error);
+    return null;
+  }
+
+  const phones = (referred ?? []).map((row) => row.phone as string);
+
+  if (phones.length === 0) {
+    return [];
+  }
+
+  const [{ data: topups }, { data: commissions }] = await Promise.all([
+    supabase.from("credit_topups").select("phone").eq("status", "approved").in("phone", phones),
+    supabase
+      .from("credit_transactions")
+      .select("related_phone,commission_points_delta")
+      .eq("phone", phone)
+      .eq("kind", "referral_commission")
+  ]);
+
+  const topupCounts = new Map<string, number>();
+  const commissionTotals = new Map<string, number>();
+
+  for (const row of topups ?? []) {
+    const key = String(row.phone);
+    topupCounts.set(key, (topupCounts.get(key) ?? 0) + 1);
+  }
+
+  for (const row of commissions ?? []) {
+    const key = String(row.related_phone ?? "");
+    commissionTotals.set(key, (commissionTotals.get(key) ?? 0) + Number(row.commission_points_delta ?? 0));
+  }
+
+  return phones.map((item) => ({
+    phone: item,
+    topups: topupCounts.get(item) ?? 0,
+    commission: commissionTotals.get(item) ?? 0
+  }));
+}
+
+// One card with everything a marketer acts on: who paid, what that earned, and the link to share.
+async function getReferralSummary(phone: string) {
+  const { minimumWithdrawalPoints, referralCommissionPercent } = await getSettings();
+  const referralCode = (await getOrCreateReferralCode(phone)) ?? "—";
+  const link = await makeReferralLink(referralCode);
+  const wallet = await ensureWallet(phone);
+  const commissionPoints = Number(wallet?.commission_points ?? 0);
+  const referrals = await loadReferrals(phone);
+
+  const paid = referrals?.filter((row) => row.topups > 0).length ?? 0;
+  const waiting = (referrals?.length ?? 0) - paid;
+  const missing = Math.max(minimumWithdrawalPoints - commissionPoints, 0);
+
+  return [
+    "👥 *إحالاتك*",
+    "",
+    `💰 دفعوا: *${paid}*`,
+    `📝 سجلوا ولم يشحنوا: *${waiting}*`,
+    "",
+    "━━━━━━━━━━━━━━",
+    `💵 عمولتك: *${commissionPoints} نقطة*`,
+    missing > 0
+      ? `🎯 باقي *${missing} نقطة* حتى تقدر تسحب.`
+      : "✅ تقدر تسحب الآن — اكتب: *طلب سحب*",
+    "",
+    "━━━━━━━━━━━━━━",
+    "🔗 رابطك",
+    link,
+    "",
+    `📣 تحصل على *${referralCommissionPercent}%* من كل شحنة يقوم بها من سجّل عن طريقك.`,
+    "",
+    ...(paid + waiting > 0 ? ['اكتب *تفاصيل إحالاتي* لقائمة من سجّل.'] : ["شارك رابطك وابدأ."])
+  ].join("\n");
+}
+
+async function getReferralDetails(phone: string) {
+  const referrals = await loadReferrals(phone);
+
+  if (referrals === null) {
+    return "تعذر قراءة إحالاتك الآن. حاول مرة أخرى بعد قليل.";
+  }
+
+  if (referrals.length === 0) {
+    return ["📋 *تفاصيل إحالاتك*", "", "ما سجّل أحد عن طريقك بعد.", "", "اكتب *إحالاتي* للحصول على رابطك."].join("\n");
+  }
+
+  // Whoever paid comes first: that is the part tied to the marketer's earnings.
+  const ordered = [...referrals].sort((first, second) => second.topups - first.topups || second.commission - first.commission);
+
+  return [
+    "📋 *تفاصيل إحالاتك*",
+    "",
+    ...ordered.map((row, index) =>
+      row.topups > 0
+        ? `${index + 1}. ${maskPhone(row.phone)} — ✅ دفع (${row.topups === 1 ? "شحنة واحدة" : `${row.topups} شحنات`}، عمولتك ${row.commission} نقطة)`
+        : `${index + 1}. ${maskPhone(row.phone)} — ⏳ سجل، ما شحن بعد`
+    ),
+    "",
+    "اكتب *إحالاتي* للملخص والرابط."
+  ].join("\n");
+}
+
 async function createWithdrawalRequest(phone: string) {
   const { minimumWithdrawalPoints } = await getSettings();
   const supabase = getServiceSupabase();
@@ -1568,27 +1698,21 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (/^(رابط دعوتي|كود دعوتي|دعوتي|رابط الاحالة|كود الاحالة|الاحالة)$/.test(normalizedBody)) {
-    const referralCode = (await getOrCreateReferralCode(message.from)) ?? "—";
-
+  if (/^(تفاصيل احالاتي|تفاصيل الاحالات|تفاصيل دعواتي|قائمة احالاتي)$/.test(normalizedBody)) {
     return {
       debugIntent: "intro",
-      reply: [
-        "╭──────────────",
-        "🔗 *دعوتك في الديارة*",
-        "╰──────────────",
-        "",
-        "كود الدعوة",
-        `*${referralCode}*`,
-        "",
-        "━━━━━━━━━━━━━━",
-        "رابط الدعوة",
-        await makeReferralLink(referralCode),
-        "",
-        "━━━━━━━━━━━━━━",
-        "📣 عمولتك",
-        "أي شخص يسجل ويشحن عن طريقك تحصل على *30%* نقاط تسويق."
-      ].join("\n")
+      reply: await getReferralDetails(message.from)
+    };
+  }
+
+  if (
+    /^(احالاتي|متابعة احالاتي|من سجل عن طريقي|رابط دعوتي|كود دعوتي|دعوتي|رابط الاحالة|كود الاحالة|الاحالة)$/.test(
+      normalizedBody
+    )
+  ) {
+    return {
+      debugIntent: "intro",
+      reply: await getReferralSummary(message.from)
     };
   }
 
