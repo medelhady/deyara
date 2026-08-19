@@ -1629,9 +1629,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       };
     }
 
+    // A new page of results replaces whatever was picked before. Leaving the old selection behind
+    // made "1" and "2" mean video and contact for the previous house instead of picking from the
+    // list now on screen.
     await setConversationState(message.from, {
       ...state,
-      lastSearchShownCount: shownCount + nextResults.length
+      lastSearchShownCount: shownCount + nextResults.length,
+      selectedPropertyId: undefined,
+      selectedProperty: undefined,
+      selectedPropertyAt: undefined,
+      awaitingContactChoice: undefined,
+      selectedPropertyVideoViewed: undefined,
+      activeContactRequestId: undefined
     });
 
     return {
@@ -2132,9 +2141,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         const selected = extracted.selectedIndex ? state.lastSearchResults?.[extracted.selectedIndex - 1] : undefined;
 
         if (!selected) {
+          const available = state.lastSearchResults?.length ?? 0;
+
           return {
             debugIntent: "select_property",
-            reply: "ما لقيت هذا الرقم في آخر النتائج.\n\nاختر رقمًا من القائمة أو أرسل بحثًا جديدًا."
+            reply: available
+              ? `ما لقيت الرقم *${extracted.selectedIndex ?? message.body.trim()}* في آخر النتائج.\n\nالأرقام المتاحة من *1* إلى *${available}*، أو أرسل بحثًا جديدًا.`
+              : "ما عندي نتائج بحث حاليًا.\n\nاكتب المنطقة التي تبحث فيها، مثلا: عرفات."
           };
         }
 

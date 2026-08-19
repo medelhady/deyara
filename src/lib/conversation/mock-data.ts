@@ -30,5 +30,46 @@ export const mockProperties: PropertyCandidate[] = [
     landmark: "قرب السوق",
     price: 1800,
     rooms: 3
+  },
+  // Paging only starts after five results, so the simulator needs enough of them to reach page two.
+  {
+    id: "prop-004",
+    propertyCode: "0004",
+    title: "شقة قرب قصر المؤتمرات",
+    type: "شقة",
+    area: "تفرغ زينة",
+    landmark: "قصر المؤتمرات",
+    price: 3200,
+    rooms: 3
+  },
+  {
+    id: "prop-005",
+    propertyCode: "0005",
+    title: "غرفة قرب الجامعة",
+    type: "غرفة",
+    area: "تفرغ زينة",
+    landmark: "الجامعة",
+    price: 1200,
+    rooms: 1
+  },
+  {
+    id: "prop-006",
+    propertyCode: "0006",
+    title: "شقة واسعة قرب السوق المركزي",
+    type: "شقة",
+    area: "تفرغ زينة",
+    landmark: "السوق المركزي",
+    price: 4000,
+    rooms: 4
+  },
+  {
+    id: "prop-007",
+    propertyCode: "0007",
+    title: "منزل قرب المستشفى الوطني",
+    type: "منزل",
+    area: "تفرغ زينة",
+    landmark: "المستشفى الوطني",
+    price: 2800,
+    rooms: 3
   }
 ];
