@@ -184,6 +184,12 @@ export default async function AdminPage() {
       action: "فتح القاموس"
     },
     {
+      title: "الإعدادات",
+      note: "الأسعار والنسب ورقم الدفع، تُعدَّل من هنا بدل الكود.",
+      href: "/admin/settings",
+      action: "فتح الإعدادات"
+    },
+    {
       title: "المحاكي",
       note: "تجربة محادثة كاملة دون إرسال أي رسالة واتساب حقيقية.",
       href: "/admin/simulator",

@@ -6,14 +6,13 @@ import { getRuntimeDictionary, includesAny } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
 import { storePropertyMedia } from "@/lib/whatsapp/media";
+import { getSettings } from "@/lib/settings";
 import type { ConversationResult, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
 const selectionTtlMs = 15 * 60 * 1000;
 const draftTtlMs = 60 * 60 * 1000;
-const minimumWithdrawalPoints = 500;
-const propertyListingFeePoints = 2000;
 
 function isYes(body: string) {
   return /^(نعم|اي|إي|أجل|تمام|صح|موافق|اكد|أكد)$/i.test(body.trim());
@@ -188,16 +187,10 @@ function makeReferralLink(referralCode: string) {
   return whatsappNumber ? `https://wa.me/${normalizePhoneDigits(whatsappNumber)}?text=${text}` : `كود دعوتك: ${referralCode}`;
 }
 
-function getPointsPaymentNumber() {
-  return (
-    process.env.POINTS_PAYMENT_NUMBER ??
-    process.env.ADMIN_WHATSAPP_NUMBERS?.split(",")[0]?.replace("whatsapp:", "") ??
-    ""
-  );
-}
 
-export function getPointsTopupInstructions(options?: { currentBalance?: number; purposeText?: string }) {
-  const paymentNumber = getPointsPaymentNumber();
+export async function getPointsTopupInstructions(options?: { currentBalance?: number; purposeText?: string }) {
+  const settings = await getSettings();
+  const paymentNumber = settings.pointsPaymentNumber;
   const currentBalance = options?.currentBalance;
 
   if (!paymentNumber) {
@@ -214,7 +207,7 @@ export function getPointsTopupInstructions(options?: { currentBalance?: number; 
     "╰──────────────",
     "",
     ...(currentBalance !== undefined ? [`💼 رصيدك الحالي: *${currentBalance} نقطة*`, ""] : []),
-    options?.purposeText ?? "🔐 عرض رقم المؤجر يحتاج *1 نقطة*.",
+    options?.purposeText ?? `🔐 عرض رقم المؤجر يحتاج *${settings.contactRevealPoints} نقطة*.`,
     "",
     "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
     `*${paymentNumber.replace("whatsapp:", "")}*`,
@@ -515,6 +508,7 @@ export function formatOwnerContact(selected: PropertyCandidate, note: string[] =
 }
 
 async function createContactRequest(renterPhone: string, selected: PropertyCandidate) {
+  const { contactRevealPoints } = await getSettings();
   const supabase = getServiceSupabase();
 
   if (!supabase || !selected.ownerPhone) {
@@ -569,7 +563,7 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
       renter_phone: renterPhone,
       owner_phone: selected.ownerPhone,
       status: "approved",
-      fee_amount: Number(process.env.CONTACT_REQUEST_FEE ?? "100")
+      fee_amount: contactRevealPoints
     })
     .select("id")
     .single();
@@ -590,6 +584,7 @@ async function getUsagePoints(phone: string) {
 
 export async function spendPointsForListing(ownerPhone: string) {
   const supabase = getServiceSupabase();
+  const { listingFeePoints: propertyListingFeePoints } = await getSettings();
 
   // Simulator mode: without Supabase there is no wallet to charge, so let the listing through.
   if (!supabase) {
@@ -613,7 +608,7 @@ export async function spendPointsForListing(ownerPhone: string) {
   if (usagePoints < propertyListingFeePoints) {
     return {
       ok: false,
-      reply: getPointsTopupInstructions({ currentBalance: usagePoints, purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.` })
+      reply: await getPointsTopupInstructions({ currentBalance: usagePoints, purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.` })
     };
   }
 
@@ -694,6 +689,7 @@ export function formatListingApproval(
 }
 
 async function spendPointForContact(renterPhone: string, selected: PropertyCandidate) {
+  const { contactRevealPoints } = await getSettings();
   const supabase = getServiceSupabase();
   const wallet = await ensureWallet(renterPhone);
 
@@ -706,11 +702,11 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
 
   const usagePoints = Number(wallet.usage_points ?? 0);
 
-  if (usagePoints <= 0) {
+  if (usagePoints < contactRevealPoints) {
     return {
       ok: false,
       reason: "insufficient_points" as const,
-      reply: getPointsTopupInstructions({ currentBalance: usagePoints })
+      reply: await getPointsTopupInstructions({ currentBalance: usagePoints })
     };
   }
 
@@ -726,7 +722,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   const { error: walletError } = await supabase
     .from("user_wallets")
     .update({
-      usage_points: usagePoints - 1
+      usage_points: usagePoints - contactRevealPoints
     })
     .eq("phone", renterPhone);
 
@@ -741,9 +737,9 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   await supabase.from("credit_transactions").insert({
     phone: renterPhone,
     kind: "contact_reveal",
-    usage_points_delta: -1,
+    usage_points_delta: -contactRevealPoints,
     related_contact_request_id: request.id,
-    admin_note: "خصم نقطة لطلب رقم المؤجر"
+    admin_note: "خصم نقاط لطلب رقم المؤجر"
   });
 
   return {
@@ -751,8 +747,8 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     id: request.id,
     reply: formatOwnerContact(selected, [
       ...(request.existing ? ["🔁 طلب مكرر لنفس الدار."] : []),
-      "تم خصم *1 نقطة* من رصيدك.",
-      `رصيدك المتبقي: *${usagePoints - 1} نقطة*`
+      `تم خصم *${contactRevealPoints} نقطة* من رصيدك.`,
+      `رصيدك المتبقي: *${usagePoints - contactRevealPoints} نقطة*`
     ])
   };
 }
@@ -905,6 +901,7 @@ async function applyReferralCode(phone: string, body: string) {
 }
 
 async function getWalletReply(phone: string) {
+  const { minimumWithdrawalPoints } = await getSettings();
   const wallet = await ensureWallet(phone);
 
   if (!wallet) {
@@ -939,6 +936,7 @@ async function getWalletReply(phone: string) {
 }
 
 async function createWithdrawalRequest(phone: string) {
+  const { minimumWithdrawalPoints } = await getSettings();
   const supabase = getServiceSupabase();
   const wallet = await ensureWallet(phone);
 
@@ -1483,6 +1481,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       // listing that ends up rejected.
       const submission = await submitPropertyForReview(message.from, state.draftProperty);
       const balance = await getUsagePoints(message.from);
+      const { listingFeePoints: propertyListingFeePoints } = await getSettings();
 
       await setConversationState(message.from, {
         ...state,
@@ -1504,7 +1503,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           reply: [
             "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
             "",
-            getPointsTopupInstructions({
+            await getPointsTopupInstructions({
               currentBalance: balance,
               purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.`
             })
@@ -1882,7 +1881,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     case "send_payment_receipt":
       return {
         debugIntent: "send_payment_receipt",
-        reply: getPointsTopupInstructions()
+        reply: await getPointsTopupInstructions()
       };
 
     default:
