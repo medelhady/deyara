@@ -1023,6 +1023,10 @@ async function getOwnerListingsReply(ownerPhone: string) {
   const rejected = countBy("rejected");
   const hidden = countBy("hidden");
 
+  // The rented command takes a listing number, so the summary has to show those numbers. Otherwise
+  // an owner who no longer has the approval message cannot name the house they just rented out.
+  const published = listings.filter((item) => item.status === "active");
+
   return [
     "📋 *ملخص عقاراتك في الديارة*",
     "",
@@ -1032,10 +1036,24 @@ async function getOwnerListingsReply(ownerPhone: string) {
     `🔒 مؤجرة حاليًا: ${rented}`,
     ...(hidden > 0 ? [`🙈 مخفية: ${hidden}`] : []),
     ...(rejected > 0 ? [`❌ مرفوضة: ${rejected}`] : []),
-    "",
-    ...(active > 0
-      ? ['لتعليم دار كمؤجرة اكتب: *تم تأجير* ثم رقم الإعلان.', ""]
+    ...(published.length > 0
+      ? [
+          "",
+          "━━━━━━━━━━━━━━",
+          "🏘 *المنشورة الآن*",
+          ...published.map(
+            (item) =>
+              `*${item.property_code ?? "—"}* — ${item.area ?? "منطقة غير محددة"}${
+                item.price ? ` — ${formatPrice(Number(item.price))}` : ""
+              }`
+          ),
+          "",
+          published.length === 1
+            ? "إذا أجّرتها اكتب: *تم تأجير*"
+            : "إذا أجّرت واحدة اكتب: *تم تأجير* ثم رقمها، مثلا: *تم تأجير " + published[0].property_code + "*"
+        ]
       : []),
+    "",
     'اكتب "عندي دار للإيجار" لإضافة عقار جديد.'
   ].join("\n");
 }
