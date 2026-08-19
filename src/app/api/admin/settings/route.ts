@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { readSettingRows, saveSettings } from "@/lib/settings";
+import { isSettingsTableMissing, missingTableMessage, readSettingRows, saveSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -9,7 +9,7 @@ export async function GET() {
   const settings = await readSettingRows();
 
   return NextResponse.json(
-    { settings },
+    { settings, warning: isSettingsTableMissing() ? missingTableMessage : null },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
 }

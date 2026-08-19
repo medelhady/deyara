@@ -23,7 +23,7 @@ export function SettingsClient() {
 
     setRows(loaded);
     setValues(Object.fromEntries(loaded.map((row) => [row.key, row.value])));
-    setMessage("");
+    setMessage(data.warning ? `⚠️ ${data.warning}` : "");
   }
 
   async function save() {

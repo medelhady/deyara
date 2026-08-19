@@ -86,6 +86,11 @@ function buildDefaults(): AppSettings {
 // time. A change from the dashboard takes effect within the TTL without a redeploy.
 const cacheTtlMs = 30 * 1000;
 let cached: { value: AppSettings; readAt: number } | null = null;
+let settingsTableMissing = false;
+
+export function isSettingsTableMissing() {
+  return settingsTableMissing;
+}
 
 export function clearSettingsCache() {
   cached = null;
@@ -107,8 +112,11 @@ export async function getSettings(): Promise<AppSettings> {
 
   if (error) {
     console.error("Failed to read app settings", error);
+    settingsTableMissing = error.code === "PGRST205" || (error.message ?? "").includes("app_settings");
     return defaults;
   }
+
+  settingsTableMissing = false;
 
   const stored = new Map((data ?? []).map((row) => [row.key as string, String(row.value ?? "")]));
   const settings = { ...defaults };
@@ -150,6 +158,21 @@ export async function readSettingRows() {
   }));
 }
 
+// The table ships as a migration an admin has to run, so the most likely failure is that it does not
+// exist yet. Say that in Arabic instead of forwarding a PostgREST message.
+export const missingTableMessage =
+  "جدول الإعدادات app_settings غير موجود في قاعدة البيانات. شغّل ملف supabase/add-settings.sql في محرر SQL بـ Supabase ثم أعد المحاولة.";
+
+function describeSettingsError(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+
+  if (error.code === "PGRST205" || message.includes("app_settings")) {
+    return missingTableMessage;
+  }
+
+  return message || "تعذر حفظ الإعدادات.";
+}
+
 export async function saveSettings(updates: Record<string, string>) {
   const supabase = getServiceSupabase();
 
@@ -173,7 +196,7 @@ export async function saveSettings(updates: Record<string, string>) {
 
   if (error) {
     console.error("Failed to save app settings", error);
-    return { saved: false, error: error.message };
+    return { saved: false, error: describeSettingsError(error) };
   }
 
   clearSettingsCache();
