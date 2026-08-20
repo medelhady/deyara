@@ -6,7 +6,7 @@ type SettingRow = {
   key: string;
   label: string;
   hint: string;
-  kind: "number" | "text";
+  kind: "number" | "text" | "textarea";
   value: string;
 };
 
@@ -99,11 +99,19 @@ export function SettingsClient() {
         {rows.map((row) => (
           <label className="setting-field" key={row.key}>
             <span>{row.label}</span>
-            <input
-              type={row.kind === "number" ? "number" : "text"}
-              value={values[row.key] ?? ""}
-              onChange={(event) => setValues((current) => ({ ...current, [row.key]: event.target.value }))}
-            />
+            {row.kind === "textarea" ? (
+              <textarea
+                rows={4}
+                value={values[row.key] ?? ""}
+                onChange={(event) => setValues((current) => ({ ...current, [row.key]: event.target.value }))}
+              />
+            ) : (
+              <input
+                type={row.kind === "number" ? "number" : "text"}
+                value={values[row.key] ?? ""}
+                onChange={(event) => setValues((current) => ({ ...current, [row.key]: event.target.value }))}
+              />
+            )}
             <small>{row.hint}</small>
           </label>
         ))}

@@ -553,9 +553,52 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
 // The renter may get this long after picking the house, so it repeats which one it is instead of
 // sending a bare phone number.
+/**
+ * Picks the notice line for one district out of the multi-line setting. Each line is
+ * "المقاطعة: النص", and a line keyed غيرها (or with no key at all) covers the rest, so one field
+ * holds a per-district fee table without a second page to maintain.
+ */
+export function resolveAreaNote(note: string, area?: string | null) {
+  const wanted = area ? normalizeDictionaryText(area) : "";
+  let fallback = "";
+
+  for (const rawLine of note.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      continue;
+    }
+
+    const separator = line.indexOf(":");
+
+    if (separator === -1) {
+      fallback = fallback || line;
+      continue;
+    }
+
+    const key = normalizeDictionaryText(line.slice(0, separator));
+    const value = line.slice(separator + 1).trim();
+
+    if (!value) {
+      continue;
+    }
+
+    if (wanted && key === wanted) {
+      return value;
+    }
+
+    if (["غيرها", "الباقي", "افتراضي", "البقية"].map(normalizeDictionaryText).includes(key)) {
+      fallback = fallback || value;
+    }
+  }
+
+  return fallback;
+}
+
 export async function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
   // An editable notice, so terms like the broker fee due on agreement can change without a deploy.
-  const { contactRevealNote } = await getSettings();
+  const settings = await getSettings();
+  const contactRevealNote = resolveAreaNote(settings.contactRevealNote, selected.area);
 
   return [
     "╭──────────────",
