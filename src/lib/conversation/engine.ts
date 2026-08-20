@@ -553,46 +553,61 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
 // The renter may get this long after picking the house, so it repeats which one it is instead of
 // sending a bare phone number.
-/**
- * Picks the notice line for one district out of the multi-line setting. Each line is
- * "المقاطعة: النص", and a line keyed غيرها (or with no key at all) covers the rest, so one field
- * holds a per-district fee table without a second page to maintain.
- */
-export function resolveAreaNote(note: string, area?: string | null) {
+/** Every district the bot knows: the built-in list plus whatever an admin added to the dictionary. */
+export async function getActiveAreas() {
+  const dictionary = await getRuntimeDictionary();
+
+  return Array.from(new Set([...knownAreas, ...dictionary.areas]));
+}
+
+export type AreaNotice = {
+  text: string;
+  /** Empty means it covers every district that no other notice claims. */
+  areas: string[];
+};
+
+export function parseAreaNotices(value: string): AreaNotice[] {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((item) => item && typeof item.text === "string")
+        .map((item) => ({
+          text: String(item.text),
+          areas: Array.isArray(item.areas) ? item.areas.map((area: unknown) => String(area)) : []
+        }));
+    }
+  } catch {
+    // Not JSON: an admin may have typed a plain notice before the editor existed.
+  }
+
+  return [{ text: trimmed, areas: [] }];
+}
+
+/** Picks the notice that claims this district, falling back to the one that claims none. */
+export function resolveAreaNote(value: string, area?: string | null) {
   const wanted = area ? normalizeDictionaryText(area) : "";
-  let fallback = "";
+  // A notice with no text is one the admin has not finished writing, never a reason to show nothing.
+  const notices = parseAreaNotices(value).filter((notice) => notice.text.trim());
 
-  for (const rawLine of note.split(/\r?\n/)) {
-    const line = rawLine.trim();
+  if (wanted) {
+    const match = notices.find((notice) =>
+      notice.areas.some((item) => normalizeDictionaryText(item) === wanted)
+    );
 
-    if (!line) {
-      continue;
-    }
-
-    const separator = line.indexOf(":");
-
-    if (separator === -1) {
-      fallback = fallback || line;
-      continue;
-    }
-
-    const key = normalizeDictionaryText(line.slice(0, separator));
-    const value = line.slice(separator + 1).trim();
-
-    if (!value) {
-      continue;
-    }
-
-    if (wanted && key === wanted) {
-      return value;
-    }
-
-    if (["غيرها", "الباقي", "افتراضي", "البقية"].map(normalizeDictionaryText).includes(key)) {
-      fallback = fallback || value;
+    if (match?.text.trim()) {
+      return match.text.trim();
     }
   }
 
-  return fallback;
+  return notices.find((notice) => notice.areas.length === 0)?.text.trim() ?? "";
 }
 
 export async function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {

@@ -818,3 +818,71 @@ select {
   resize: vertical;
   line-height: 1.8;
 }
+
+.notices-field {
+  display: grid;
+  gap: 12px;
+}
+
+.notices-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.notice-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfaf7;
+}
+
+.notice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notice-head button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.notice-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.area-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.area-chip.taken {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.notice-card textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  resize: vertical;
+}
+
+.setting-field:has(.notices-field) {
+  grid-column: 1 / -1;
+}

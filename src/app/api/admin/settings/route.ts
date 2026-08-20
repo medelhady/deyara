@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isSettingsTableMissing, missingTableMessage, readSettingRows, saveSettings } from "@/lib/settings";
+import { getActiveAreas } from "@/lib/conversation/engine";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
   const settings = await readSettingRows();
+  // The notices editor offers these as checkboxes, so it needs the same list the bot matches on.
+  const areas = await getActiveAreas();
 
   return NextResponse.json(
-    { settings, warning: isSettingsTableMissing() ? missingTableMessage : null },
+    { settings, areas, warning: isSettingsTableMissing() ? missingTableMessage : null },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
 }

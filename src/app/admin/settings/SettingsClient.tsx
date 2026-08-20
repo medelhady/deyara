@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NoticesField } from "./NoticesField";
 
 type SettingRow = {
   key: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea";
+  kind: "number" | "text" | "textarea" | "notices";
   value: string;
 };
 
@@ -16,6 +17,7 @@ export function SettingsClient() {
   const [message, setMessage] = useState("جار تحميل الإعدادات...");
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [areas, setAreas] = useState<string[]>([]);
 
   async function loadSettings() {
     const response = await fetch(`/api/admin/settings?t=${Date.now()}`, { cache: "no-store" });
@@ -23,6 +25,7 @@ export function SettingsClient() {
     const loaded: SettingRow[] = data.settings ?? [];
 
     setRows(loaded);
+    setAreas(data.areas ?? []);
     setValues(Object.fromEntries(loaded.map((row) => [row.key, row.value])));
     setMessage(data.warning ? `⚠️ ${data.warning}` : "");
   }
@@ -99,7 +102,13 @@ export function SettingsClient() {
         {rows.map((row) => (
           <label className="setting-field" key={row.key}>
             <span>{row.label}</span>
-            {row.kind === "textarea" ? (
+            {row.kind === "notices" ? (
+              <NoticesField
+                value={values[row.key] ?? ""}
+                areas={areas}
+                onChange={(next) => setValues((current) => ({ ...current, [row.key]: next }))}
+              />
+            ) : row.kind === "textarea" ? (
               <textarea
                 rows={4}
                 value={values[row.key] ?? ""}

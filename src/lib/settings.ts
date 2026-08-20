@@ -20,7 +20,7 @@ type SettingDefinition = {
   column: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea";
+  kind: "number" | "text" | "textarea" | "notices";
   fallback: () => string;
 };
 
@@ -70,8 +70,8 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "contactRevealNote",
     column: "contact_reveal_note",
     label: "تنبيه يظهر مع رقم المؤجر",
-    hint: "سطر لكل مقاطعة مثل: تفرغ زينة: 15 ألف عند الاتفاق. وسطر يبدأ بـ غيرها: يسري على بقية المقاطعات. اتركه فارغًا لإخفائه.",
-    kind: "textarea",
+    hint: "اكتب التنبيه ثم أشّر المقاطعات التي يسري عليها. التنبيه بلا مقاطعات يسري على البقية.",
+    kind: "notices",
     fallback: () => process.env.CONTACT_REVEAL_NOTE ?? ""
   },
   {
