@@ -9,6 +9,7 @@ export type AppSettings = {
   botWhatsAppNumber: string;
   referralWindowMonths: number;
   referralWelcomePoints: number;
+  contactRevealNote: string;
   adminNotifyNumbers: string;
 };
 
@@ -64,6 +65,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "contactRevealNote",
+    column: "contact_reveal_note",
+    label: "تنبيه يظهر مع رقم المؤجر",
+    hint: "يُعرض للمستأجر لحظة استلام الرقم، مثل رسوم السمسرة عند الاتفاق. اتركه فارغًا لإخفائه.",
+    kind: "text",
+    fallback: () => process.env.CONTACT_REVEAL_NOTE ?? ""
   },
   {
     key: "referralWelcomePoints",

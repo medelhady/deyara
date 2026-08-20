@@ -553,7 +553,10 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
 
 // The renter may get this long after picking the house, so it repeats which one it is instead of
 // sending a bare phone number.
-export function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
+export async function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
+  // An editable notice, so terms like the broker fee due on agreement can change without a deploy.
+  const { contactRevealNote } = await getSettings();
+
   return [
     "╭──────────────",
     `🏠 *${selected.type ?? "دار"} في ${selected.area}*`,
@@ -575,6 +578,7 @@ export function formatOwnerContact(selected: PropertyCandidate, note: string[] =
     "",
     "🔗 محادثة مباشرة",
     `https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`,
+    ...(contactRevealNote ? ["", "━━━━━━━━━━━━━━", `⚠️ ${contactRevealNote}`] : []),
     ...(note.length ? ["", "━━━━━━━━━━━━━━", ...note] : [])
   ].join("\n");
 }
@@ -817,7 +821,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
   return {
     ok: true,
     id: request.id,
-    reply: formatOwnerContact(selected, [
+    reply: await formatOwnerContact(selected, [
       ...(request.existing ? ["🔁 طلب مكرر لنفس الدار."] : []),
       `تم خصم *${contactRevealPoints} نقطة* من رصيدك.`,
       `رصيدك المتبقي: *${usagePoints - contactRevealPoints} نقطة*`

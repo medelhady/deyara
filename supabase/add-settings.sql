@@ -19,5 +19,6 @@ insert into public.app_settings (key, value) values
   ('admin_notify_numbers', ''),
   ('bot_whatsapp_number', ''),
   ('referral_window_months', '12'),
-  ('referral_welcome_points', '1')
+  ('referral_welcome_points', '1'),
+  ('contact_reveal_note', '')
 on conflict (key) do nothing;
