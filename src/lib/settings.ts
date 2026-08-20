@@ -9,6 +9,8 @@ export type AppSettings = {
   botWhatsAppNumber: string;
   referralWindowMonths: number;
   referralWelcomePoints: number;
+  referralSignupBonusPoints: number;
+  referralMinTopupPoints: number;
   contactRevealNote: string;
   adminNotifyNumbers: string;
 };
@@ -81,6 +83,22 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "تُمنح فورًا لمن يسجل عبر رابط مسوّق. اجعلها 0 لإيقافها.",
     kind: "number",
     fallback: () => "1"
+  },
+  {
+    key: "referralSignupBonusPoints",
+    column: "referral_signup_bonus_points",
+    label: "مكافأة المسوّق عند التسجيل",
+    hint: "نقاط استخدام تُمنح للمسوّق فور تسجيل شخص برابطه، قبل أي شحن. اجعلها 0 لإيقافها.",
+    kind: "number",
+    fallback: () => "300"
+  },
+  {
+    key: "referralMinTopupPoints",
+    column: "referral_min_topup_points",
+    label: "أقل شحنة تستحق عمولة",
+    hint: "لا تُحتسب عمولة إحالة لشحنة أقل من هذا. اجعلها 0 لاحتساب كل الشحنات.",
+    kind: "number",
+    fallback: () => "0"
   },
   {
     key: "botWhatsAppNumber",

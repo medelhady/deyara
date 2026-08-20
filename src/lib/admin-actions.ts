@@ -229,7 +229,12 @@ async function payReferralCommission(
     return;
   }
 
-  const { referralCommissionPercent, referralWindowMonths } = await getSettings();
+  const { referralCommissionPercent, referralWindowMonths, referralMinTopupPoints } = await getSettings();
+
+  // Blocks the obvious abuse: repeated token top-ups between two numbers to farm commission.
+  if (referralMinTopupPoints > 0 && points < referralMinTopupPoints) {
+    return;
+  }
 
   // The commission runs for a fixed window from the day the referred person joined, not from their
   // first top-up, so a dormant referral does not pay forever.

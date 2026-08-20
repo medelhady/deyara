@@ -20,5 +20,7 @@ insert into public.app_settings (key, value) values
   ('bot_whatsapp_number', ''),
   ('referral_window_months', '12'),
   ('referral_welcome_points', '1'),
-  ('contact_reveal_note', '')
+  ('contact_reveal_note', ''),
+  ('referral_signup_bonus_points', '300'),
+  ('referral_min_topup_points', '0')
 on conflict (key) do nothing;

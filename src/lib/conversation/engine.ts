@@ -266,7 +266,11 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
     "",
     "3️⃣ بعد موافقة الإدارة تضاف النقاط لرصيدك مباشرة.",
     "",
-    "📌 لمتابعة رصيدك اكتب: *رصيدي*"
+    "📌 لمتابعة رصيدك اكتب: *رصيدي*",
+    "",
+    // Running out of points is the moment sharing is most attractive, so offer it instead of only
+    // asking for money.
+    "🎁 أو اكسب نقاطًا مجانية بدعوة غيرك — اكتب: *إحالاتي*"
   ].join("\n");
 }
 
@@ -882,7 +886,9 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     reply: await formatOwnerContact(selected, [
       ...(request.existing ? ["🔁 طلب مكرر لنفس الدار."] : []),
       `تم خصم *${contactRevealPoints} نقطة* من رصيدك.`,
-      `رصيدك المتبقي: *${usagePoints - contactRevealPoints} نقطة*`
+      `رصيدك المتبقي: *${usagePoints - contactRevealPoints} نقطة*`,
+      "",
+      "🎁 ادعُ أصدقاءك واكسب نقاطًا مجانية — اكتب: *إحالاتي*"
     ])
   };
 }
@@ -1018,7 +1024,7 @@ async function applyReferralCode(phone: string, body: string) {
     return "تعذر تسجيل كود الدعوة الآن. حاول مرة أخرى بعد قليل.";
   }
 
-  const { referralCommissionPercent, referralWelcomePoints } = await getSettings();
+  const { referralCommissionPercent, referralWelcomePoints, referralSignupBonusPoints } = await getSettings();
 
   // A welcome grant makes the marketer's pitch concrete ("سجل عن طريقي وخذ أول رقم مجانًا") and
   // costs the marketer nothing to keep track of.
@@ -1045,14 +1051,47 @@ async function applyReferralCode(phone: string, body: string) {
     }
   }
 
+  // Something in hand the moment a referral lands, rather than only after the referred person pays.
+  if (referralSignupBonusPoints > 0) {
+    const { data: referrerWallet } = await supabase
+      .from("user_wallets")
+      .select("usage_points")
+      .eq("phone", referrer.phone)
+      .maybeSingle();
+
+    if (referrerWallet) {
+      const { error: bonusError } = await supabase
+        .from("user_wallets")
+        .update({ usage_points: Number(referrerWallet.usage_points ?? 0) + referralSignupBonusPoints })
+        .eq("phone", referrer.phone);
+
+      if (bonusError) {
+        console.error("Failed to grant the referral signup bonus", bonusError);
+      } else {
+        await supabase.from("credit_transactions").insert({
+          phone: referrer.phone,
+          kind: "admin_adjustment",
+          usage_points_delta: referralSignupBonusPoints,
+          related_phone: phone,
+          admin_note: "مكافأة تسجيل إحالة"
+        });
+      }
+    }
+  }
+
   // Told as it happens, so the marketer can chase the first top-up while the contact is still warm.
   try {
     await metaWhatsAppProvider.sendText(
       referrer.phone as string,
       [
-        "🎉 *شخص جديد سجّل عن طريق رابطك!*",
+        "🎯 *شخص جديد سجّل عن طريق رابطك!*",
         "",
-        `ذكّره بالشحن حتى تحصل على *${referralCommissionPercent}%* من كل شحنة يقوم بها.`,
+        ...(referralWelcomePoints > 0 ? [`استلم *${referralWelcomePoints} نقطة* لتجربة الخدمة.`] : []),
+        ...(referralSignupBonusPoints > 0
+          ? [`🎁 وكسبت أنت *${referralSignupBonusPoints} نقطة* استخدام فورًا.`]
+          : []),
+        "",
+        `💰 وعند أول شحنة يقوم بها تحصل على *${referralCommissionPercent}%* عمولة قابلة للسحب.`,
         "",
         "📌 لمتابعة إحالاتك اكتب: *إحالاتي*"
       ].join("\n")
@@ -1401,9 +1440,22 @@ async function loadReferrals(phone: string): Promise<ReferralRow[] | null> {
   }));
 }
 
+/**
+ * The message a marketer forwards. Ready to copy whole, because asking someone to compose their own
+ * pitch is where sharing stops.
+ */
+function buildShareMessage(link: string, welcomePoints: number) {
+  return [
+    "السلام عليكم، هذا بوت الديارة للبحث عن الإيجارات وعرضها على واتساب.",
+    ...(welcomePoints > 0 ? [`سجّل من الرابط واكسب *${welcomePoints} نقطة* مجانية لتجربة الخدمة 🎁`] : []),
+    link
+  ];
+}
+
 // One card with everything a marketer acts on: who paid, what that earned, and the link to share.
 async function getReferralSummary(phone: string) {
-  const { minimumWithdrawalPoints, referralCommissionPercent } = await getSettings();
+  const { minimumWithdrawalPoints, referralCommissionPercent, referralWelcomePoints: welcomePoints } =
+    await getSettings();
   const referralCode = (await getOrCreateReferralCode(phone)) ?? "—";
   const link = await makeReferralLink(referralCode);
   const wallet = await ensureWallet(phone);
@@ -1427,12 +1479,13 @@ async function getReferralSummary(phone: string) {
       : "✅ تقدر تسحب الآن — اكتب: *طلب سحب*",
     "",
     "━━━━━━━━━━━━━━",
-    "🔗 رابطك",
-    link,
-    "",
     `📣 تحصل على *${referralCommissionPercent}%* من كل شحنة يقوم بها من سجّل عن طريقك.`,
     "",
-    ...(paid + waiting > 0 ? ['اكتب *تفاصيل إحالاتي* لقائمة من سجّل.'] : ["شارك رابطك وابدأ."])
+    "━━━━━━━━━━━━━━",
+    "📤 *انسخ هذه الرسالة وأرسلها:*",
+    "",
+    ...buildShareMessage(link, welcomePoints),
+    ...(paid + waiting > 0 ? ["", "اكتب *تفاصيل إحالاتي* لقائمة من سجّل."] : [])
   ].join("\n");
 }
 
@@ -2140,7 +2193,10 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
           ...(balance === null ? [] : [`💼 رصيدك الآن: *${balance} نقطة*`]),
           "",
-          "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
+          "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.",
+          "",
+          // Right after a successful action is when someone is most willing to recommend the bot.
+          "🎁 ادعُ مؤجرين آخرين واكسب نقاطًا مجانية — اكتب: *إحالاتي*"
         ].join("\n")
       };
     }
