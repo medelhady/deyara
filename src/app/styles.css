@@ -886,3 +886,12 @@ select {
 .setting-field:has(.notices-field) {
   grid-column: 1 / -1;
 }
+
+.notices-warning {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #e3c98f;
+  border-radius: 8px;
+  background: #fdf6e3;
+  line-height: 1.8;
+}

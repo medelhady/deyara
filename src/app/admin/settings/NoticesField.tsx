@@ -64,9 +64,23 @@ export function NoticesField({
     return notices.some((notice, position) => position !== index && notice.areas.includes(area));
   }
 
+  // Without a catch-all notice, a district nobody ticked shows nothing, and any district added later
+  // inherits that silence. Say so rather than letting it be discovered in a live conversation.
+  const written = notices.filter((notice) => notice.text.trim());
+  const hasCatchAll = written.some((notice) => notice.areas.length === 0);
+  const uncovered = areas.filter((area) => !notices.some((notice) => notice.areas.includes(area)));
+
   return (
     <div className="notices-field">
       {notices.length === 0 ? <p className="notices-empty">لا يوجد تنبيه. أضف واحدًا بالأسفل.</p> : null}
+
+      {written.length > 0 && !hasCatchAll ? (
+        <p className="notices-warning">
+          ⚠️ لا يوجد تنبيه بلا مقاطعات. المقاطعات غير المؤشَّرة لن يظهر لها أي تنبيه
+          {uncovered.length > 0 ? `، وهي الآن: ${uncovered.join("، ")}` : ""}. وأي مقاطعة تُضاف
+          مستقبلًا ستكون مثلها. اترك تنبيهًا واحدًا بلا تأشير ليغطي البقية.
+        </p>
+      ) : null}
 
       {notices.map((notice, index) => (
         <div className="notice-card" key={index}>
