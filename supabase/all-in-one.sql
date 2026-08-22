@@ -336,6 +336,25 @@ values
   ('الميناء', 'area', array['mina', 'الميناء'])
 on conflict do nothing;
 
+-- Dashboard logins: a phone number and a password per person, instead of one shared admin key.
+-- Staff accounts for the web panel, deliberately separate from public.users, which holds every
+-- phone number that has talked to the bot. password_hash is a PBKDF2-SHA256 digest written by the
+-- app; no password is ever stored in the clear.
+create table if not exists public.dashboard_accounts (
+  id uuid primary key default uuid_generate_v4(),
+  phone text not null unique,
+  name text not null default '',
+  password_hash text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  created_by text,
+  last_login_at timestamptz
+);
+
+create index if not exists dashboard_accounts_phone_idx on public.dashboard_accounts(phone);
+
+alter table public.dashboard_accounts enable row level security;
+
 -- Important:
 -- The Next.js backend uses SUPABASE_SERVICE_ROLE_KEY, which bypasses RLS.
 -- Do not expose SUPABASE_SERVICE_ROLE_KEY in the browser.

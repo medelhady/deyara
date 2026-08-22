@@ -96,9 +96,27 @@ variables are only fallbacks used until a value is saved there.
 
 ## Admin Access
 
-`ADMIN_ACCESS_TOKEN` protects `/admin` and `/api/admin`. If it is empty the middleware lets every
-request through, which is intended for local development only — always set it in any deployed
-environment.
+Each person signs in at `/admin/login` with their own phone number and password. Accounts live in
+the `dashboard_accounts` table and are managed at `/admin/accounts`, where an admin can add someone,
+reset a password, deactivate an account or delete it.
+
+Passwords are stored as PBKDF2-SHA256 digests and cannot be read back — a forgotten password is
+reset, not recovered. The session is a signed cookie valid for 12 hours.
+
+### First login
+
+Run `supabase/add-dashboard-accounts.sql`, then sign in with any phone number and `ADMIN_ACCESS_TOKEN`
+as the password. That bootstrap works only while no account exists; once you add the first account at
+`/admin/accounts` it stops working. Create your own account before leaving the page.
+
+### Variables
+
+- `ADMIN_SESSION_SECRET` — signs session cookies. Falls back to `ADMIN_ACCESS_TOKEN` when empty.
+- `ADMIN_ACCESS_TOKEN` — the bootstrap password described above.
+
+In production, if both are empty the middleware refuses every request to `/admin` and `/api/admin`.
+It used to allow them, which left the dashboard and every owner phone number open to anyone with the
+URL. Local development keeps the permissive behaviour so the panel runs without setup.
 
 ## Environment Variables
 

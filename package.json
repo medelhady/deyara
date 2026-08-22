@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "eval:gpt": "tsx scripts/gpt-intent-eval.ts",
     "check:signature": "tsx scripts/check-meta-signature.ts",
-    "check:provider": "tsx scripts/check-whatsapp-provider.ts"
+    "check:provider": "tsx scripts/check-whatsapp-provider.ts",
+    "check:auth": "tsx scripts/check-admin-auth.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

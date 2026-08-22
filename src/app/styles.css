@@ -617,6 +617,12 @@ select {
   background: #fff2f2;
 }
 
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 @media (max-width: 860px) {
   .admin-hero,
   .dashboard-grid {

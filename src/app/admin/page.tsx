@@ -202,6 +202,12 @@ export default async function AdminPage() {
       action: "فتح الإعدادات"
     },
     {
+      title: "حسابات الدخول",
+      note: "من يفتح هذه اللوحة، برقم هاتفه ورقمه السري، مع إيقاف أي حساب.",
+      href: "/admin/accounts",
+      action: "فتح الحسابات"
+    },
+    {
       title: "المحاكي",
       note: "تجربة محادثة كاملة دون إرسال أي رسالة واتساب حقيقية.",
       href: "/admin/simulator",
