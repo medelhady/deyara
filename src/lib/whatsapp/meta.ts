@@ -160,6 +160,11 @@ export const metaWhatsAppProvider: WhatsAppProvider = {
     const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
 
     if (!token || !phoneNumberId) {
+      // Silence here reads as success to every caller, so only pretend to send outside production.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("Meta WhatsApp credentials are missing: META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID.");
+      }
+
       console.log("Meta WhatsApp credentials missing. Mock reply:", { to, body });
       return;
     }

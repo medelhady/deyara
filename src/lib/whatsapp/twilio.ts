@@ -42,6 +42,11 @@ export const twilioWhatsAppProvider: WhatsAppProvider = {
     const from = process.env.TWILIO_WHATSAPP_FROM;
 
     if (!accountSid || !authToken || !from) {
+      // Silence here reads as success to every caller, so only pretend to send outside production.
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("Twilio credentials are missing: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN or TWILIO_WHATSAPP_FROM.");
+      }
+
       console.log("Twilio credentials missing. Mock reply:", { to, body });
       return;
     }

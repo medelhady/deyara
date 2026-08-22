@@ -9,7 +9,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "eval:gpt": "tsx scripts/gpt-intent-eval.ts",
-    "check:signature": "tsx scripts/check-meta-signature.ts"
+    "check:signature": "tsx scripts/check-meta-signature.ts",
+    "check:provider": "tsx scripts/check-whatsapp-provider.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
