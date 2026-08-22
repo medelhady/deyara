@@ -321,6 +321,125 @@ export async function creditWalletManually(
   };
 }
 
+export type WithdrawalStatus = "approved" | "rejected" | "paid";
+
+/**
+ * The single place a withdrawal changes status, shared by the dashboard and the WhatsApp commands.
+ *
+ * Marking one paid is the point of no return: it moves points out of the commission balance into
+ * withdrawn, so it is guarded against running twice and against a balance that no longer covers it.
+ */
+export async function setWithdrawalStatus(
+  id: string,
+  status: WithdrawalStatus,
+  adminNote?: string
+): Promise<AdminActionResult> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { ok: false, message: "قاعدة البيانات غير مربوطة.", reason: "unavailable" };
+  }
+
+  const { data: withdrawal, error: withdrawalError } = await supabase
+    .from("withdrawal_requests")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (withdrawalError || !withdrawal) {
+    return { ok: false, message: withdrawalError?.message ?? "لم أجد طلب السحب.", reason: "not_found" };
+  }
+
+  const points = Number(withdrawal.points ?? 0);
+  const phone = String(withdrawal.phone);
+  const note = adminNote?.trim() || null;
+
+  // Only the first transition into paid moves any points, so re-sending the command cannot pay twice.
+  if (status === "paid" && withdrawal.status !== "paid") {
+    const { data: wallet, error: walletError } = await supabase
+      .from("user_wallets")
+      .select("commission_points,withdrawn_commission_points")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    if (walletError || !wallet) {
+      return { ok: false, message: walletError?.message ?? "لم أجد محفظة هذا الرقم.", reason: "not_found" };
+    }
+
+    const currentCommission = Number(wallet.commission_points ?? 0);
+
+    if (currentCommission < points) {
+      return {
+        ok: false,
+        message: `رصيد العمولة (${currentCommission}) لا يغطي ${points} نقطة.`,
+        reason: "insufficient_points"
+      };
+    }
+
+    const { error: walletUpdateError } = await supabase
+      .from("user_wallets")
+      .update({
+        commission_points: currentCommission - points,
+        withdrawn_commission_points: Number(wallet.withdrawn_commission_points ?? 0) + points
+      })
+      .eq("phone", phone);
+
+    if (walletUpdateError) {
+      return { ok: false, message: walletUpdateError.message };
+    }
+
+    const { error: ledgerError } = await supabase.from("credit_transactions").insert({
+      phone,
+      kind: "withdrawal",
+      commission_points_delta: -points,
+      admin_note: note
+    });
+
+    if (ledgerError) {
+      console.error("Failed to record the withdrawal", ledgerError);
+    }
+  }
+
+  const { data, error } = await supabase
+    .from("withdrawal_requests")
+    .update({ status, admin_note: note, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  // Asking for your money and hearing nothing back is the whole reason this notification exists.
+  const messages: Record<WithdrawalStatus, string[]> = {
+    approved: [
+      "✅ *تمت الموافقة على طلب السحب*",
+      "",
+      `المبلغ: *${points} نقطة عمولة*`,
+      "سنحوّل لك قريبًا ونبلغك عند التحويل."
+    ],
+    rejected: ["❌ *لم نعتمد طلب السحب*", "", `المبلغ المطلوب: *${points} نقطة*`],
+    paid: [
+      "💸 *تم تحويل مستحقاتك*",
+      "",
+      `حوّلنا لك مقابل *${points} نقطة عمولة*.`,
+      "خُصمت من رصيد العمولة. اكتب *رصيدي* لمتابعة حسابك."
+    ]
+  };
+
+  try {
+    await getWhatsAppProvider().sendText(
+      phone,
+      [...messages[status], ...(note ? ["", `📝 ${note}`] : [])].join("\n")
+    );
+  } catch (notifyError) {
+    console.error("Failed to tell the marketer about their withdrawal", notifyError);
+  }
+
+  return { ok: true, message: "تم تحديث طلب السحب.", data: { withdrawal: data, points, phone } };
+}
+
 async function payReferralCommission(
   phone: string,
   referrerPhone: string | null,

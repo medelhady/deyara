@@ -1,6 +1,7 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
-import { creditApprovedTopup, setPropertyStatus } from "@/lib/admin-actions";
+import { creditApprovedTopup, setPropertyStatus, setWithdrawalStatus } from "@/lib/admin-actions";
+import { parseAdminCommand } from "./parse-admin-command";
 
 function digitsOf(phone: string) {
   return phone.replace(/\D/g, "");
@@ -67,29 +68,87 @@ const helpMessage = [
   "💳 اعتماد شحن",
   "*شحن 22245678901 2000*",
   "",
+  "📤 طلبات السحب المعلقة",
+  "*سحوبات*",
+  "",
+  "💸 تأكيد تحويل مستحقات",
+  "*دفع 22245678901*",
+  "",
+  "🚫 رفض طلب سحب (السبب اختياري)",
+  "*رفض سحب 22245678901 الرصيد غير كافٍ*",
+  "",
   "📌 هذه الأوامر تعمل من أرقام الإدارة فقط."
 ].join("\n");
+
+/** Finds the withdrawal an admin means by typing a phone number, matched on its digits. */
+async function findWithdrawalByPhone(phoneInput: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const digits = digitsOf(phoneInput);
+
+  if (!digits) {
+    return null;
+  }
+
+  // Paying is valid from pending and from approved, since approving is an optional middle step.
+  const { data } = await supabase
+    .from("withdrawal_requests")
+    .select("id,phone,points,status,created_at")
+    .in("status", ["pending", "approved"])
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  return (data ?? []).find((row) => digitsOf(String(row.phone)).endsWith(digits)) ?? null;
+}
+
+async function listPendingWithdrawals() {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return "❌ قاعدة البيانات غير مربوطة.";
+  }
+
+  const { data, error } = await supabase
+    .from("withdrawal_requests")
+    .select("phone,points,status,created_at")
+    .in("status", ["pending", "approved"])
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  if (error) {
+    return `❌ ${error.message}`;
+  }
+
+  if ((data ?? []).length === 0) {
+    return "📤 *طلبات السحب*\n\nلا يوجد طلب سحب معلق.";
+  }
+
+  return [
+    "📤 *طلبات السحب المعلقة*",
+    "",
+    ...(data ?? []).map((row) => {
+      const number = String(row.phone).replace("whatsapp:", "");
+      const state = row.status === "approved" ? "موافق عليه" : "جديد";
+
+      return `• ${number} — *${row.points} نقطة* (${state})`;
+    }),
+    "",
+    "لتأكيد التحويل اكتب: *دفع <الرقم>*"
+  ].join("\n");
+}
 
 /**
  * Handles an admin instruction sent over WhatsApp. Returns null when the message is not a command,
  * so an admin can still use the bot as a renter or an owner with the same number.
  */
 export async function handleAdminCommand(phone: string, body: string): Promise<string | null> {
-  const text = body.trim();
+  const command = parseAdminCommand(body);
 
-  if (!text) {
-    return null;
-  }
-
-  if (/^(اوامر|أوامر|اوامر الادارة|مساعدة الادارة)$/i.test(text)) {
-    return (await isAdminPhone(phone)) ? helpMessage : null;
-  }
-
-  const approve = text.match(/^(?:قبول|موافقة|اعتماد)\s+(\S+)\s*$/);
-  const reject = text.match(/^(?:رفض)\s+(\S+)\s*(.*)$/);
-  const topup = text.match(/^(?:شحن|اضافة نقاط|إضافة نقاط)\s+(\+?[\d\s]+?)\s+(\d{1,7})\s*$/);
-
-  if (!approve && !reject && !topup) {
+  if (!command) {
     return null;
   }
 
@@ -98,38 +157,83 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
     return null;
   }
 
-  if (approve) {
-    const property = await findProperty(approve[1]);
+  if (command.kind === "help") {
+    return helpMessage;
+  }
 
-    if (!property) {
-      return `ما لقيت إعلانًا برقم *${approve[1]}*.\n\nتأكد من رقم الإعلان كما يظهر في اللوحة.`;
+  if (command.kind === "listWithdrawals") {
+    return listPendingWithdrawals();
+  }
+
+  if (command.kind === "payWithdrawal" || command.kind === "rejectWithdrawal") {
+    const withdrawal = await findWithdrawalByPhone(command.phone);
+
+    if (!withdrawal) {
+      return `ما لقيت طلب سحب معلقًا للرقم *${digitsOf(command.phone)}*.\n\nاكتب *سحوبات* لعرض الطلبات المعلقة.`;
     }
 
-    const result = await setPropertyStatus(String(property.id), "active");
+    const paying = command.kind === "payWithdrawal";
+    const reason = command.kind === "rejectWithdrawal" ? command.reason : "";
+    const result = await setWithdrawalStatus(
+      String(withdrawal.id),
+      paying ? "paid" : "rejected",
+      reason || undefined
+    );
 
     if (!result.ok) {
       return `❌ ${result.message}`;
     }
 
-    const spent = result.data?.spentPoints as number | undefined;
+    const number = String(withdrawal.phone).replace("whatsapp:", "");
 
-    return [
-      "✅ *تم نشر الإعلان*",
-      "",
-      `🔖 ${property.property_code ?? String(property.id).slice(0, 8)}`,
-      `🏠 ${property.type ?? "دار"} في ${property.area ?? "منطقة غير محددة"}`,
-      ...(spent ? ["", `تم خصم *${spent} نقطة* من المؤجر وأُبلغ بالنشر.`] : ["", "أُبلغ المؤجر بالنشر."])
-    ].join("\n");
+    return paying
+      ? [
+          "💸 *تم تأكيد التحويل*",
+          "",
+          `📱 ${number}`,
+          `💰 خُصمت *${withdrawal.points} نقطة* من رصيد عمولته.`,
+          "",
+          "أُبلغ صاحب الرقم بالتحويل."
+        ].join("\n")
+      : [
+          "🚫 *تم رفض طلب السحب*",
+          "",
+          `📱 ${number}`,
+          `💰 *${withdrawal.points} نقطة* بقيت في رصيده.`,
+          ...(reason ? ["", `📝 السبب: ${reason}`] : []),
+          "",
+          "أُبلغ صاحب الرقم بالرفض."
+        ].join("\n");
   }
 
-  if (reject) {
-    const property = await findProperty(reject[1]);
+  if (command.kind === "approveListing" || command.kind === "rejectListing") {
+    const property = await findProperty(command.code);
 
     if (!property) {
-      return `ما لقيت إعلانًا برقم *${reject[1]}*.\n\nتأكد من رقم الإعلان كما يظهر في اللوحة.`;
+      return `ما لقيت إعلانًا برقم *${command.code}*.\n\nتأكد من رقم الإعلان كما يظهر في اللوحة.`;
     }
 
-    const reason = reject[2]?.trim();
+    const label = property.property_code ?? String(property.id).slice(0, 8);
+
+    if (command.kind === "approveListing") {
+      const result = await setPropertyStatus(String(property.id), "active");
+
+      if (!result.ok) {
+        return `❌ ${result.message}`;
+      }
+
+      const spent = result.data?.spentPoints as number | undefined;
+
+      return [
+        "✅ *تم نشر الإعلان*",
+        "",
+        `🔖 ${label}`,
+        `🏠 ${property.type ?? "دار"} في ${property.area ?? "منطقة غير محددة"}`,
+        ...(spent ? ["", `تم خصم *${spent} نقطة* من المؤجر وأُبلغ بالنشر.`] : ["", "أُبلغ المؤجر بالنشر."])
+      ].join("\n");
+    }
+
+    const reason = command.reason;
     const result = await setPropertyStatus(String(property.id), "rejected", reason || undefined);
 
     if (!result.ok) {
@@ -139,7 +243,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
     return [
       "❌ *تم رفض الإعلان*",
       "",
-      `🔖 ${property.property_code ?? String(property.id).slice(0, 8)}`,
+      `🔖 ${label}`,
       ...(reason ? [`📝 السبب: ${reason}`] : []),
       "",
       "أُبلغ المؤجر بالرفض. ولم تُخصم منه أي نقطة."
@@ -152,8 +256,8 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
     return "❌ قاعدة البيانات غير مربوطة.";
   }
 
-  const targetDigits = digitsOf(topup![1]);
-  const points = Number(topup![2]);
+  const targetDigits = digitsOf(command.phone);
+  const points = command.points;
 
   const { data: matches } = await supabase
     .from("credit_topups")

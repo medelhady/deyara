@@ -82,8 +82,25 @@ npm run check
 ```
 
 Runs every offline check: Meta webhook signatures, WhatsApp provider resolution, password hashing and
-session tokens, and the referral commission rules. No credentials or network needed. Individual
-suites are `check:signature`, `check:provider`, `check:auth` and `check:referral`.
+session tokens, the referral commission rules, and how admin WhatsApp commands are read. No
+credentials or network needed. Individual suites are `check:signature`, `check:provider`,
+`check:auth`, `check:referral` and `check:commands`.
+
+## Admin WhatsApp Commands
+
+Sent from a number listed in the admin notification numbers setting:
+
+| Command | Does |
+| --- | --- |
+| `اوامر` | Lists the commands |
+| `قبول 0007` | Publishes a listing |
+| `رفض 0007 السبب` | Rejects a listing, reason optional |
+| `شحن 22245678901 2000` | Approves a pending top-up |
+| `سحوبات` | Lists pending withdrawal requests |
+| `دفع 22245678901` | Confirms a payout and deducts the commission points |
+| `رفض سحب 22245678901 السبب` | Rejects a withdrawal, reason optional |
+
+Every one of these tells the person affected on WhatsApp.
 
 ## Supabase
 
