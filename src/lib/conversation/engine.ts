@@ -920,7 +920,8 @@ export async function fulfillPendingContactRequest(phone: string) {
   return request.reply;
 }
 
-async function ensureWallet(phone: string) {
+/** Creates the user row and the wallet when either is missing, and returns the wallet. */
+export async function ensureWallet(phone: string) {
   const supabase = getServiceSupabase();
 
   if (!supabase) {

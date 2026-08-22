@@ -1,6 +1,8 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { normalizeWhatsAppPhone } from "@/lib/whatsapp/meta";
 import {
+  ensureWallet,
   formatListingApproval,
   fulfillPendingContactRequest,
   spendPointsForListing,
@@ -210,6 +212,111 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
     ok: true,
     message: "تم اعتماد الشحن.",
     data: { points, newBalance: currentPoints + points }
+  };
+}
+
+/**
+ * Registers a number if it is new and puts points in its wallet, on an admin's say-so rather than a
+ * payment receipt.
+ *
+ * Deliberately not routed through creditApprovedTopup: that path pays the referrer their commission,
+ * which is right for money that came in and wrong for points an admin granted. It does still release
+ * a contact request the renter was waiting on, because from their side the balance is what mattered.
+ */
+export async function creditWalletManually(
+  phoneInput: string,
+  points: number,
+  note: string,
+  adminPhone: string | null
+): Promise<AdminActionResult> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { ok: false, message: "قاعدة البيانات غير مربوطة.", reason: "unavailable" };
+  }
+
+  const digits = phoneInput.replace(/\D/g, "");
+
+  if (digits.length < 8) {
+    return { ok: false, message: "اكتب رقم الهاتف بصيغة دولية كاملة مع رمز الدولة." };
+  }
+
+  if (!Number.isInteger(points) || points <= 0) {
+    return { ok: false, message: "عدد النقاط يجب أن يكون رقمًا صحيحًا أكبر من صفر." };
+  }
+
+  // Reuse the row this number already has, whatever shape it was stored in, so crediting an existing
+  // user cannot quietly create a second account holding the balance.
+  const { data: existing } = await supabase
+    .from("users")
+    .select("phone")
+    .like("phone", `%${digits}`)
+    .limit(1);
+
+  const phone = (existing ?? [])[0]?.phone ?? normalizeWhatsAppPhone(digits);
+
+  const wallet = await ensureWallet(phone);
+
+  if (!wallet) {
+    return { ok: false, message: "تعذر إنشاء محفظة لهذا الرقم.", reason: "unavailable" };
+  }
+
+  const currentPoints = Number(wallet.usage_points ?? 0);
+  const newBalance = currentPoints + points;
+
+  const { error: updateError } = await supabase
+    .from("user_wallets")
+    .update({ usage_points: newBalance })
+    .eq("phone", phone);
+
+  if (updateError) {
+    return { ok: false, message: updateError.message };
+  }
+
+  // The admin goes in admin_note, not related_phone: that column is a foreign key into users, and a
+  // dashboard account is not a bot user, so the row would be rejected and the audit trail lost.
+  const byLine = adminPhone ? `بواسطة ${adminPhone}` : "بواسطة الإدارة";
+
+  const { error: ledgerError } = await supabase.from("credit_transactions").insert({
+    phone,
+    kind: "admin_adjustment",
+    usage_points_delta: points,
+    admin_note: note.trim() ? `${note.trim()} — ${byLine}` : `إضافة رصيد ${byLine}`
+  });
+
+  if (ledgerError) {
+    console.error("Failed to record the manual credit", ledgerError);
+  }
+
+  const contactReply = await fulfillPendingContactRequest(phone);
+
+  try {
+    await getWhatsAppProvider().sendText(
+      phone,
+      [
+        "💳 *تم إضافة رصيد لحسابك*",
+        "",
+        `أضافت الإدارة *${points} نقطة* إلى رصيدك.`,
+        `رصيدك الآن: *${newBalance} نقطة*`,
+        ...(note.trim() ? ["", note.trim()] : [])
+      ].join("\n")
+    );
+
+    if (contactReply) {
+      await getWhatsAppProvider().sendText(phone, contactReply);
+    }
+  } catch (notifyError) {
+    console.error("Failed to tell the user about the manual credit", notifyError);
+  }
+
+  return {
+    ok: true,
+    // A missing ledger row is said out loud: the balance moved either way, and an admin who thinks
+    // the change was recorded when it was not has no way to reconcile it later.
+    message: ledgerError
+      ? `تمت إضافة ${points} نقطة والرصيد الآن ${newBalance}، لكن تعذّر تسجيلها في سجل الحركات.`
+      : `تمت إضافة ${points} نقطة. الرصيد الآن ${newBalance}.`,
+    data: { phone, points, newBalance, releasedContact: Boolean(contactReply), ledgerRecorded: !ledgerError }
   };
 }
 

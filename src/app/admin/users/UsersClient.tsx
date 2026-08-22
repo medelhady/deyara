@@ -33,6 +33,10 @@ export function UsersClient() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "owner" | "renter" | "blocked">("all");
   const [busyPhone, setBusyPhone] = useState<string | null>(null);
+  const [credit, setCredit] = useState({ phone: "", points: "", note: "" });
+  const [crediting, setCrediting] = useState(false);
+  const [creditError, setCreditError] = useState("");
+  const [creditDone, setCreditDone] = useState("");
 
   async function loadUsers() {
     const response = await fetch(`/api/admin/users?t=${Date.now()}`, { cache: "no-store" });
@@ -78,6 +82,37 @@ export function UsersClient() {
     }
   }
 
+  async function addCredit(event: React.FormEvent) {
+    event.preventDefault();
+    setCrediting(true);
+    setCreditError("");
+    setCreditDone("");
+
+    try {
+      const response = await fetch("/api/admin/users/credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...credit, points: Number(credit.points) })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCreditError(data.error ?? "تعذر إضافة الرصيد.");
+        return;
+      }
+
+      setCreditDone(
+        data.releasedContact
+          ? `${data.message} وأرسلنا له رقم المؤجر الذي كان ينتظره.`
+          : String(data.message ?? "تمت الإضافة.")
+      );
+      setCredit({ phone: "", points: "", note: "" });
+      await loadUsers();
+    } finally {
+      setCrediting(false);
+    }
+  }
+
   useEffect(() => {
     void loadUsers();
   }, []);
@@ -105,6 +140,64 @@ export function UsersClient() {
   const blockedCount = users.filter((user) => user.blocked_at).length;
 
   return (
+    <>
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <p className="eyebrow">إضافة رصيد</p>
+          <h2>تسجيل مستخدم وشحن رصيده</h2>
+        </div>
+      </div>
+
+      <p>
+        اكتب الرقم بصيغة دولية كاملة. لو لم يكن مسجلًا بعد، يُسجَّل الآن. تصل المستخدم رسالة واتساب
+        بالرصيد الجديد، ولو كان ينتظر رقم مؤجر يُرسل له فورًا.
+      </p>
+
+      <form className="auth-form" onSubmit={addCredit}>
+        <label>
+          رقم الهاتف
+          <input
+            type="tel"
+            inputMode="tel"
+            dir="ltr"
+            placeholder="22245678901"
+            value={credit.phone}
+            onChange={(event) => setCredit({ ...credit, phone: event.target.value })}
+            required
+          />
+        </label>
+        <label>
+          عدد النقاط
+          <input
+            type="number"
+            min={1}
+            step={1}
+            dir="ltr"
+            placeholder="2000"
+            value={credit.points}
+            onChange={(event) => setCredit({ ...credit, points: event.target.value })}
+            required
+          />
+        </label>
+        <label>
+          سبب الإضافة (اختياري)
+          <input
+            type="text"
+            placeholder="تعويض، هدية ترويجية، تصحيح رصيد..."
+            value={credit.note}
+            onChange={(event) => setCredit({ ...credit, note: event.target.value })}
+          />
+        </label>
+        <button className="button" type="submit" disabled={crediting}>
+          {crediting ? "جار الإضافة..." : "إضافة الرصيد"}
+        </button>
+      </form>
+
+      {creditError ? <p className="auth-error">{creditError}</p> : null}
+      {creditDone ? <p>✅ {creditDone}</p> : null}
+    </section>
+
     <section className="panel">
       <div className="panel-header">
         <div>
@@ -186,5 +279,6 @@ export function UsersClient() {
         </table>
       </div>
     </section>
+    </>
   );
 }

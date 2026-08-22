@@ -43,7 +43,8 @@ type MetaWebhookPayload = {
   }>;
 };
 
-function normalizeWhatsAppPhone(phone: string) {
+/** The shape every phone number is stored in. Exported so nothing builds a second, subtly different one. */
+export function normalizeWhatsAppPhone(phone: string) {
   return `whatsapp:+${phone.replace(/\D/g, "")}`;
 }
 
