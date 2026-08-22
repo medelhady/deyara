@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import type { IncomingWhatsAppMessage, WhatsAppProvider } from "./types";
 
 type MetaWebhookPayload = {
@@ -70,6 +71,36 @@ async function getMetaMediaUrl(mediaId?: string) {
 
   const payload = (await response.json()) as { url?: string };
   return payload.url;
+}
+
+/**
+ * Meta signs every webhook delivery with the app secret. The check matters more here than it looks:
+ * `from` on the parsed message is what authorises the admin WhatsApp commands, so an unverified
+ * endpoint lets anyone who guesses the URL post a payload claiming to be an admin number and approve
+ * listings or credit points.
+ *
+ * Returns true when META_APP_SECRET is unset, so an existing deployment keeps working until the
+ * secret is added. The warning is the signal that the endpoint is still open.
+ */
+export function verifyMetaSignature(rawBody: string, signatureHeader: string | null) {
+  const secret = process.env.META_APP_SECRET;
+
+  if (!secret) {
+    console.warn(
+      "META_APP_SECRET is not set. The Meta webhook is accepting unverified requests, which means anyone who knows the URL can send messages as any number, including an admin one."
+    );
+    return true;
+  }
+
+  if (!signatureHeader?.startsWith("sha256=")) {
+    return false;
+  }
+
+  const expected = crypto.createHmac("sha256", secret).update(rawBody, "utf8").digest();
+  const received = Buffer.from(signatureHeader.slice("sha256=".length), "hex");
+
+  // timingSafeEqual throws on a length mismatch, and a malformed hex header decodes short.
+  return expected.length === received.length && crypto.timingSafeEqual(expected, received);
 }
 
 export async function parseMetaWebhook(payload: MetaWebhookPayload): Promise<IncomingWhatsAppMessage[]> {

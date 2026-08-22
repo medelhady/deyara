@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "eval:gpt": "tsx scripts/gpt-intent-eval.ts"
+    "eval:gpt": "tsx scripts/gpt-intent-eval.ts",
+    "check:signature": "tsx scripts/check-meta-signature.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

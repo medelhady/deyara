@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { metaWhatsAppProvider, parseMetaWebhook } from "@/lib/whatsapp/meta";
+import { metaWhatsAppProvider, parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -70,7 +70,15 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
+  // Read the body as text: the signature covers the exact bytes Meta sent, so re-serialising the
+  // parsed JSON would not match.
+  const rawBody = await request.text();
+
+  if (!verifyMetaSignature(rawBody, request.headers.get("x-hub-signature-256"))) {
+    return NextResponse.json({ ok: false, error: "Invalid Meta signature." }, { status: 401 });
+  }
+
+  const payload = JSON.parse(rawBody);
   const messages = await parseMetaWebhook(payload);
   const replies = [];
 
