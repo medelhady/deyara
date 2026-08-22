@@ -74,7 +74,7 @@ create table public.contact_requests (
   property_id uuid not null references public.properties(id),
   renter_phone text not null references public.users(phone),
   owner_phone text not null references public.users(phone),
-  status contact_request_status not null default 'pending_payment',
+  status contact_request_status not null,
   renter_share_allowed boolean not null default false,
   fee_amount numeric,
   admin_note text,

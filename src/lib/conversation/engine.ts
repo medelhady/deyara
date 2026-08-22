@@ -668,30 +668,14 @@ async function createContactRequest(renterPhone: string, selected: PropertyCandi
     .select("id,status")
     .eq("property_id", selected.id)
     .eq("renter_phone", renterPhone)
-    .in("status", ["pending_payment", "pending_admin_review", "approved"])
+    .eq("status", "approved")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   // Already paid for: hand the number over again without charging a second point.
-  if (existing?.status === "approved") {
-    return { saved: true, existing: true, id: existing.id as string, status: existing.status as string };
-  }
-
-  // Left over from when contact requests waited for an admin. Access is paid with points now, so
-  // approve the row instead of stranding the renter behind a review that no longer happens.
   if (existing) {
-    const { error: approveError } = await supabase
-      .from("contact_requests")
-      .update({ status: "approved" })
-      .eq("id", existing.id);
-
-    if (approveError) {
-      console.error("Failed to approve a pending contact request", approveError);
-      return { saved: false, error: approveError.message };
-    }
-
-    return { saved: true, existing: false, id: existing.id as string };
+    return { saved: true, existing: true, id: existing.id as string, status: existing.status as string };
   }
 
   const { data, error } = await supabase
@@ -1303,7 +1287,13 @@ async function markListingRented(ownerPhone: string, reference: string) {
   ].join("\n");
 }
 
-/** Closes anything still in flight for a property that just left the market, and tells the renters. */
+/**
+ * Tells the renters still chasing a property that just left the market.
+ *
+ * A contact request is created already approved, so there is no in-flight row to close here: the
+ * only people left waiting are those who were asked to top up and have the property held in their
+ * conversation state.
+ */
 async function cancelContactRequestsForProperty(propertyId: string) {
   const supabase = getServiceSupabase();
 
@@ -1312,28 +1302,6 @@ async function cancelContactRequestsForProperty(propertyId: string) {
   }
 
   const notified = new Set<string>();
-
-  const { data: openRequests } = await supabase
-    .from("contact_requests")
-    .select("id,renter_phone")
-    .eq("property_id", propertyId)
-    .in("status", ["pending_payment", "pending_admin_review"]);
-
-  for (const request of openRequests ?? []) {
-    notified.add(String(request.renter_phone));
-  }
-
-  if ((openRequests ?? []).length > 0) {
-    const { error } = await supabase
-      .from("contact_requests")
-      .update({ status: "expired" })
-      .eq("property_id", propertyId)
-      .in("status", ["pending_payment", "pending_admin_review"]);
-
-    if (error) {
-      console.error("Failed to expire contact requests for a rented property", error);
-    }
-  }
 
   // Renters who were told to top up before paying still hold this property in their state.
   const { data: waiting } = await supabase

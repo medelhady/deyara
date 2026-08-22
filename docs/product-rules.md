@@ -36,10 +36,13 @@ needed to credit points, never to release an owner number.
 
 Statuses:
 
-- `approved` — the point was charged and the owner number was sent
-- `rejected`, `expired` — set by an admin when a request has to be revoked
-- `pending_payment`, `pending_admin_review` — legacy, from before points. Rows still carrying one of
-  these are approved on the renter's next request instead of waiting for a review.
+- `approved` — the point was charged and the owner number was sent. Every new request is created
+  this way; there is no pending state.
+- `rejected`, `expired` — set by an admin when a request has to be revoked.
+
+The enum still lists `pending_payment` and `pending_admin_review` from before points, when a renter
+paid by transfer and waited for a review. Nothing reads or writes them; the rows that held them were
+closed by `supabase/retire-legacy-contact-statuses.sql`.
 
 ## MVP Monetization
 
