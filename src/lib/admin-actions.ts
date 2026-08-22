@@ -1,6 +1,7 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/meta";
+import { commissionForTopup } from "@/lib/referral";
 import {
   ensureWallet,
   formatListingApproval,
@@ -338,22 +339,13 @@ async function payReferralCommission(
 
   const { referralCommissionPercent, referralWindowMonths, referralMinTopupPoints } = await getSettings();
 
-  // Blocks the obvious abuse: repeated token top-ups between two numbers to farm commission.
-  if (referralMinTopupPoints > 0 && points < referralMinTopupPoints) {
-    return;
-  }
-
-  // The commission runs for a fixed window from the day the referred person joined, not from their
-  // first top-up, so a dormant referral does not pay forever.
-  if (referredAt && referralWindowMonths > 0) {
-    const expiresAt = new Date(referredAt);
-    expiresAt.setMonth(expiresAt.getMonth() + referralWindowMonths);
-
-    if (Date.now() > expiresAt.getTime()) {
-      return;
-    }
-  }
-  const commission = Math.floor((points * referralCommissionPercent) / 100);
+  const commission = commissionForTopup({
+    points,
+    commissionPercent: referralCommissionPercent,
+    windowMonths: referralWindowMonths,
+    minTopupPoints: referralMinTopupPoints,
+    referredAt
+  });
 
   if (commission <= 0) {
     return;

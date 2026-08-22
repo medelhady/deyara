@@ -75,6 +75,16 @@ https://YOUR_DOMAIN/api/webhooks/twilio/whatsapp
 For local testing, expose port 3000 with ngrok and use the ngrok URL. See `docs/twilio-setup.md`.
 Note that the Twilio webhook does not validate request signatures yet.
 
+## Checks
+
+```bash
+npm run check
+```
+
+Runs every offline check: Meta webhook signatures, WhatsApp provider resolution, password hashing and
+session tokens, and the referral commission rules. No credentials or network needed. Individual
+suites are `check:signature`, `check:provider`, `check:auth` and `check:referral`.
+
 ## Supabase
 
 Run `supabase/schema.sql` in the Supabase SQL editor, then the `supabase/add-*.sql` migrations.
