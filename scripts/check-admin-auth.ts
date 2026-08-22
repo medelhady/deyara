@@ -6,6 +6,9 @@
  */
 process.env.ADMIN_SESSION_SECRET = "test-session-secret";
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   createSessionToken,
   hashPassword,
@@ -22,7 +25,21 @@ function check(name: string, actual: unknown, expected: unknown) {
   console.log(`${pass ? "PASS" : "FAIL"}  ${name}  (expected ${expected}, got ${actual})`);
 }
 
+/**
+ * The middleware is the only thing standing in front of /admin. This project keeps its app under
+ * src/, so Next.js looks for src/middleware.ts and silently ignores a copy at the repo root -- no
+ * warning, no build error, just an unprotected dashboard. That shipped once; this catches it.
+ */
+function checkMiddlewarePlacement() {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+
+  check("middleware lives at src/middleware.ts", existsSync(join(root, "src", "middleware.ts")), true);
+  check("no ignored copy at the repo root", existsSync(join(root, "middleware.ts")), false);
+}
+
 async function main() {
+  checkMiddlewarePlacement();
+
   check("normalizePhone strips formatting", normalizePhone("+222 456-78901"), "22245678901");
 
   const hash = await hashPassword("correct horse battery");
