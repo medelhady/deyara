@@ -9,7 +9,7 @@ import { storePropertyMedia } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notify-admins";
 import { handleAdminCommand } from "./admin-commands";
-import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -1081,7 +1081,7 @@ async function applyReferralCode(phone: string, body: string) {
 
   // Told as it happens, so the marketer can chase the first top-up while the contact is still warm.
   try {
-    await metaWhatsAppProvider.sendText(
+    await getWhatsAppProvider().sendText(
       referrer.phone as string,
       [
         "🎯 *شخص جديد سجّل عن طريق رابطك!*",
@@ -1354,7 +1354,7 @@ async function cancelContactRequestsForProperty(propertyId: string) {
 
   for (const phone of notified) {
     try {
-      await metaWhatsAppProvider.sendText(
+      await getWhatsAppProvider().sendText(
         phone,
         [
           "🔒 *الدار التي كنت مهتمًا بها لم تعد متاحة*",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSettings } from "@/lib/settings";
-import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +65,7 @@ export async function POST() {
       }
 
       try {
-        await metaWhatsAppProvider.sendText(
+        await getWhatsAppProvider().sendText(
           number,
           [
             "🔔 *تنبيه تجريبي من الديارة*",

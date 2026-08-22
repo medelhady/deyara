@@ -1,5 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 import {
   formatListingApproval,
   fulfillPendingContactRequest,
@@ -52,7 +52,7 @@ export async function setPropertyStatus(
 
     if (!spend.ok) {
       try {
-        await metaWhatsAppProvider.sendText(current.owner_phone as string, spend.reply);
+        await getWhatsAppProvider().sendText(current.owner_phone as string, spend.reply);
       } catch (notifyError) {
         console.error("Failed to ask the owner to top up", notifyError);
       }
@@ -82,7 +82,7 @@ export async function setPropertyStatus(
 
   if (status === "active" && data.owner_phone) {
     try {
-      await metaWhatsAppProvider.sendText(
+      await getWhatsAppProvider().sendText(
         data.owner_phone as string,
         formatListingApproval(
           data,
@@ -101,7 +101,7 @@ export async function setPropertyStatus(
 
   if (status === "rejected" && data.owner_phone) {
     try {
-      await metaWhatsAppProvider.sendText(
+      await getWhatsAppProvider().sendText(
         data.owner_phone as string,
         `❌ تم رفض إعلانك من الإدارة.\n\nرقم الإعلان: ${data.property_code ?? String(data.id).slice(0, 8)}${adminNote ? `\nالسبب: ${adminNote}` : ""}\n\nيمكنك تعديل البيانات وإعادة الإرسال.`
       );
@@ -186,7 +186,7 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
 
     if (submission.saved) {
       try {
-        await metaWhatsAppProvider.sendText(
+        await getWhatsAppProvider().sendText(
           phone,
           "✅ تم إرسال إعلانك إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
         );
@@ -200,7 +200,7 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
 
   if (contactReply) {
     try {
-      await metaWhatsAppProvider.sendText(phone, contactReply);
+      await getWhatsAppProvider().sendText(phone, contactReply);
     } catch (notifyError) {
       console.error("Failed to send owner contact after approved topup", notifyError);
     }
@@ -283,7 +283,7 @@ async function payReferralCommission(
   });
 
   try {
-    await metaWhatsAppProvider.sendText(
+    await getWhatsAppProvider().sendText(
       referrerPhone,
       [
         "📣 *عمولة تسويق جديدة*",

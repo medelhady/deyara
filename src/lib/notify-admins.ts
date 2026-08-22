@@ -1,5 +1,5 @@
 import { getSettings } from "@/lib/settings";
-import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
 
 /**
  * Tells the admins something needs their attention on WhatsApp, so they do not have to keep the
@@ -22,7 +22,7 @@ export async function notifyAdmins(lines: string[]) {
     await Promise.all(
       numbers.map(async (number) => {
         try {
-          await metaWhatsAppProvider.sendText(number, body);
+          await getWhatsAppProvider().sendText(number, body);
         } catch (error) {
           console.error(`Failed to notify admin ${number}`, error);
         }
