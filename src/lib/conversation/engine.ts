@@ -183,14 +183,34 @@ function normalizePhoneDigits(phone: string) {
 // characters they add. 31^4 is roughly 900k codes, far more than this will ever need.
 const referralAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
-function randomReferralCode() {
-  let code = "";
+/** True when a code can be told apart from a listing number or a result index typed on its own. */
+export function isUsableReferralCode(code: string | null | undefined) {
+  return typeof code === "string" && /^[A-Z0-9]{4}$/.test(code) && /[A-Z]/.test(code);
+}
 
-  for (let index = 0; index < 4; index += 1) {
-    code += referralAlphabet[Math.floor(Math.random() * referralAlphabet.length)];
+/**
+ * A four character code with at least one letter.
+ *
+ * The letter is not decoration. A code arrives on its own, and the only thing separating it from a
+ * listing number or a result index -- both plain four digit numbers -- is that it contains a letter.
+ * Roughly one code in 226 came out all digits and was rejected on arrival, so the marketer's invites
+ * silently registered nobody.
+ */
+function randomReferralCode() {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    let code = "";
+
+    for (let index = 0; index < 4; index += 1) {
+      code += referralAlphabet[Math.floor(Math.random() * referralAlphabet.length)];
+    }
+
+    if (isUsableReferralCode(code)) {
+      return code;
+    }
   }
 
-  return code;
+  // Vanishingly unlikely, but never hand back a code that cannot be recognised.
+  return `${referralAlphabet[Math.floor(Math.random() * 23)]}${Math.floor(100 + Math.random() * 900)}`;
 }
 
 /**
@@ -202,7 +222,9 @@ async function getOrCreateReferralCode(phone: string) {
   const wallet = await ensureWallet(phone);
   const existing = wallet?.referral_code as string | null | undefined;
 
-  if (existing) {
+  // An all-digit code is replaced rather than kept. Nothing is lost by doing so: such a code is
+  // rejected on arrival, so the links already carrying it register nobody either way.
+  if (existing && isUsableReferralCode(existing)) {
     return existing;
   }
 
@@ -231,10 +253,15 @@ async function getOrCreateReferralCode(phone: string) {
 async function makeReferralLink(referralCode: string) {
   // The link must open the bot. It used to fall back to the first admin number, which sent every
   // invited person to a personal WhatsApp instead.
+  //
+  // The prefilled text is the bare code. It used to read "ابدأ CODE", which percent-encoded into a
+  // wall of %D8%s in a link a marketer pastes in front of customers. The code is recognised on its
+  // own because it always carries a letter, and the older prefixed form is still accepted for links
+  // already in circulation.
   const { botWhatsAppNumber } = await getSettings();
-  const text = encodeURIComponent(`ابدأ ${referralCode}`);
+
   return botWhatsAppNumber
-    ? `https://wa.me/${normalizePhoneDigits(botWhatsAppNumber)}?text=${text}`
+    ? `https://wa.me/${normalizePhoneDigits(botWhatsAppNumber)}?text=${referralCode}`
     : `كود دعوتك: ${referralCode}`;
 }
 
