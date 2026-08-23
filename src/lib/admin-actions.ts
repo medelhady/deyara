@@ -2,6 +2,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { sendNotification } from "@/lib/notifications";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/meta";
 import { commissionForTopup } from "@/lib/referral";
+import { getMessage } from "@/lib/bot-messages";
 import {
   ensureWallet,
   formatListingApproval,
@@ -98,7 +99,10 @@ export async function setPropertyStatus(
   if (status === "rejected" && data.owner_phone) {
     await sendNotification(
       data.owner_phone as string,
-      `❌ تم رفض إعلانك من الإدارة.\n\nرقم الإعلان: ${data.property_code ?? String(data.id).slice(0, 8)}${adminNote ? `\nالسبب: ${adminNote}` : ""}\n\nيمكنك تعديل البيانات وإعادة الإرسال.`,
+      await getMessage("listing_rejected", {
+        code: data.property_code ?? String(data.id).slice(0, 8),
+        reason: adminNote
+      }),
       "listing_rejected"
     );
   }

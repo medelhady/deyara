@@ -10,6 +10,7 @@ import { getSettings } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notify-admins";
 import { handleAdminCommand } from "./admin-commands";
 import { sendNotification } from "@/lib/notifications";
+import { getMessage } from "@/lib/bot-messages";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -251,26 +252,17 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
     ].join("\n");
   }
 
+  const instructions = await getMessage("topup_instructions", {
+    paymentNumber: paymentNumber.replace("whatsapp:", ""),
+    revealPoints: settings.contactRevealPoints
+  });
+
+  // The balance and the reason for asking are prepended rather than left to the editable template:
+  // both are optional and depend on where the user was when the balance ran out.
   return [
-    "╭──────────────",
-    "💳 *شحن نقاط الديارة*",
-    "╰──────────────",
-    "",
     ...(currentBalance !== undefined ? [`💼 رصيدك الحالي: *${currentBalance} نقطة*`, ""] : []),
-    options?.purposeText ?? `🔐 عرض رقم المؤجر يحتاج *${settings.contactRevealPoints} نقطة*.`,
-    "",
-    "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
-    `*${paymentNumber.replace("whatsapp:", "")}*`,
-    "",
-    "2️⃣ بعد التحويل أرسل صورة الإيصال هنا.",
-    "",
-    "3️⃣ بعد موافقة الإدارة تضاف النقاط لرصيدك مباشرة.",
-    "",
-    "📌 لمتابعة رصيدك اكتب: *رصيدي*",
-    "",
-    // Running out of points is the moment sharing is most attractive, so offer it instead of only
-    // asking for money.
-    "🎁 أو اكسب نقاطًا مجانية بدعوة غيرك — اكتب: *إحالاتي*"
+    ...(options?.purposeText ? [options.purposeText, ""] : []),
+    instructions
   ].join("\n");
 }
 
@@ -1407,12 +1399,12 @@ async function loadReferrals(phone: string): Promise<ReferralRow[] | null> {
  * The message a marketer forwards. Ready to copy whole, because asking someone to compose their own
  * pitch is where sharing stops.
  */
-function buildShareMessage(link: string, welcomePoints: number) {
-  return [
-    "السلام عليكم، هذا بوت الديارة للبحث عن الإيجارات وعرضها على واتساب.",
-    ...(welcomePoints > 0 ? [`سجّل من الرابط واكسب *${welcomePoints} نقطة* مجانية لتجربة الخدمة 🎁`] : []),
+async function buildShareMessage(link: string, welcomePoints: number) {
+  return getMessage("referral_pitch", {
+    // Zero welcome points empties the variable, which drops its whole line from the pitch.
+    welcomePoints: welcomePoints > 0 ? welcomePoints : undefined,
     link
-  ];
+  });
 }
 
 // One card with everything a marketer acts on: who paid, what that earned, and the link to share.
@@ -1449,7 +1441,7 @@ async function getReferralSummary(phone: string) {
   ].join("\n");
 
   // Sent on its own so a long press copies or forwards exactly the pitch and nothing else.
-  const share = buildShareMessage(link, welcomePoints).join("\n");
+  const share = await buildShareMessage(link, welcomePoints);
 
   return { summary, share };
 }
@@ -2365,13 +2357,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     case "greeting":
       return {
         debugIntent: "greeting",
-        reply: "وعليكم السلام، أهلًا بيك. نحن الديارة هون لمساعدتكم. تبحث عن دار للكراء أو عندك عقار تحب تعرضه؟"
+        reply: await getMessage("greeting")
       };
 
     case "intro":
       return {
         debugIntent: "intro",
-        reply: "نحن الديارة هون لمساعدتكم. اكتب مثلًا: أريد شقة في عرفات، أو: عندي شقة للإيجار."
+        reply: await getMessage("intro")
       };
 
     case "add_property": {
@@ -2435,8 +2427,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         if (results.length === 0) {
           return {
             debugIntent: "search_property",
-            reply:
-              "ما حصلت نتيجة مناسبة حاليًا.\n\nاكتب منطقة أو معلم ثاني ونبحث لك مباشرة."
+            reply: await getMessage("no_results")
           };
         }
 

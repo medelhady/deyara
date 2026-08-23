@@ -86,6 +86,24 @@ session tokens, the referral commission rules, and how admin WhatsApp commands a
 credentials or network needed. Individual suites are `check:signature`, `check:provider`,
 `check:auth`, `check:referral` and `check:commands`.
 
+## Bot Messages
+
+A short list of the bot's messages can be reworded at `/admin/messages` without a deploy: the
+greeting, the service intro, the empty search reply, the pitch a marketer forwards, the top-up
+instructions, and the listing rejection notice. Run `supabase/add-bot-messages.sql` first.
+
+Only text whose wording is a business decision is here. Anything shaped by the logic around it —
+search results, error paths, the owner contact card — stays in code, where a wrong edit cannot reach
+a user unnoticed.
+
+Three rules keep editing safe:
+
+- A message declares the variables it may use, written `{name}`. Saving an unknown one is refused.
+- An empty stored value falls back to the text shipped in the code, so a message is never blank.
+  Clearing the field is how you reset one.
+- A line whose variables all render empty is dropped whole, so an optional value like a rejection
+  reason leaves no dangling label behind.
+
 ## Notification Log
 
 Every message the system sends on its own is recorded in `notification_log` and shown at
