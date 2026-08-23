@@ -427,6 +427,7 @@ select {
 .row-actions {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -615,12 +616,6 @@ select {
   border-radius: 8px;
   color: #8d1f1f;
   background: #fff2f2;
-}
-
-.row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .notification-detail {
@@ -916,4 +911,357 @@ select {
   border-radius: 8px;
   background: #fdf6e3;
   line-height: 1.8;
+}
+
+/* ── Dashboard ───────────────────────────────────────────────────────────────
+   Built on the same palette as the rest of the panel. The one rule driving the
+   layout: what needs a decision is loud, everything else recedes. */
+
+.dash {
+  display: grid;
+  gap: 34px;
+}
+
+.dash-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.dash-hero h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.1;
+}
+
+.dash-hero-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.dash-hero-side {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.dash-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dash-refresh:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dash-refresh:disabled {
+  cursor: default;
+}
+
+.dash-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.dash-dot.is-busy {
+  animation: dash-pulse 1s ease-in-out infinite;
+}
+
+@keyframes dash-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.dash-stale {
+  color: #8d1f1f;
+  font-size: 13px;
+}
+
+/* A failed notification is the one thing that is wrong but silent, so it gets the only red block. */
+.dash-alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e4a6a6;
+  border-radius: 10px;
+  background: #fff2f2;
+  color: #7d1d1d;
+  text-decoration: none;
+  line-height: 1.7;
+}
+
+.dash-alert:hover {
+  border-color: #c96a6a;
+}
+
+.dash-alert-icon {
+  font-size: 20px;
+}
+
+.dash-alert-go {
+  margin-inline-start: auto;
+  font-size: 20px;
+}
+
+.dash-section {
+  display: grid;
+  gap: 16px;
+}
+
+.dash-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dash-section-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.dash-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dash-clear {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.dash-clear-mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e7f3ef;
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.dash-clear strong {
+  display: block;
+  font-size: 17px;
+}
+
+.dash-clear p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.dash-tasks {
+  display: grid;
+  gap: 12px;
+}
+
+.dash-task {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-inline-start: 4px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.dash-task-icon {
+  font-size: 24px;
+}
+
+.dash-task-value {
+  min-width: 52px;
+  color: var(--accent);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.dash-task-text {
+  flex: 1 1 240px;
+}
+
+.dash-task-text strong {
+  display: block;
+  font-size: 17px;
+}
+
+.dash-task-text p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.dash-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.dash-metric {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.dash-metric strong {
+  display: block;
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.dash-metric > span {
+  display: block;
+  margin-top: 2px;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.dash-metric p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.dash-group {
+  display: grid;
+  gap: 10px;
+}
+
+.dash-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dash-group-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dash-group-head span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.dash-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.dash-link {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.dash-link:hover {
+  border-color: var(--accent);
+}
+
+.dash-link-icon {
+  font-size: 20px;
+}
+
+.dash-link strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 16px;
+}
+
+.dash-link p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.dash-auto {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dash-auto span {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.dash-details {
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.dash-details summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.dash-details h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+  color: var(--accent);
+}
+
+.dash-flow {
+  margin: 0;
+  padding-inline-start: 20px;
+  color: var(--muted);
+  line-height: 2;
+}
+
+@media (max-width: 620px) {
+  .dash-task-value {
+    font-size: 28px;
+  }
+
+  .dash-task .button {
+    width: 100%;
+  }
 }
