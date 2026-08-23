@@ -70,8 +70,15 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
       key: "topups",
       icon: "💳",
       title: "إيصالات شحن بانتظار الموافقة",
-      note: "بعد موافقتك تُضاف النقاط فورًا ويكمل طلب صاحبها",
+      // The urgent ones are called out here because the cost of missing them is a paying renter who
+      // hears nothing: past 24 hours from their receipt, WhatsApp refuses the reply that carries
+      // their points and the owner number.
+      note:
+        stats.urgentTopups > 0
+          ? `⏰ ${formatNumber(stats.urgentTopups)} منها قارب على 24 ساعة — بعدها لن تصل رسالة التأكيد لصاحبها`
+          : "بعد موافقتك تُضاف النقاط فورًا ويكمل طلب صاحبها",
       value: stats.pendingTopups,
+      urgent: stats.urgentTopups > 0,
       href: "/admin/wallets",
       action: "راجع الشحن"
     },
@@ -162,7 +169,7 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
         ) : (
           <div className="dash-tasks">
             {open.map((task) => (
-              <article className="dash-task" key={task.key}>
+              <article className={task.urgent ? "dash-task is-urgent" : "dash-task"} key={task.key}>
                 <span className="dash-task-icon" aria-hidden="true">
                   {task.icon}
                 </span>

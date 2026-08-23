@@ -8,6 +8,14 @@ export type DashboardStats = {
   rentedProperties: number;
   contactReveals: number;
   pendingTopups: number;
+  /**
+   * Pending top-ups whose sender went quiet more than 20 hours ago.
+   *
+   * These are the expensive ones. The renter has already transferred money, and once 24 hours pass
+   * since their receipt WhatsApp refuses the free-form reply that carries their points and the owner
+   * number -- so they paid and hear nothing.
+   */
+  urgentTopups: number;
   pendingWithdrawals: number;
   conversationsToday: number;
   owners: number;
@@ -25,6 +33,7 @@ export const emptyStats: DashboardStats = {
   rentedProperties: 0,
   contactReveals: 0,
   pendingTopups: 0,
+  urgentTopups: 0,
   pendingWithdrawals: 0,
   conversationsToday: 0,
   owners: 0,
@@ -82,6 +91,23 @@ async function countRecentFailedNotifications(since: string) {
   return count ?? 0;
 }
 
+/** Pending top-ups older than the given cutoff, i.e. close to losing their reply window. */
+async function countUrgentTopups(before: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return 0;
+  }
+
+  const { count, error } = await supabase
+    .from("credit_topups")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending")
+    .lt("created_at", before);
+
+  return error ? 0 : count ?? 0;
+}
+
 export async function loadDashboardStats(): Promise<DashboardStats> {
   const supabase = getServiceSupabase();
 
@@ -102,6 +128,7 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
     rentedProperties,
     contactReveals,
     pendingTopups,
+    urgentTopups,
     pendingWithdrawals,
     owners,
     renters,
@@ -115,6 +142,7 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
     countRows("properties", [{ column: "status", value: "rented" }]),
     countRows("contact_requests", [{ column: "status", value: "approved" }]),
     countRows("credit_topups", [{ column: "status", value: "pending" }]),
+    countUrgentTopups(new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString()),
     countRows("withdrawal_requests", [{ column: "status", value: "pending" }]),
     countRows("users", [{ column: "role", value: "owner" }]),
     countRows("users", [{ column: "role", value: "renter" }]),
@@ -133,6 +161,7 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
     rentedProperties,
     contactReveals,
     pendingTopups,
+    urgentTopups,
     pendingWithdrawals,
     owners,
     renters,

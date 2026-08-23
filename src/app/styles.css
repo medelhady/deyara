@@ -1319,3 +1319,27 @@ select {
   font-family: inherit;
   line-height: 1.8;
 }
+
+/* How long is left to reply to a paying renter before WhatsApp closes the window on them. */
+.reply-window {
+  font-size: 13px;
+}
+
+.reply-window.is-urgent {
+  color: #a35a00;
+  font-weight: 700;
+}
+
+.reply-window.is-closed {
+  color: #8d1f1f;
+  font-weight: 700;
+}
+
+.dash-task.is-urgent {
+  border-inline-start-color: #c96a6a;
+  background: #fffaf7;
+}
+
+.dash-task.is-urgent .dash-task-value {
+  color: #a33a3a;
+}

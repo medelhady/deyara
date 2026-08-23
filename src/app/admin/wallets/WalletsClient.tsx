@@ -39,6 +39,38 @@ const statusLabels: Record<string, string> = {
   paid: 'مدفوع'
 };
 
+const replyWindowHours = 24;
+
+/**
+ * How much of the 24-hour reply window is left for this receipt.
+ *
+ * The renter has already sent money. Once 24 hours pass since their message, WhatsApp refuses the
+ * free-form reply that would carry their points and the owner's number, so approving late means
+ * they paid and hear nothing back.
+ */
+function replyWindow(createdAt: string) {
+  const sent = new Date(createdAt).getTime();
+
+  if (Number.isNaN(sent)) {
+    return null;
+  }
+
+  const hoursLeft = replyWindowHours - (Date.now() - sent) / (1000 * 60 * 60);
+
+  if (hoursLeft <= 0) {
+    return { level: 'closed' as const, label: '⛔ انتهت نافذة الرد — لن تصله رسالة التأكيد' };
+  }
+
+  if (hoursLeft <= 4) {
+    return {
+      level: 'urgent' as const,
+      label: `⏰ باقي ${Math.max(1, Math.round(hoursLeft))} ساعة على إغلاق نافذة الرد`
+    };
+  }
+
+  return { level: 'ok' as const, label: `باقي ${Math.round(hoursLeft)} ساعة على إغلاق نافذة الرد` };
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return '—';
@@ -168,6 +200,13 @@ export function WalletsClient() {
               <div>
                 <strong>{topup.phone}</strong>
                 <span>{formatDateTime(topup.created_at)}</span>
+                {(() => {
+                  const window = replyWindow(topup.created_at);
+
+                  return window ? (
+                    <span className={`reply-window is-${window.level}`}>{window.label}</span>
+                  ) : null;
+                })()}
                 {topup.receipt_image_url ? (
                   // Shown, not linked: reading the amount off the receipt is the decision itself,
                   // and opening a tab per request made that needlessly slow.
