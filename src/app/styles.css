@@ -1343,3 +1343,48 @@ select {
 .dash-task.is-urgent .dash-task-value {
   color: #a33a3a;
 }
+
+.select-cell {
+  width: 40px;
+  text-align: center;
+}
+
+.select-cell input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.admin-table tr.is-selected {
+  background: #eef6f3;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: #eef6f3;
+}
+
+.bulk-bar > span {
+  font-weight: 700;
+}
+
+.delete-report {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfaf7;
+}
+
+.delete-report p {
+  margin: 4px 0;
+  line-height: 1.8;
+}

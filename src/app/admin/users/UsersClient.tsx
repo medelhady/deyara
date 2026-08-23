@@ -37,6 +37,9 @@ export function UsersClient() {
   const [crediting, setCrediting] = useState(false);
   const [creditError, setCreditError] = useState("");
   const [creditDone, setCreditDone] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteReport, setDeleteReport] = useState<Array<{ phone: string; deleted: boolean; reason?: string }>>([]);
 
   async function loadUsers() {
     const response = await fetch(`/api/admin/users?t=${Date.now()}`, { cache: "no-store" });
@@ -113,6 +116,50 @@ export function UsersClient() {
     }
   }
 
+  function toggle(phone: string) {
+    setSelected((current) =>
+      current.includes(phone) ? current.filter((item) => item !== phone) : [...current, phone]
+    );
+  }
+
+  async function deleteSelected() {
+    // Spelled out rather than a bare "are you sure": what goes with the row is the part that cannot
+    // be undone, and it is not obvious from a list of phone numbers.
+    const confirmed = window.confirm(
+      `حذف ${selected.length} مستخدم نهائيًا؟\n\n` +
+        "يُحذف معهم رصيدهم وسجل حركاتهم المالية ومحادثاتهم، ولا يمكن استرجاعها.\n" +
+        "من له إعلانات أو طلبات تواصل أو رصيد سيُتخطى مع بيان السبب."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    setMessage("");
+    setDeleteReport([]);
+
+    try {
+      const response = await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phones: selected })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error ?? "تعذر الحذف.");
+        return;
+      }
+
+      setDeleteReport(data.results ?? []);
+      setSelected([]);
+      await loadUsers();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   useEffect(() => {
     void loadUsers();
   }, []);
@@ -141,13 +188,9 @@ export function UsersClient() {
 
   return (
     <>
-    <section className="panel">
-      <div className="panel-header">
-        <div>
-          <p className="eyebrow">إضافة رصيد</p>
-          <h2>تسجيل مستخدم وشحن رصيده</h2>
-        </div>
-      </div>
+    {/* Folded away: the list is what this page is opened for, and crediting is occasional. */}
+    <details className="panel dash-details">
+      <summary>➕ تسجيل مستخدم وشحن رصيده</summary>
 
       <p>
         اكتب الرقم بصيغة دولية كاملة. لو لم يكن مسجلًا بعد، يُسجَّل الآن. تصل المستخدم رسالة واتساب
@@ -196,7 +239,7 @@ export function UsersClient() {
 
       {creditError ? <p className="auth-error">{creditError}</p> : null}
       {creditDone ? <p>✅ {creditDone}</p> : null}
-    </section>
+    </details>
 
     <section className="panel">
       <div className="panel-header">
@@ -227,12 +270,45 @@ export function UsersClient() {
         ))}
       </div>
 
+      {selected.length > 0 ? (
+        <div className="bulk-bar">
+          <span>{selected.length} محدد</span>
+          <button className="button" type="button" disabled={deleting} onClick={() => void deleteSelected()}>
+            {deleting ? "جار الحذف..." : "حذف المحدد"}
+          </button>
+          <button className="button secondary" type="button" onClick={() => setSelected([])}>
+            إلغاء التحديد
+          </button>
+        </div>
+      ) : null}
+
+      {deleteReport.length > 0 ? (
+        <div className="delete-report">
+          {deleteReport.map((result) => (
+            <p key={result.phone}>
+              {result.deleted ? "🗑" : "⚠️"} <span dir="ltr">{result.phone.replace("whatsapp:", "")}</span>{" "}
+              {result.deleted ? "— حُذف" : `— لم يُحذف: ${result.reason}`}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
       {message ? <p>{message}</p> : null}
 
       <div className="table-wrap">
         <table className="admin-table">
           <thead>
             <tr>
+              <th className="select-cell">
+                <input
+                  type="checkbox"
+                  aria-label="تحديد الكل"
+                  checked={visibleUsers.length > 0 && visibleUsers.every((user) => selected.includes(user.phone))}
+                  onChange={(event) =>
+                    setSelected(event.target.checked ? visibleUsers.map((user) => user.phone) : [])
+                  }
+                />
+              </th>
               <th>الرقم</th>
               <th>الدور</th>
               <th>تاريخ التسجيل</th>
@@ -245,11 +321,19 @@ export function UsersClient() {
           <tbody>
             {visibleUsers.length === 0 ? (
               <tr>
-                <td colSpan={7}>لا يوجد مستخدمون ضمن هذا الفلتر.</td>
+                <td colSpan={8}>لا يوجد مستخدمون ضمن هذا الفلتر.</td>
               </tr>
             ) : (
               visibleUsers.map((user) => (
-                <tr key={user.phone}>
+                <tr key={user.phone} className={selected.includes(user.phone) ? "is-selected" : undefined}>
+                  <td className="select-cell">
+                    <input
+                      type="checkbox"
+                      aria-label={`تحديد ${user.phone}`}
+                      checked={selected.includes(user.phone)}
+                      onChange={() => toggle(user.phone)}
+                    />
+                  </td>
                   <td>{user.phone}</td>
                   <td>{roleLabels[user.role ?? ""] ?? user.role ?? "—"}</td>
                   <td>{formatDate(user.created_at)}</td>
