@@ -2223,10 +2223,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   if (message.media.length > 0) {
     // Every receipt image is a points top-up now. Access to an owner number is paid from the balance,
     // so a receipt must never be attached to a contact request or send it back for admin review.
-    if (message.media.some((item) => item.contentType.startsWith("image/"))) {
+    const receipt = message.media.find((item) => item.contentType.startsWith("image/"));
+
+    if (receipt) {
+      // Copied into our own storage like a listing video is. The link WhatsApp hands over expires
+      // within minutes and needs a bearer token, so storing it as-is left admins with a receipt
+      // they could never open. Falls back to the original link if the copy fails, which is no worse
+      // than what was stored before.
+      const storedPath = await storePropertyMedia(receipt.url, receipt.contentType, message.from);
+
       return {
         debugIntent: "send_payment_receipt",
-        reply: await createCreditTopupRequest(message.from, message.media[0].url)
+        reply: await createCreditTopupRequest(message.from, storedPath ?? receipt.url)
       };
     }
 

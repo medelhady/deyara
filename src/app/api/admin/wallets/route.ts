@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { signPropertyMedia } from "@/lib/whatsapp/media";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -59,8 +60,20 @@ export async function GET() {
     referrals_count: referralCounts.get(wallet.phone as string) ?? 0
   }));
 
+  // Receipts live in the private bucket, so they need a signed link before a browser can load them.
+  // Rows saved before receipts were copied there still hold a raw WhatsApp link; signPropertyMedia
+  // passes those through untouched, and they stay unopenable because that link has long expired.
+  const signedTopups = await Promise.all(
+    (topups ?? []).map(async (topup) => ({
+      ...topup,
+      receipt_image_url: topup.receipt_image_url
+        ? await signPropertyMedia(topup.receipt_image_url as string)
+        : null
+    }))
+  );
+
   return NextResponse.json(
-    { wallets: enrichedWallets, withdrawals: withdrawals ?? [], topups: topups ?? [] },
+    { wallets: enrichedWallets, withdrawals: withdrawals ?? [], topups: signedTopups },
     {
       headers: {
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate"

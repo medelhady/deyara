@@ -169,8 +169,18 @@ export function WalletsClient() {
                 <strong>{topup.phone}</strong>
                 <span>{formatDateTime(topup.created_at)}</span>
                 {topup.receipt_image_url ? (
-                  <a href={topup.receipt_image_url} target="_blank" rel="noreferrer">
-                    عرض صورة الإيصال
+                  // Shown, not linked: reading the amount off the receipt is the decision itself,
+                  // and opening a tab per request made that needlessly slow.
+                  <a
+                    className="receipt-thumb"
+                    href={topup.receipt_image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="فتح الصورة بالحجم الكامل"
+                  >
+                    {/* Not lazy: it is the content of the decision, and a lazy image inside a
+                        shrink-to-fit box never becomes visible enough to start loading. */}
+                    <img src={topup.receipt_image_url} alt={`إيصال ${topup.phone}`} />
                   </a>
                 ) : (
                   <span>بدون صورة إيصال</span>

@@ -1265,3 +1265,30 @@ select {
     width: 100%;
   }
 }
+
+/* Receipt shown inline in the top-up queue: reading the amount off it is the decision itself. */
+.receipt-thumb {
+  display: block;
+  width: fit-content;
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fbfaf7;
+  line-height: 0;
+}
+
+.receipt-thumb:hover {
+  border-color: var(--accent);
+}
+
+/* Sized by the image itself, only capped. Setting width:100% here against a fit-content parent is
+   circular and collapses the box to nothing while the image is still loading. */
+.receipt-thumb img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 260px;
+  max-height: 320px;
+  object-fit: contain;
+}
