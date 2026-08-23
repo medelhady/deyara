@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { sendNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
     });
   }
 
-  await provider.sendText(incoming.from, result.reply);
+  await sendNotification(incoming.from, result.reply, "bot_reply");
 
   return NextResponse.json({
     ok: true,

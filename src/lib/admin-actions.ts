@@ -1,5 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { sendNotification } from "@/lib/notifications";
 import { normalizeWhatsAppPhone } from "@/lib/whatsapp/meta";
 import { commissionForTopup } from "@/lib/referral";
 import {
@@ -54,11 +54,7 @@ export async function setPropertyStatus(
     spend = await spendPointsForListing(current.owner_phone as string);
 
     if (!spend.ok) {
-      try {
-        await getWhatsAppProvider().sendText(current.owner_phone as string, spend.reply);
-      } catch (notifyError) {
-        console.error("Failed to ask the owner to top up", notifyError);
-      }
+      await sendNotification(current.owner_phone as string, spend.reply, "topup_request");
 
       return {
         ok: false,
@@ -84,33 +80,27 @@ export async function setPropertyStatus(
   }
 
   if (status === "active" && data.owner_phone) {
-    try {
-      await getWhatsAppProvider().sendText(
-        data.owner_phone as string,
-        formatListingApproval(
-          data,
-          spend?.ok && spend.spentPoints !== undefined
-            ? [
-                `تم خصم *${spend.spentPoints} نقطة* من رصيدك.`,
-                `رصيدك المتبقي: *${spend.remainingPoints} نقطة*`
-              ]
-            : []
-        )
-      );
-    } catch (notifyError) {
-      console.error("Failed to notify owner about approval", notifyError);
-    }
+    await sendNotification(
+      data.owner_phone as string,
+      formatListingApproval(
+        data,
+        spend?.ok && spend.spentPoints !== undefined
+          ? [
+              `تم خصم *${spend.spentPoints} نقطة* من رصيدك.`,
+              `رصيدك المتبقي: *${spend.remainingPoints} نقطة*`
+            ]
+          : []
+      ),
+      "listing_approved"
+    );
   }
 
   if (status === "rejected" && data.owner_phone) {
-    try {
-      await getWhatsAppProvider().sendText(
-        data.owner_phone as string,
-        `❌ تم رفض إعلانك من الإدارة.\n\nرقم الإعلان: ${data.property_code ?? String(data.id).slice(0, 8)}${adminNote ? `\nالسبب: ${adminNote}` : ""}\n\nيمكنك تعديل البيانات وإعادة الإرسال.`
-      );
-    } catch (notifyError) {
-      console.error("Failed to notify owner about rejection", notifyError);
-    }
+    await sendNotification(
+      data.owner_phone as string,
+      `❌ تم رفض إعلانك من الإدارة.\n\nرقم الإعلان: ${data.property_code ?? String(data.id).slice(0, 8)}${adminNote ? `\nالسبب: ${adminNote}` : ""}\n\nيمكنك تعديل البيانات وإعادة الإرسال.`,
+      "listing_rejected"
+    );
   }
 
   return {
@@ -188,25 +178,18 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
     await setConversationState(phone, { ...conversationState, draftProperty: undefined });
 
     if (submission.saved) {
-      try {
-        await getWhatsAppProvider().sendText(
-          phone,
-          "✅ تم إرسال إعلانك إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل."
-        );
-      } catch (notifyError) {
-        console.error("Failed to notify owner about auto-submitted listing", notifyError);
-      }
+      await sendNotification(
+        phone,
+        "✅ تم إرسال إعلانك إلى الإدارة للمراجعة. سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.",
+        "listing_submitted"
+      );
     }
   }
 
   const contactReply = await fulfillPendingContactRequest(phone);
 
   if (contactReply) {
-    try {
-      await getWhatsAppProvider().sendText(phone, contactReply);
-    } catch (notifyError) {
-      console.error("Failed to send owner contact after approved topup", notifyError);
-    }
+    await sendNotification(phone, contactReply, "contact_released");
   }
 
   return {
@@ -291,23 +274,20 @@ export async function creditWalletManually(
 
   const contactReply = await fulfillPendingContactRequest(phone);
 
-  try {
-    await getWhatsAppProvider().sendText(
-      phone,
-      [
-        "💳 *تم إضافة رصيد لحسابك*",
-        "",
-        `أضافت الإدارة *${points} نقطة* إلى رصيدك.`,
-        `رصيدك الآن: *${newBalance} نقطة*`,
-        ...(note.trim() ? ["", note.trim()] : [])
-      ].join("\n")
-    );
+  await sendNotification(
+    phone,
+    [
+      "💳 *تم إضافة رصيد لحسابك*",
+      "",
+      `أضافت الإدارة *${points} نقطة* إلى رصيدك.`,
+      `رصيدك الآن: *${newBalance} نقطة*`,
+      ...(note.trim() ? ["", note.trim()] : [])
+    ].join("\n"),
+    "balance_credited"
+  );
 
-    if (contactReply) {
-      await getWhatsAppProvider().sendText(phone, contactReply);
-    }
-  } catch (notifyError) {
-    console.error("Failed to tell the user about the manual credit", notifyError);
+  if (contactReply) {
+    await sendNotification(phone, contactReply, "contact_released");
   }
 
   return {
@@ -428,14 +408,17 @@ export async function setWithdrawalStatus(
     ]
   };
 
-  try {
-    await getWhatsAppProvider().sendText(
-      phone,
-      [...messages[status], ...(note ? ["", `📝 ${note}`] : [])].join("\n")
-    );
-  } catch (notifyError) {
-    console.error("Failed to tell the marketer about their withdrawal", notifyError);
-  }
+  const withdrawalKinds = {
+    approved: "withdrawal_approved",
+    rejected: "withdrawal_rejected",
+    paid: "withdrawal_paid"
+  } as const;
+
+  await sendNotification(
+    phone,
+    [...messages[status], ...(note ? ["", `📝 ${note}`] : [])].join("\n"),
+    withdrawalKinds[status]
+  );
 
   return { ok: true, message: "تم تحديث طلب السحب.", data: { withdrawal: data, points, phone } };
 }
@@ -500,18 +483,15 @@ async function payReferralCommission(
     admin_note: `${referralCommissionPercent}% عمولة من شحن ${points} نقطة`
   });
 
-  try {
-    await getWhatsAppProvider().sendText(
-      referrerPhone,
-      [
-        "📣 *عمولة تسويق جديدة*",
-        "",
-        `أضفنا لك *${commission} نقطة تسويق* من شحن أحد من دعوتهم.`,
-        "",
-        "📌 لمتابعة رصيدك اكتب: *رصيدي*"
-      ].join("\n")
-    );
-  } catch (notifyError) {
-    console.error("Failed to notify the referrer about their commission", notifyError);
-  }
+  await sendNotification(
+    referrerPhone,
+    [
+      "📣 *عمولة تسويق جديدة*",
+      "",
+      `أضفنا لك *${commission} نقطة تسويق* من شحن أحد من دعوتهم.`,
+      "",
+      "📌 لمتابعة رصيدك اكتب: *رصيدي*"
+    ].join("\n"),
+    "referral_commission"
+  );
 }

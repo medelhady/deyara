@@ -9,7 +9,7 @@ import { storePropertyMedia } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notify-admins";
 import { handleAdminCommand } from "./admin-commands";
-import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { sendNotification } from "@/lib/notifications";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -1065,25 +1065,22 @@ async function applyReferralCode(phone: string, body: string) {
   }
 
   // Told as it happens, so the marketer can chase the first top-up while the contact is still warm.
-  try {
-    await getWhatsAppProvider().sendText(
-      referrer.phone as string,
-      [
-        "🎯 *شخص جديد سجّل عن طريق رابطك!*",
-        "",
-        ...(referralWelcomePoints > 0 ? [`استلم *${referralWelcomePoints} نقطة* لتجربة الخدمة.`] : []),
-        ...(referralSignupBonusPoints > 0
-          ? [`🎁 وكسبت أنت *${referralSignupBonusPoints} نقطة* استخدام فورًا.`]
-          : []),
-        "",
-        `💰 وعند أول شحنة يقوم بها تحصل على *${referralCommissionPercent}%* عمولة قابلة للسحب.`,
-        "",
-        "📌 لمتابعة إحالاتك اكتب: *إحالاتي*"
-      ].join("\n")
-    );
-  } catch (notifyError) {
-    console.error("Failed to tell the referrer about a new signup", notifyError);
-  }
+  await sendNotification(
+    referrer.phone as string,
+    [
+      "🎯 *شخص جديد سجّل عن طريق رابطك!*",
+      "",
+      ...(referralWelcomePoints > 0 ? [`استلم *${referralWelcomePoints} نقطة* لتجربة الخدمة.`] : []),
+      ...(referralSignupBonusPoints > 0
+        ? [`🎁 وكسبت أنت *${referralSignupBonusPoints} نقطة* استخدام فورًا.`]
+        : []),
+      "",
+      `💰 وعند أول شحنة يقوم بها تحصل على *${referralCommissionPercent}%* عمولة قابلة للسحب.`,
+      "",
+      "📌 لمتابعة إحالاتك اكتب: *إحالاتي*"
+    ].join("\n"),
+    "referral_signup"
+  );
 
   return [
     "✅ تم تسجيل كود الدعوة بنجاح.",
@@ -1322,20 +1319,17 @@ async function cancelContactRequestsForProperty(propertyId: string) {
   }
 
   for (const phone of notified) {
-    try {
-      await getWhatsAppProvider().sendText(
-        phone,
-        [
-          "🔒 *الدار التي كنت مهتمًا بها لم تعد متاحة*",
-          "",
-          "تم تأجيرها للتو، وألغينا طلبك دون خصم أي نقطة.",
-          "",
-          "اكتب المنطقة التي تبحث فيها ونعرض لك خيارات أخرى."
-        ].join("\n")
-      );
-    } catch (notifyError) {
-      console.error("Failed to tell a renter the property was rented", notifyError);
-    }
+    await sendNotification(
+      phone,
+      [
+        "🔒 *الدار التي كنت مهتمًا بها لم تعد متاحة*",
+        "",
+        "تم تأجيرها للتو، وألغينا طلبك دون خصم أي نقطة.",
+        "",
+        "اكتب المنطقة التي تبحث فيها ونعرض لك خيارات أخرى."
+      ].join("\n"),
+      "property_rented"
+    );
   }
 
   return notified.size;

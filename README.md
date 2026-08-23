@@ -86,6 +86,18 @@ session tokens, the referral commission rules, and how admin WhatsApp commands a
 credentials or network needed. Individual suites are `check:signature`, `check:provider`,
 `check:auth`, `check:referral` and `check:commands`.
 
+## Notification Log
+
+Every message the system sends on its own is recorded in `notification_log` and shown at
+`/admin/notifications`: what was sent, to whom, whether it arrived, and the reason if it did not.
+
+Sends are fire-and-forget so a failed notification cannot break the flow that triggered it, which
+also meant failures left no trace an admin would ever see. The most common one needs no code fix:
+WhatsApp refuses free-form text to anyone who has not messaged in the last 24 hours, and the page
+counts those separately because the answer is an approved message template, not a bug.
+
+Run `supabase/add-notification-log.sql` to create the table.
+
 ## Admin WhatsApp Commands
 
 Sent from a number listed in the admin notification numbers setting:

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { metaWhatsAppProvider, parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
+import { parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
+import { sendNotification } from "@/lib/notifications";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
   for (const incoming of messages) {
     const result = await handleIncomingMessage(incoming);
     await saveConversation(incoming, result.reply, result.debugIntent);
-    await metaWhatsAppProvider.sendText(incoming.from, result.reply);
+    await sendNotification(incoming.from, result.reply, "bot_reply");
 
     replies.push({
       to: incoming.from,

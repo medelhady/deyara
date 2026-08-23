@@ -1,9 +1,10 @@
 import { getSettings } from "@/lib/settings";
-import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { sendNotification } from "@/lib/notifications";
 
 /**
  * Tells the admins something needs their attention on WhatsApp, so they do not have to keep the
  * dashboard open. Never throws: a failed notification must not break the flow that triggered it.
+ * Each attempt is written to the notification log, which is where a silent failure shows up.
  */
 export async function notifyAdmins(lines: string[]) {
   try {
@@ -19,15 +20,7 @@ export async function notifyAdmins(lines: string[]) {
 
     const body = lines.join("\n");
 
-    await Promise.all(
-      numbers.map(async (number) => {
-        try {
-          await getWhatsAppProvider().sendText(number, body);
-        } catch (error) {
-          console.error(`Failed to notify admin ${number}`, error);
-        }
-      })
-    );
+    await Promise.all(numbers.map((number) => sendNotification(number, body, "admin_alert")));
   } catch (error) {
     console.error("Failed to send admin notifications", error);
   }

@@ -13,8 +13,9 @@
     "check:provider": "npx tsx scripts/check-whatsapp-provider.ts",
     "check:auth": "npx tsx scripts/check-admin-auth.ts",
     "check:referral": "npx tsx scripts/check-referral-commission.ts",
-    "check": "npm run check:signature && npm run check:provider && npm run check:auth && npm run check:referral && npm run check:commands",
-    "check:commands": "npx tsx scripts/check-admin-commands.ts"
+    "check": "npm run check:signature && npm run check:provider && npm run check:auth && npm run check:referral && npm run check:commands && npm run check:notifications",
+    "check:commands": "npx tsx scripts/check-admin-commands.ts",
+    "check:notifications": "npx tsx scripts/check-notifications.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

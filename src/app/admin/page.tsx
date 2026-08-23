@@ -202,6 +202,12 @@ export default async function AdminPage() {
       action: "فتح الإعدادات"
     },
     {
+      title: "سجل الإشعارات",
+      note: "كل رسالة أرسلها النظام من نفسه، وهل وصلت فعلًا أم رفضها واتساب ولماذا.",
+      href: "/admin/notifications",
+      action: "فتح السجل"
+    },
+    {
       title: "حسابات الدخول",
       note: "من يفتح هذه اللوحة، برقم هاتفه ورقمه السري، مع إيقاف أي حساب.",
       href: "/admin/accounts",

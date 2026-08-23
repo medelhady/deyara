@@ -1,0 +1,121 @@
+import { getServiceSupabase } from "@/lib/supabase/server";
+import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+
+/** What triggered a message, so the log can be read without deciphering the text. */
+export type NotificationKind =
+  | "admin_alert"
+  | "listing_approved"
+  | "listing_rejected"
+  | "listing_submitted"
+  | "topup_request"
+  | "contact_released"
+  | "referral_commission"
+  | "referral_signup"
+  | "balance_credited"
+  | "withdrawal_approved"
+  | "withdrawal_rejected"
+  | "withdrawal_paid"
+  | "property_rented"
+  | "bot_reply"
+  | "test";
+
+export const notificationLabels: Record<NotificationKind, string> = {
+  admin_alert: "تنبيه للإدارة",
+  listing_approved: "موافقة على إعلان",
+  listing_rejected: "رفض إعلان",
+  listing_submitted: "إرسال إعلان للمراجعة",
+  topup_request: "طلب شحن رصيد",
+  contact_released: "إرسال رقم المؤجر",
+  referral_commission: "عمولة إحالة",
+  referral_signup: "تسجيل عبر رابط دعوة",
+  balance_credited: "إضافة رصيد",
+  withdrawal_approved: "موافقة على سحب",
+  withdrawal_rejected: "رفض سحب",
+  withdrawal_paid: "تأكيد تحويل",
+  property_rented: "إشعار تأجير الدار",
+  bot_reply: "رد البوت",
+  test: "رسالة اختبار"
+};
+
+// Meta answers with a code and an English sentence. These are the ones that actually come up, turned
+// into the action an admin has to take.
+const metaErrorHelp: Array<{ code: number; help: string }> = [
+  {
+    code: 131030,
+    help: "رقم واتساب الأعمال ما زال في وضع التطوير، وMeta لا تسمح بالإرسال إلا لأرقام مضافة يدويًا. أضف هذا الرقم في Meta for Developers ← WhatsApp ← API Setup ← قائمة أرقام المستلمين، أو أكمل توثيق الحساب لتشغيله بشكل كامل."
+  },
+  {
+    code: 131047,
+    help: "مرت أكثر من 24 ساعة منذ آخر رسالة أرسلها هذا الرقم للبوت، وواتساب يمنع الرسائل الحرة بعدها. الحل الدائم هو إرسال هذا الإشعار عبر قالب معتمد من Meta."
+  },
+  {
+    code: 131026,
+    help: "الرقم غير مسجل في واتساب أو لا يستقبل رسائل من الأعمال."
+  },
+  {
+    code: 190,
+    help: "توكن Meta منتهي الصلاحية. جدّد META_WHATSAPP_TOKEN في متغيرات البيئة."
+  },
+  {
+    code: 131056,
+    help: "أرسلنا رسائل كثيرة لهذا الرقم في وقت قصير. أعد المحاولة بعد قليل."
+  }
+];
+
+/** Turns a raw provider error into the action an admin can take, keeping the original text. */
+export function explainSendError(raw: string) {
+  const match = metaErrorHelp.find(
+    (item) => raw.includes(`(#${item.code})`) || raw.includes(`"code":${item.code}`)
+  );
+
+  return match ? `${match.help}\n\nنص الخطأ: ${raw}` : raw;
+}
+
+/** True when the failure is WhatsApp refusing free-form text outside the 24-hour window. */
+export function isOutsideServiceWindow(raw: string | null | undefined) {
+  return Boolean(raw && (raw.includes("(#131047)") || raw.includes('"code":131047')));
+}
+
+async function record(phone: string, kind: NotificationKind, body: string, status: "sent" | "failed", error?: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return;
+  }
+
+  const { error: logError } = await supabase.from("notification_log").insert({
+    phone,
+    kind,
+    // Bounded so a long message cannot bloat the table; the opening lines identify it well enough.
+    body: body.slice(0, 500),
+    status,
+    error: error?.slice(0, 1000) ?? null
+  });
+
+  if (logError) {
+    console.error("Failed to write the notification log", logError);
+  }
+}
+
+/**
+ * Sends a WhatsApp message and records the outcome.
+ *
+ * Never throws. Callers are flows that must carry on regardless -- an admin approving a listing
+ * should not see an error because the owner's phone is unreachable -- which is exactly why the
+ * failure has to be written down somewhere an admin will actually look.
+ */
+export async function sendNotification(phone: string, body: string, kind: NotificationKind) {
+  try {
+    await getWhatsAppProvider().sendText(phone, body);
+    await record(phone, kind, body, "sent");
+
+    return { ok: true as const };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+
+    console.error(`Notification failed (${kind}) to ${phone}`, raw);
+    await record(phone, kind, body, "failed", raw);
+
+    return { ok: false as const, error: raw, explained: explainSendError(raw) };
+  }
+}
