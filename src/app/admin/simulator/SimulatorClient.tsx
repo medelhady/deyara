@@ -48,9 +48,15 @@ export function SimulatorClient() {
       });
       const data = await response.json();
 
+      // Follow-ups are shown as their own bubbles, the way they arrive on WhatsApp.
       setMessages((current) => [
         ...current,
-        { direction: "outbound", body: data.reply ?? "حدث خطأ في الرد.", intent: data.intent }
+        { direction: "outbound", body: data.reply ?? "حدث خطأ في الرد.", intent: data.intent },
+        ...((data.followUps ?? []) as string[]).map((followUp) => ({
+          direction: "outbound" as const,
+          body: followUp,
+          intent: data.intent
+        }))
       ]);
     } finally {
       setIsSending(false);

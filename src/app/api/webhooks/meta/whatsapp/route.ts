@@ -39,11 +39,22 @@ async function saveConversation(incoming: IncomingWhatsAppMessage, reply: string
     }
   });
 
+  await saveOutbound(incoming, reply, intent);
+}
+
+/** Logs one message the bot sent, without re-logging the incoming one that prompted it. */
+async function saveOutbound(incoming: IncomingWhatsAppMessage, body: string, intent: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return;
+  }
+
   await supabase.from("conversations").insert({
     phone: incoming.from,
     direction: "outbound",
     message_type: "text",
-    body: reply,
+    body,
     provider: incoming.provider,
     metadata: {
       intent
@@ -87,6 +98,12 @@ export async function POST(request: Request) {
     const result = await handleIncomingMessage(incoming);
     await saveConversation(incoming, result.reply, result.debugIntent);
     await sendNotification(incoming.from, result.reply, "bot_reply");
+
+    // Sent after the reply and in order, so text meant to be forwarded arrives as its own message.
+    for (const followUp of result.followUps ?? []) {
+      await saveOutbound(incoming, followUp, result.debugIntent);
+      await sendNotification(incoming.from, followUp, "bot_reply");
+    }
 
     replies.push({
       to: incoming.from,

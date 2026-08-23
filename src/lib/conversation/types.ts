@@ -24,6 +24,13 @@ export type ExtractedMessage = {
 
 export type ConversationResult = {
   reply: string;
+  /**
+   * Sent as their own WhatsApp messages after the reply.
+   *
+   * For text meant to be forwarded on: WhatsApp copies a whole message at a time, so anything a user
+   * is asked to pass along has to arrive alone or they are left selecting it by hand.
+   */
+  followUps?: string[];
   debugIntent: Intent;
 };
 

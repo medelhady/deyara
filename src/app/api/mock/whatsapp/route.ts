@@ -44,6 +44,7 @@ export async function POST(request: Request) {
     ok: true,
     incoming: message,
     reply: result.reply,
+    followUps: result.followUps ?? [],
     intent: result.debugIntent
   });
 }

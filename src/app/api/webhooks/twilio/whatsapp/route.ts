@@ -39,23 +39,31 @@ export async function POST(request: Request) {
       }
     });
 
-    await supabase.from("conversations").insert({
-      phone: incoming.from,
-      direction: "outbound",
-      message_type: "text",
-      body: result.reply,
-      provider: incoming.provider,
-      metadata: {
-        intent: result.debugIntent
-      }
-    });
+    for (const body of [result.reply, ...(result.followUps ?? [])]) {
+      await supabase.from("conversations").insert({
+        phone: incoming.from,
+        direction: "outbound",
+        message_type: "text",
+        body,
+        provider: incoming.provider,
+        metadata: {
+          intent: result.debugIntent
+        }
+      });
+    }
   }
 
   await sendNotification(incoming.from, result.reply, "bot_reply");
 
+  // Sent after the reply and in order, so text meant to be forwarded arrives as its own message.
+  for (const followUp of result.followUps ?? []) {
+    await sendNotification(incoming.from, followUp, "bot_reply");
+  }
+
   return NextResponse.json({
     ok: true,
     reply: result.reply,
+    followUps: result.followUps ?? [],
     intent: result.debugIntent
   });
 }

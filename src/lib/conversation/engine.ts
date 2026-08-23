@@ -1429,7 +1429,7 @@ async function getReferralSummary(phone: string) {
   const waiting = (referrals?.length ?? 0) - paid;
   const missing = Math.max(minimumWithdrawalPoints - commissionPoints, 0);
 
-  return [
+  const summary = [
     "👥 *إحالاتك*",
     "",
     `💰 دفعوا: *${paid}*`,
@@ -1444,12 +1444,14 @@ async function getReferralSummary(phone: string) {
     "━━━━━━━━━━━━━━",
     `📣 تحصل على *${referralCommissionPercent}%* من كل شحنة يقوم بها من سجّل عن طريقك.`,
     "",
-    "━━━━━━━━━━━━━━",
-    "📤 *انسخ هذه الرسالة وأرسلها:*",
-    "",
-    ...buildShareMessage(link, welcomePoints),
+    "👇 الرسالة الجاهزة للإرسال في الرسالة التالية — اضغط عليها مطولًا ثم *تحويل* أو *نسخ*.",
     ...(paid + waiting > 0 ? ["", "اكتب *تفاصيل إحالاتي* لقائمة من سجّل."] : [])
   ].join("\n");
+
+  // Sent on its own so a long press copies or forwards exactly the pitch and nothing else.
+  const share = buildShareMessage(link, welcomePoints).join("\n");
+
+  return { summary, share };
 }
 
 async function getReferralDetails(phone: string) {
@@ -1832,9 +1834,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       normalizedBody
     )
   ) {
+    const referral = await getReferralSummary(message.from);
+
     return {
       debugIntent: "intro",
-      reply: await getReferralSummary(message.from)
+      reply: referral.summary,
+      followUps: [referral.share]
     };
   }
 
