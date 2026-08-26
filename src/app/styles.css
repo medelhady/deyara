@@ -1388,3 +1388,64 @@ select {
   margin: 4px 0;
   line-height: 1.8;
 }
+
+/* ── Approving from a phone ──────────────────────────────────────────────────
+   The top-up queue is worked from a phone, often against the 24-hour reply
+   window. Side by side, the flex row refused to shrink below its content: it
+   pushed the page into sideways scrolling and squeezed the amount field and
+   both buttons down to about 50px, which is neither readable nor tappable. */
+@media (max-width: 720px) {
+  .review-item {
+    display: grid;
+    gap: 12px;
+  }
+
+  /* Flex and grid children default to min-width:auto, which is what let the
+     content dictate the width instead of the screen. */
+  .review-item > div {
+    min-width: 0;
+  }
+
+  /* .review-item div forces display:grid on every div inside, which quietly beat the
+     .inline-actions flex rule and made every flex property here a no-op. Matching the
+     parent as well outranks it. */
+  .review-item .inline-actions {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .review-item .inline-actions input {
+    max-width: none;
+    flex: 1 1 100%;
+    min-height: 44px;
+  }
+
+  .review-item .inline-actions a,
+  .review-item .inline-actions button {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+
+  .receipt-thumb img {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  /* The existing rule set display:grid on something already grid, so the two column
+     template survived and its 280px minimum column overflowed a phone. */
+  .dictionary-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dictionary-layout > *,
+  .dictionary-row > * {
+    min-width: 0;
+  }
+
+  .dictionary-row {
+    display: grid;
+    gap: 10px;
+  }
+}
