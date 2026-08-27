@@ -90,6 +90,7 @@ export function WalletsClient() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [message, setMessage] = useState('جار تحميل البيانات...');
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [pointsInput, setPointsInput] = useState<Record<string, string>>({});
   const [showTopupLog, setShowTopupLog] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -116,14 +117,17 @@ export function WalletsClient() {
   }
 
   async function updateTopup(id: string, status: 'approved' | 'rejected') {
+    const topup = topups.find((item) => item.id === id);
+    const number = topup ? topup.phone.replace('whatsapp:', '') : '';
     const points = Number(pointsInput[id] ?? '');
 
     if (status === 'approved' && (!Number.isFinite(points) || points <= 0)) {
-      setMessage('اكتب عدد النقاط قبل الموافقة.');
+      setNotice({ kind: 'error', text: 'اكتب عدد النقاط قبل الموافقة.' });
       return;
     }
 
     setBusyId(id);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/admin/credit-topups/${id}/status`, {
@@ -134,9 +138,19 @@ export function WalletsClient() {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(data.error ?? 'تعذر تحديث طلب الشحن.');
+        setNotice({ kind: 'error', text: data.error ?? 'تعذر تحديث طلب الشحن.' });
         return;
       }
+
+      // Approving makes the row disappear from the queue, which on its own is indistinguishable
+      // from a tap that did nothing. Say what happened to whom.
+      setNotice({
+        kind: 'ok',
+        text:
+          status === 'approved'
+            ? `تم اعتماد ${points} نقطة للرقم ${number}، وأُبلغ صاحبها.`
+            : `تم رفض طلب الشحن للرقم ${number}، وأُبلغ صاحبه.`
+      });
 
       await loadAll();
     } finally {
@@ -156,7 +170,7 @@ export function WalletsClient() {
       const data = await response.json();
 
       if (!response.ok) {
-        setMessage(data.error ?? 'تعذر تحديث طلب السحب.');
+        setNotice({ kind: 'error', text: data.error ?? 'تعذر تحديث طلب السحب.' });
         return;
       }
 
@@ -182,6 +196,18 @@ export function WalletsClient() {
   return (
     <>
       {message ? <p>{message}</p> : null}
+
+      {/* Sticks to the top of the screen so the outcome is visible even when the tap that caused it
+          was far down a long queue on a phone. */}
+      {notice ? (
+        <div className={`action-notice is-${notice.kind}`} role="status">
+          <span>{notice.kind === 'ok' ? '✅' : '⚠️'}</span>
+          <p>{notice.text}</p>
+          <button type="button" aria-label="إغلاق" onClick={() => setNotice(null)}>
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       <section className="panel">
         <div className="panel-header">
@@ -234,13 +260,15 @@ export function WalletsClient() {
                     setPointsInput((current) => ({ ...current, [topup.id]: event.target.value }))
                   }
                 />
+                {/* The label carries the busy state. A disabled button alone is easy to miss on a
+                    phone, so a tap that is working looks the same as one that did nothing. */}
                 <button
                   className="button"
                   type="button"
                   disabled={busyId === topup.id}
                   onClick={() => void updateTopup(topup.id, 'approved')}
                 >
-                  موافقة
+                  {busyId === topup.id ? 'جارٍ الاعتماد...' : 'موافقة'}
                 </button>
                 <button
                   className="button secondary"
@@ -248,7 +276,7 @@ export function WalletsClient() {
                   disabled={busyId === topup.id}
                   onClick={() => void updateTopup(topup.id, 'rejected')}
                 >
-                  رفض
+                  {busyId === topup.id ? '...' : 'رفض'}
                 </button>
               </div>
             </div>

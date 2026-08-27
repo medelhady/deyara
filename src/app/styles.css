@@ -1449,3 +1449,43 @@ select {
     gap: 10px;
   }
 }
+
+/* Outcome of an approve or reject. Sticky because the queue is long and worked from a phone:
+   the row vanishes on success, which on its own looks the same as a tap that did nothing. */
+.action-notice {
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: #eef6f3;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.action-notice.is-error {
+  border-color: #e4a6a6;
+  background: #fff2f2;
+}
+
+.action-notice p {
+  flex: 1;
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.7;
+}
+
+.action-notice button {
+  min-width: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
