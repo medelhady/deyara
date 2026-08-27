@@ -33,14 +33,23 @@ export async function POST(request: Request) {
 
   const [{ data: properties }, { data: asRenter }, { data: asOwner }, { data: wallets }, { data: referred }] =
     await Promise.all([
-      supabase.from("properties").select("owner_phone").in("owner_phone", phones),
+      supabase.from("properties").select("owner_phone,property_code,id").in("owner_phone", phones),
       supabase.from("contact_requests").select("renter_phone").in("renter_phone", phones),
       supabase.from("contact_requests").select("owner_phone").in("owner_phone", phones),
       supabase.from("user_wallets").select("phone,usage_points,commission_points").in("phone", phones),
       supabase.from("user_wallets").select("referred_by_phone").in("referred_by_phone", phones)
     ]);
 
-  const listingOwners = new Set((properties ?? []).map((row) => String(row.owner_phone)));
+  // Kept per owner rather than as a set of phones: naming the listings is the difference between an
+  // admin knowing what to delete and hunting for it.
+  const listingsByOwner = new Map<string, string[]>();
+
+  for (const row of properties ?? []) {
+    const owner = String(row.owner_phone);
+    const code = String(row.property_code ?? String(row.id).slice(0, 8));
+
+    listingsByOwner.set(owner, [...(listingsByOwner.get(owner) ?? []), code]);
+  }
   const contacts = new Set([
     ...(asRenter ?? []).map((row) => String(row.renter_phone)),
     ...(asOwner ?? []).map((row) => String(row.owner_phone))
@@ -57,8 +66,14 @@ export async function POST(request: Request) {
   const deletable: string[] = [];
 
   for (const phone of phones) {
-    if (listingOwners.has(phone)) {
-      results.push({ phone, deleted: false, reason: "له إعلانات. احذف إعلاناته أولًا من صفحة العقارات." });
+    const listings = listingsByOwner.get(phone);
+
+    if (listings && listings.length > 0) {
+      results.push({
+        phone,
+        deleted: false,
+        reason: `له ${listings.length} إعلان (${listings.join("، ")}). احذفها أولًا من صفحة العقارات — ابحث هناك برقمه.`
+      });
       continue;
     }
 

@@ -69,6 +69,7 @@ export function PropertiesClient() {
   const [openAreas, setOpenAreas] = useState<Record<string, boolean>>({});
   const [openProperty, setOpenProperty] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   async function loadProperties() {
@@ -145,8 +146,32 @@ export function PropertiesClient() {
     { all: 0 }
   );
 
-  const visibleProperties =
-    statusFilter === "all" ? properties : properties.filter((property) => property.status === statusFilter);
+  const visibleProperties = useMemo(() => {
+    const byStatus =
+      statusFilter === "all" ? properties : properties.filter((property) => property.status === statusFilter);
+
+    const term = search.trim();
+
+    if (!term) {
+      return byStatus;
+    }
+
+    // Digits are matched against the digits of the owner's number, so a search works whether it is
+    // typed as 22245678901, +222 45678901, or the tail of the number the admin happens to remember.
+    const digits = term.replace(/\D/g, "");
+    const text = term.toLowerCase();
+
+    return byStatus.filter((property) => {
+      const ownerDigits = (property.owner_phone ?? "").replace(/\D/g, "");
+
+      return (
+        (digits.length >= 3 && ownerDigits.includes(digits)) ||
+        (property.property_code ?? "").toLowerCase().includes(text) ||
+        (property.area ?? "").toLowerCase().includes(text) ||
+        (property.landmark ?? "").toLowerCase().includes(text)
+      );
+    });
+  }, [properties, statusFilter, search]);
 
   const areas = useMemo(() => {
     const grouped = new Map<string, Property[]>();
@@ -167,6 +192,14 @@ export function PropertiesClient() {
 
   return (
     <section className="list-panel">
+      <input
+        type="search"
+        className="property-search"
+        placeholder="ابحث برقم المؤجر أو رقم الإعلان أو المنطقة"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+
       <div className="filters-bar">
         {Object.entries(statusLabels).map(([status, label]) => (
           <button
@@ -193,8 +226,12 @@ export function PropertiesClient() {
         </div>
       ) : null}
 
+      {search.trim() && areas.length === 0 ? <p>لا يوجد إعلان يطابق هذا البحث.</p> : null}
+
       {areas.map((group) => {
-        const isOpen = openAreas[group.area] ?? false;
+        // A search opens every group it matched: leaving them shut would show a list of area names
+        // and no results, which reads as "nothing found".
+        const isOpen = search.trim() ? true : openAreas[group.area] ?? false;
 
         return (
           <article className="area-group" key={group.area}>

@@ -1489,3 +1489,7 @@ select {
   font: inherit;
   cursor: pointer;
 }
+
+.property-search {
+  margin-bottom: 12px;
+}
