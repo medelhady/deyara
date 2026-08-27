@@ -81,18 +81,40 @@ export async function setPropertyStatus(
   }
 
   if (status === "active" && data.owner_phone) {
+    const charged = spend?.ok && spend.spentPoints !== undefined;
+
+    /**
+     * The approved listing_approved template reads "تم نشر إعلانك رقم {{1}} بنجاح. خُصمت {{2}}
+     * نقطة، ورصيدك المتبقي {{3}} نقطة." -- it states a deduction, so it only fits a publication
+     * that charged one. Re-publishing a hidden listing charges nothing, and Meta refuses a template
+     * with an empty parameter anyway, so that case goes without a fallback and simply relies on the
+     * 24-hour window as before.
+     */
+    const templateFallback = charged
+      ? {
+          name: "listing_approved",
+          language: "ar",
+          parameters: [
+            String(data.property_code ?? String(data.id).slice(0, 8)),
+            String(spend!.spentPoints),
+            String(spend!.remainingPoints)
+          ]
+        }
+      : undefined;
+
     await sendNotification(
       data.owner_phone as string,
       formatListingApproval(
         data,
-        spend?.ok && spend.spentPoints !== undefined
+        charged
           ? [
-              `تم خصم *${spend.spentPoints} نقطة* من رصيدك.`,
-              `رصيدك المتبقي: *${spend.remainingPoints} نقطة*`
+              `تم خصم *${spend!.spentPoints} نقطة* من رصيدك.`,
+              `رصيدك المتبقي: *${spend!.remainingPoints} نقطة*`
             ]
           : []
       ),
-      "listing_approved"
+      "listing_approved",
+      templateFallback
     );
   }
 

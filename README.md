@@ -116,6 +116,22 @@ counts those separately because the answer is an approved message template, not 
 
 Run `supabase/add-notification-log.sql` to create the table.
 
+### Templates
+
+Where an approved template exists, a notification that hits the closed window is re-sent as that
+template instead of being lost. Free-form text is still tried first: inside the window it is free,
+carries the whole message rather than a fixed one, and needs no approval.
+
+The fallback fires only on the closed-window error. An expired token or a number not on WhatsApp
+would fail the template too, so retrying would bill a second attempt and log a misleading success.
+
+`listing_approved` (Arabic, `ar`) is wired up. Its wording states a deduction, so it is used only
+when publishing actually charged a fee — re-publishing a hidden listing charges nothing, and Meta
+rejects a template with an empty parameter.
+
+To add another: create it in WhatsApp Manager, then pass a `templateFallback` to `sendNotification`
+with its name, its language code exactly as created, and one non-empty value per `{{n}}`.
+
 ## Admin WhatsApp Commands
 
 Sent from a number listed in the admin notification numbers setting:

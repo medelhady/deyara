@@ -1,5 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { sendMetaTemplate } from "@/lib/whatsapp/meta";
 
 /** What triggered a message, so the log can be read without deciphering the text. */
 export type NotificationKind =
@@ -104,7 +105,21 @@ async function record(phone: string, kind: NotificationKind, body: string, statu
  * should not see an error because the owner's phone is unreachable -- which is exactly why the
  * failure has to be written down somewhere an admin will actually look.
  */
-export async function sendNotification(phone: string, body: string, kind: NotificationKind) {
+export type TemplateFallback = {
+  /** Name of an approved template in WhatsApp Manager. */
+  name: string;
+  /** Language code exactly as the template was created, e.g. "ar". A mismatch is rejected. */
+  language: string;
+  /** One value per {{n}} placeholder, in order. None may be empty. */
+  parameters: string[];
+};
+
+export async function sendNotification(
+  phone: string,
+  body: string,
+  kind: NotificationKind,
+  templateFallback?: TemplateFallback
+) {
   try {
     await getWhatsAppProvider().sendText(phone, body);
     await record(phone, kind, body, "sent");
@@ -112,6 +127,28 @@ export async function sendNotification(phone: string, body: string, kind: Notifi
     return { ok: true as const };
   } catch (error) {
     const raw = error instanceof Error ? error.message : String(error);
+
+    /**
+     * Free-form text is tried first on purpose: inside the 24-hour window it is free, carries the
+     * full message rather than a fixed template, and needs no approval. The template is only for
+     * the case that text cannot serve -- the window having closed -- and only for that failure,
+     * since a bad token or an unreachable number would fail the template too.
+     */
+    if (isOutsideServiceWindow(raw) && templateFallback) {
+      try {
+        await sendMetaTemplate(phone, templateFallback.name, templateFallback.language, templateFallback.parameters);
+        await record(phone, kind, `[قالب ${templateFallback.name}] ${body}`, "sent");
+
+        return { ok: true as const, viaTemplate: true as const };
+      } catch (templateError) {
+        const templateRaw = templateError instanceof Error ? templateError.message : String(templateError);
+
+        console.error(`Template fallback failed (${kind}) to ${phone}`, templateRaw);
+        await record(phone, kind, body, "failed", `${raw}\n\nوفشل القالب أيضًا: ${templateRaw}`);
+
+        return { ok: false as const, error: templateRaw, explained: explainSendError(templateRaw) };
+      }
+    }
 
     console.error(`Notification failed (${kind}) to ${phone}`, raw);
     await record(phone, kind, body, "failed", raw);

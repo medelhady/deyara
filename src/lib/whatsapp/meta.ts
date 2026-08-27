@@ -151,6 +151,65 @@ export async function parseMetaWebhook(payload: MetaWebhookPayload): Promise<Inc
   return parsed;
 }
 
+/**
+ * Sends an approved message template.
+ *
+ * The only way to reach someone who has not written in the last 24 hours: WhatsApp refuses
+ * free-form text outside that window, and a template is text Meta has already reviewed.
+ *
+ * Every placeholder must be given a value. Meta rejects the send outright if a parameter is
+ * missing or empty, so a template whose wording assumes an optional value cannot be used for the
+ * cases where that value is absent.
+ */
+export async function sendMetaTemplate(
+  to: string,
+  templateName: string,
+  languageCode: string,
+  parameters: string[]
+) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !phoneNumberId) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Meta WhatsApp credentials are missing: META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID.");
+    }
+
+    console.log("Meta WhatsApp credentials missing. Mock template:", { to, templateName, parameters });
+    return;
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: toMetaRecipient(to),
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: parameters.length
+          ? [
+              {
+                type: "body",
+                parameters: parameters.map((text) => ({ type: "text", text }))
+              }
+            ]
+          : []
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Meta template send failed: ${await response.text()}`);
+  }
+}
+
 export const metaWhatsAppProvider: WhatsAppProvider = {
   parseIncoming() {
     throw new Error("Meta webhooks are JSON-based. Use parseMetaWebhook instead.");

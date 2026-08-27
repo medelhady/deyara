@@ -13,11 +13,12 @@
     "check:provider": "npx tsx scripts/check-whatsapp-provider.ts",
     "check:auth": "npx tsx scripts/check-admin-auth.ts",
     "check:referral": "npx tsx scripts/check-referral-commission.ts",
-    "check": "npm run check:signature && npm run check:provider && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages",
+    "check": "npm run check:signature && npm run check:provider && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages && npm run check:template",
     "check:commands": "npx tsx scripts/check-admin-commands.ts",
     "check:notifications": "npx tsx scripts/check-notifications.ts",
     "check:messages": "npx tsx scripts/check-bot-messages.ts",
-    "check:code": "npx tsx scripts/check-referral-code.ts"
+    "check:code": "npx tsx scripts/check-referral-code.ts",
+    "check:template": "npx tsx scripts/check-template-fallback.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
