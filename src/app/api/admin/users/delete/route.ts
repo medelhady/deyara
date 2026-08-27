@@ -3,7 +3,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type Outcome = { phone: string; deleted: boolean; reason?: string };
+type Outcome = { phone: string; deleted: boolean; reason?: string; blockedByContacts?: number };
 
 /**
  * Removes users, one report line each.
@@ -24,7 +24,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "قاعدة البيانات غير مربوطة." }, { status: 400 });
   }
 
-  const body = (await request.json()) as { phones?: string[] };
+  /**
+   * `force` drops only the contact-request guard, and only when the admin has been shown how many
+   * records it would destroy. The other guards stay: listings can be deleted from their own page, a
+   * balance means the account is somebody's, and cutting a referral chain loses a marketer's work.
+   */
+  const body = (await request.json()) as { phones?: string[]; force?: boolean };
+  const force = body.force === true;
   const phones = [...new Set((body.phones ?? []).map((phone) => String(phone)).filter(Boolean))];
 
   if (phones.length === 0) {
@@ -50,10 +56,15 @@ export async function POST(request: Request) {
 
     listingsByOwner.set(owner, [...(listingsByOwner.get(owner) ?? []), code]);
   }
-  const contacts = new Set([
+  // Counted per phone so the refusal can say how many records dropping the guard would destroy.
+  const contactCounts = new Map<string, number>();
+
+  for (const phone of [
     ...(asRenter ?? []).map((row) => String(row.renter_phone)),
     ...(asOwner ?? []).map((row) => String(row.owner_phone))
-  ]);
+  ]) {
+    contactCounts.set(phone, (contactCounts.get(phone) ?? 0) + 1);
+  }
   const referrers = new Set((referred ?? []).map((row) => String(row.referred_by_phone)));
   const balances = new Map(
     (wallets ?? []).map((row) => [
@@ -77,8 +88,15 @@ export async function POST(request: Request) {
       continue;
     }
 
-    if (contacts.has(phone)) {
-      results.push({ phone, deleted: false, reason: "مرتبط بطلبات تواصل، وحذفه يفقد سجلها." });
+    const contactCount = contactCounts.get(phone) ?? 0;
+
+    if (contactCount > 0 && !force) {
+      results.push({
+        phone,
+        deleted: false,
+        blockedByContacts: contactCount,
+        reason: `مرتبط بـ ${contactCount} طلب تواصل مدفوع. الحذف يمحو سجلها نهائيًا.`
+      });
       continue;
     }
 
@@ -96,6 +114,13 @@ export async function POST(request: Request) {
   }
 
   if (deletable.length > 0) {
+    // contact_requests has no cascade onto users, so the rows have to go first or the delete is
+    // refused by the database. Only reached with force, which the admin confirmed against a count.
+    if (force) {
+      await supabase.from("contact_requests").delete().in("renter_phone", deletable);
+      await supabase.from("contact_requests").delete().in("owner_phone", deletable);
+    }
+
     const { error } = await supabase.from("users").delete().in("phone", deletable);
 
     if (error) {

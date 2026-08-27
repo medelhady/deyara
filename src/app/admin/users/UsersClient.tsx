@@ -39,7 +39,9 @@ export function UsersClient() {
   const [creditDone, setCreditDone] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
-  const [deleteReport, setDeleteReport] = useState<Array<{ phone: string; deleted: boolean; reason?: string }>>([]);
+  const [deleteReport, setDeleteReport] = useState<
+    Array<{ phone: string; deleted: boolean; reason?: string; blockedByContacts?: number }>
+  >([]);
 
   async function loadUsers() {
     const response = await fetch(`/api/admin/users?t=${Date.now()}`, { cache: "no-store" });
@@ -120,6 +122,48 @@ export function UsersClient() {
     setSelected((current) =>
       current.includes(phone) ? current.filter((item) => item !== phone) : [...current, phone]
     );
+  }
+
+  /**
+   * Second pass over the numbers the contact-request guard stopped.
+   *
+   * Offered rather than folded into the first attempt: those rows are renters who paid a point, and
+   * the count of what disappears has to be seen before it is agreed to, not after.
+   */
+  async function deleteWithContacts() {
+    const blocked = deleteReport.filter((result) => result.blockedByContacts);
+    const records = blocked.reduce((total, result) => total + (result.blockedByContacts ?? 0), 0);
+
+    const confirmed = window.confirm(
+      `حذف ${blocked.length} مستخدم مع ${records} طلب تواصل مدفوع؟\n\n` +
+        "سجل من دفع مقابل رقم مؤجر يُمحى نهائيًا ولا يمكن استرجاعه.\n" +
+        "افعل هذا لأرقام التجربة فقط."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      const response = await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phones: blocked.map((result) => result.phone), force: true })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.error ?? "تعذر الحذف.");
+        return;
+      }
+
+      setDeleteReport(data.results ?? []);
+      await loadUsers();
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function deleteSelected() {
@@ -290,6 +334,19 @@ export function UsersClient() {
               {result.deleted ? "— حُذف" : `— لم يُحذف: ${result.reason}`}
             </p>
           ))}
+
+          {deleteReport.some((result) => result.blockedByContacts) ? (
+            <div className="row-actions">
+              <button
+                className="button secondary danger-action"
+                type="button"
+                disabled={deleting}
+                onClick={() => void deleteWithContacts()}
+              >
+                {deleting ? "جارٍ الحذف..." : "احذفهم مع سجل طلبات التواصل"}
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
