@@ -3,7 +3,13 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type Outcome = { phone: string; deleted: boolean; reason?: string; blockedByContacts?: number };
+type Outcome = {
+  phone: string;
+  deleted: boolean;
+  reason?: string;
+  blockedByContacts?: number;
+  blockedByMentions?: number;
+};
 
 /**
  * Removes users, one report line each.
@@ -37,13 +43,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "لم تحدد أي رقم." }, { status: 400 });
   }
 
-  const [{ data: properties }, { data: asRenter }, { data: asOwner }, { data: wallets }, { data: referred }] =
-    await Promise.all([
+  const [
+    { data: properties },
+    { data: asRenter },
+    { data: asOwner },
+    { data: wallets },
+    { data: referred },
+    { data: mentioned }
+  ] = await Promise.all([
       supabase.from("properties").select("owner_phone,property_code,id").in("owner_phone", phones),
       supabase.from("contact_requests").select("renter_phone").in("renter_phone", phones),
       supabase.from("contact_requests").select("owner_phone").in("owner_phone", phones),
       supabase.from("user_wallets").select("phone,usage_points,commission_points").in("phone", phones),
-      supabase.from("user_wallets").select("referred_by_phone").in("referred_by_phone", phones)
+      supabase.from("user_wallets").select("referred_by_phone").in("referred_by_phone", phones),
+      // Ledger rows belonging to other people that merely name this one, e.g. the commission row on
+      // a marketer's account that records who it came from.
+      supabase.from("credit_transactions").select("related_phone").in("related_phone", phones)
     ]);
 
   // Kept per owner rather than as a set of phones: naming the listings is the difference between an
@@ -66,6 +81,13 @@ export async function POST(request: Request) {
     contactCounts.set(phone, (contactCounts.get(phone) ?? 0) + 1);
   }
   const referrers = new Set((referred ?? []).map((row) => String(row.referred_by_phone)));
+
+  const mentionCounts = new Map<string, number>();
+
+  for (const row of mentioned ?? []) {
+    const phone = String(row.related_phone);
+    mentionCounts.set(phone, (mentionCounts.get(phone) ?? 0) + 1);
+  }
   const balances = new Map(
     (wallets ?? []).map((row) => [
       String(row.phone),
@@ -110,6 +132,19 @@ export async function POST(request: Request) {
       continue;
     }
 
+    const mentions = mentionCounts.get(phone) ?? 0;
+
+    if (mentions > 0 && !force) {
+      results.push({
+        phone,
+        deleted: false,
+        blockedByContacts: 0,
+        blockedByMentions: mentions,
+        reason: `مذكور في ${mentions} حركة مالية تخص مستخدمين آخرين. الحذف يزيل ذكره منها دون حذفها.`
+      });
+      continue;
+    }
+
     deletable.push(phone);
   }
 
@@ -119,6 +154,14 @@ export async function POST(request: Request) {
     if (force) {
       await supabase.from("contact_requests").delete().in("renter_phone", deletable);
       await supabase.from("contact_requests").delete().in("owner_phone", deletable);
+
+      // Cleared, not deleted. These rows belong to other people -- a marketer's commission, say --
+      // and related_phone only records who it came from. Nulling it drops the reference the
+      // foreign key is protecting while the money record itself survives.
+      await supabase
+        .from("credit_transactions")
+        .update({ related_phone: null })
+        .in("related_phone", deletable);
     }
 
     const { error } = await supabase.from("users").delete().in("phone", deletable);

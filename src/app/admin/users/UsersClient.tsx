@@ -40,7 +40,13 @@ export function UsersClient() {
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [deleteReport, setDeleteReport] = useState<
-    Array<{ phone: string; deleted: boolean; reason?: string; blockedByContacts?: number }>
+    Array<{
+      phone: string;
+      deleted: boolean;
+      reason?: string;
+      blockedByContacts?: number;
+      blockedByMentions?: number;
+    }>
   >([]);
 
   async function loadUsers() {
@@ -131,13 +137,19 @@ export function UsersClient() {
    * the count of what disappears has to be seen before it is agreed to, not after.
    */
   async function deleteWithContacts() {
-    const blocked = deleteReport.filter((result) => result.blockedByContacts);
-    const records = blocked.reduce((total, result) => total + (result.blockedByContacts ?? 0), 0);
+    const blocked = deleteReport.filter(
+      (result) => result.blockedByContacts || result.blockedByMentions
+    );
+    const requests = blocked.reduce((total, result) => total + (result.blockedByContacts ?? 0), 0);
+    const mentions = blocked.reduce((total, result) => total + (result.blockedByMentions ?? 0), 0);
 
+    // Spelled apart because the two costs differ: paid requests are destroyed, while a mention is
+    // only cleared off a record that stays.
     const confirmed = window.confirm(
-      `حذف ${blocked.length} مستخدم مع ${records} طلب تواصل مدفوع؟\n\n` +
-        "سجل من دفع مقابل رقم مؤجر يُمحى نهائيًا ولا يمكن استرجاعه.\n" +
-        "افعل هذا لأرقام التجربة فقط."
+      `حذف ${blocked.length} مستخدم؟\n\n` +
+        (requests > 0 ? `• ${requests} طلب تواصل مدفوع سيُمحى نهائيًا.\n` : "") +
+        (mentions > 0 ? `• ${mentions} حركة مالية لآخرين سيُزال منها ذكره، وتبقى هي.\n` : "") +
+        "\nافعل هذا لأرقام التجربة فقط."
     );
 
     if (!confirmed) {
@@ -335,7 +347,7 @@ export function UsersClient() {
             </p>
           ))}
 
-          {deleteReport.some((result) => result.blockedByContacts) ? (
+          {deleteReport.some((result) => result.blockedByContacts || result.blockedByMentions) ? (
             <div className="row-actions">
               <button
                 className="button secondary danger-action"
@@ -343,7 +355,7 @@ export function UsersClient() {
                 disabled={deleting}
                 onClick={() => void deleteWithContacts()}
               >
-                {deleting ? "جارٍ الحذف..." : "احذفهم مع سجل طلبات التواصل"}
+                {deleting ? "جارٍ الحذف..." : "احذفهم رغم السجلات المرتبطة"}
               </button>
             </div>
           ) : null}
