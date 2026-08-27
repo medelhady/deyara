@@ -68,6 +68,8 @@ export function PropertiesClient() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [openAreas, setOpenAreas] = useState<Record<string, boolean>>({});
   const [openProperty, setOpenProperty] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   async function loadProperties() {
     const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
@@ -85,23 +87,49 @@ export function PropertiesClient() {
     setMessage((data.properties ?? []).length ? "" : "لا توجد عقارات حتى الآن.");
   }
 
-  async function updateStatus(id: string, status: "active" | "rejected" | "hidden" | "rented") {
-    const response = await fetch(`/api/admin/properties/${id}/status`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ status })
-    });
+  const statusDone: Record<string, string> = {
+    active: "تم نشر الإعلان وأُبلغ المؤجر",
+    rejected: "تم رفض الإعلان وأُبلغ المؤجر، ولم تُخصم منه نقطة",
+    hidden: "تم إخفاء الإعلان من نتائج البحث",
+    rented: "تم وسم الإعلان كمؤجَّر وأُبلغ من كانوا ينتظرونه"
+  };
 
-    if (!response.ok) {
-      const data = await response.json();
-      setMessage(data.error ?? "تعذر تحديث العقار.");
+  async function updateStatus(id: string, status: "active" | "rejected" | "hidden" | "rented") {
+    // Without a busy id the buttons stayed live through the request, so a second tap on a slow
+    // connection sent the whole thing twice.
+    if (busyId) {
       return;
     }
 
-    setMessage("");
-    await loadProperties();
+    const property = properties.find((item) => item.id === id);
+    const label = property?.property_code ?? id.slice(0, 8);
+
+    setBusyId(id);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/admin/properties/${id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setNotice({ kind: "error", text: data.error ?? "تعذر تحديث العقار." });
+        return;
+      }
+
+      // The card collapses back into the list on success, which by itself looks the same as a tap
+      // that did nothing.
+      setNotice({ kind: "ok", text: `${statusDone[status]} — إعلان ${label}.` });
+      setMessage("");
+      await loadProperties();
+    } finally {
+      setBusyId(null);
+    }
   }
 
   useEffect(() => {
@@ -154,6 +182,17 @@ export function PropertiesClient() {
 
       {message ? <p>{message}</p> : null}
 
+      {/* Sticky: the card that was tapped can be far down a long list on a phone. */}
+      {notice ? (
+        <div className={`action-notice is-${notice.kind}`} role="status">
+          <span>{notice.kind === "ok" ? "✅" : "⚠️"}</span>
+          <p>{notice.text}</p>
+          <button type="button" aria-label="إغلاق" onClick={() => setNotice(null)}>
+            ✕
+          </button>
+        </div>
+      ) : null}
+
       {areas.map((group) => {
         const isOpen = openAreas[group.area] ?? false;
 
@@ -197,19 +236,26 @@ export function PropertiesClient() {
                           <p>الغرف: {property.rooms ?? "غير محدد"}</p>
                           <p>رقم المؤجر: {property.owner_phone}</p>
                           <PropertyVideo media={property.media} startOpen={property.status === "pending_review"} />
+                          {/* The label carries the busy state: a disabled button alone is easy to
+                              miss on a phone, so a working tap looks like one that did nothing. */}
                           <div className="row-actions">
-                            <button type="button" onClick={() => updateStatus(property.id, "active")}>
-                              موافقة
-                            </button>
-                            <button type="button" onClick={() => updateStatus(property.id, "rejected")}>
-                              رفض
-                            </button>
-                            <button type="button" onClick={() => updateStatus(property.id, "hidden")}>
-                              إخفاء
-                            </button>
-                            <button type="button" onClick={() => updateStatus(property.id, "rented")}>
-                              تم تأجيره
-                            </button>
+                            {(
+                              [
+                                { status: "active", label: "موافقة", busy: "جارٍ النشر..." },
+                                { status: "rejected", label: "رفض", busy: "جارٍ الرفض..." },
+                                { status: "hidden", label: "إخفاء", busy: "جارٍ الإخفاء..." },
+                                { status: "rented", label: "تم تأجيره", busy: "جارٍ الحفظ..." }
+                              ] as const
+                            ).map((action) => (
+                              <button
+                                key={action.status}
+                                type="button"
+                                disabled={busyId === property.id}
+                                onClick={() => void updateStatus(property.id, action.status)}
+                              >
+                                {busyId === property.id ? action.busy : action.label}
+                              </button>
+                            ))}
                           </div>
                         </div>
                       ) : null}

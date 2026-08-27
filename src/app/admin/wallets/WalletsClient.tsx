@@ -159,7 +159,11 @@ export function WalletsClient() {
   }
 
   async function updateWithdrawal(id: string, status: 'paid' | 'rejected') {
+    const withdrawal = withdrawals.find((item) => item.id === id);
+    const number = withdrawal ? withdrawal.phone.replace('whatsapp:', '') : '';
+
     setBusyId(id);
+    setNotice(null);
 
     try {
       const response = await fetch(`/api/admin/withdrawals/${id}/status`, {
@@ -173,6 +177,15 @@ export function WalletsClient() {
         setNotice({ kind: 'error', text: data.error ?? 'تعذر تحديث طلب السحب.' });
         return;
       }
+
+      // Same as the top-up queue: the row leaves the list, which alone says nothing.
+      setNotice({
+        kind: 'ok',
+        text:
+          status === 'paid'
+            ? `تم تأكيد تحويل ${withdrawal?.points ?? ''} نقطة للرقم ${number}، وخُصمت من رصيد عمولته.`
+            : `تم رفض طلب السحب للرقم ${number}، ورصيده لم يتغير.`
+      });
 
       await loadAll();
     } finally {
@@ -360,7 +373,7 @@ export function WalletsClient() {
                             disabled={busyId === withdrawal.id}
                             onClick={() => void updateWithdrawal(withdrawal.id, 'paid')}
                           >
-                            تم الدفع
+                            {busyId === withdrawal.id ? 'جارٍ الحفظ...' : 'تم الدفع'}
                           </button>
                           <button
                             className="button secondary"
@@ -368,7 +381,7 @@ export function WalletsClient() {
                             disabled={busyId === withdrawal.id}
                             onClick={() => void updateWithdrawal(withdrawal.id, 'rejected')}
                           >
-                            رفض
+                            {busyId === withdrawal.id ? '...' : 'رفض'}
                           </button>
                         </div>
                       ) : (
