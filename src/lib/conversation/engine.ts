@@ -11,6 +11,7 @@ import { notifyAdmins } from "@/lib/notify-admins";
 import { handleAdminCommand } from "./admin-commands";
 import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
+import { findReferralCode } from "./referral-code";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -254,14 +255,15 @@ async function makeReferralLink(referralCode: string) {
   // The link must open the bot. It used to fall back to the first admin number, which sent every
   // invited person to a personal WhatsApp instead.
   //
-  // The prefilled text is the bare code. It used to read "ابدأ CODE", which percent-encoded into a
-  // wall of %D8%s in a link a marketer pastes in front of customers. The code is recognised on its
-  // own because it always carries a letter, and the older prefixed form is still accepted for links
-  // already in circulation.
+  // The prefilled text greets and then carries the code. A bare code looked like junk in the box:
+  // people cleared it and typed their own hello, which loses the referral silently after the
+  // marketer had done everything right. findReferralCode reads the code out of the sentence, and
+  // still accepts the bare and "ابدأ CODE" forms for links already in circulation.
   const { botWhatsAppNumber } = await getSettings();
+  const text = encodeURIComponent(`سلام ${referralCode}`);
 
   return botWhatsAppNumber
-    ? `https://wa.me/${normalizePhoneDigits(botWhatsAppNumber)}?text=${referralCode}`
+    ? `https://wa.me/${normalizePhoneDigits(botWhatsAppNumber)}?text=${text}`
     : `كود دعوتك: ${referralCode}`;
 }
 
@@ -978,12 +980,7 @@ async function applyReferralCode(phone: string, body: string) {
     return undefined;
   }
 
-  // The link sends "ابدأ A7K2". A bare four character token is accepted too, as long as it has a
-  // letter in it, so a plain number is never mistaken for a code.
-  const prefixed = body.match(/(?:\u0627\u0628\u062f\u0623|\u0627\u0628\u062f\u0627|\u0628\u062f\u0621|start)\s+([A-Za-z0-9]{4})\b/);
-  const standalone = body.trim().match(/^([A-Za-z0-9]{4})$/);
-  const candidate = (prefixed?.[1] ?? standalone?.[1] ?? "").toUpperCase();
-  const referralCode = /[A-Z]/.test(candidate) ? candidate : undefined;
+  const referralCode = findReferralCode(body);
 
   if (!referralCode) {
     return undefined;
