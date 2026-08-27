@@ -1493,3 +1493,9 @@ select {
 .property-search {
   margin-bottom: 12px;
 }
+
+/* Set apart from the reversible actions beside it. */
+.danger-action {
+  border-color: #e4a6a6 !important;
+  color: #8d1f1f !important;
+}

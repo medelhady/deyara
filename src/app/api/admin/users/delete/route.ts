@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       results.push({
         phone,
         deleted: false,
-        reason: `له ${listings.length} إعلان (${listings.join("، ")}). احذفها أولًا من صفحة العقارات — ابحث هناك برقمه.`
+        reason: `له ${listings.length} إعلان (${listings.join("، ")}). ابحث برقمه في صفحة العقارات، افتح كل إعلان، واضغط «حذف نهائي».`
       });
       continue;
     }

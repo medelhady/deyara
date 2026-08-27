@@ -133,6 +133,40 @@ export function PropertiesClient() {
     }
   }
 
+  async function deleteProperty(id: string, reference: string) {
+    if (busyId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `حذف الإعلان ${reference} نهائيًا؟\n\n` +
+        "يُحذف معه الفيديو والصور، ولا يمكن استرجاعه.\n" +
+        "إن كنت تريد إخفاءه من البحث فقط، استخدم زر إخفاء."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyId(id);
+    setNotice(null);
+
+    try {
+      const response = await fetch(`/api/admin/properties/${id}`, { method: "DELETE" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNotice({ kind: "error", text: data.error ?? "تعذر حذف الإعلان." });
+        return;
+      }
+
+      setNotice({ kind: "ok", text: `تم حذف الإعلان ${reference} نهائيًا.` });
+      await loadProperties();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   useEffect(() => {
     void loadProperties();
   }, []);
@@ -293,6 +327,16 @@ export function PropertiesClient() {
                                 {busyId === property.id ? action.busy : action.label}
                               </button>
                             ))}
+                            {/* Last, and visually apart: it is the only one of these that cannot be
+                                undone. Hiding is the reversible option for everything else. */}
+                            <button
+                              className="danger-action"
+                              type="button"
+                              disabled={busyId === property.id}
+                              onClick={() => void deleteProperty(property.id, reference)}
+                            >
+                              {busyId === property.id ? "..." : "حذف نهائي"}
+                            </button>
                           </div>
                         </div>
                       ) : null}
