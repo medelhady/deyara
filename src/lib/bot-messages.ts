@@ -71,6 +71,11 @@ export const messageDefinitions: MessageDefinition[] = [
     note: "تُرسل حين ينفد رصيد المستخدم. الرصيد الحالي يُضاف تلقائيًا فوق هذا النص.",
     variables: [
       { name: "paymentNumber", sample: "22245678901", note: "رقم استقبال الدفع" },
+      {
+        name: "purpose",
+        sample: "🔐 عرض رقم المؤجر يحتاج *2000 نقطة*.",
+        note: "سبب الشحن، ويتغير بحسب ما كان المستخدم يحاول فعله"
+      },
       { name: "revealPoints", sample: "1", note: "تكلفة عرض رقم المؤجر بالنقاط" }
     ],
     fallback: [
@@ -78,7 +83,9 @@ export const messageDefinitions: MessageDefinition[] = [
       "💳 *شحن نقاط الديارة*",
       "╰──────────────",
       "",
-      "🔐 عرض رقم المؤجر يحتاج *{revealPoints} نقطة*.",
+      // The reason for topping up is a variable, not a fixed sentence: the same instructions are
+      // sent whether the user was publishing a listing or asking for an owner's number.
+      "{purpose}",
       "",
       "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
       "*{paymentNumber}*",

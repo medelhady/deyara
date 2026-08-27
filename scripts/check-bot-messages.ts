@@ -89,5 +89,26 @@ for (const definition of messageDefinitions) {
   check(`the shipped "${definition.key}" is not empty`, definition.fallback.trim().length > 0, true);
 }
 
+// The top-up instructions are sent for more than one reason, so the reason has to be the variable
+// and not a sentence baked into the template. Prepending it once left the template's own sentence
+// underneath: someone publishing a listing was quoted the listing price and then, right below, the
+// price of an owner's number.
+const topup = messageDefinitions.find((definition) => definition.key === "topup_instructions")!;
+
+check(
+  "the top-up template states no reason of its own",
+  /عرض رقم المؤجر|نشر إعلان/.test(topup.fallback),
+  false
+);
+
+check("the top-up template carries the reason as a variable", topup.fallback.includes("{purpose}"), true);
+
+check(
+  "a listing reason renders alone",
+  renderMessage(topup.fallback, { purpose: "نشر إعلان يحتاج 3000 نقطة", paymentNumber: "44974444" })
+    .includes("عرض رقم المؤجر"),
+  false
+);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

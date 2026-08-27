@@ -279,16 +279,18 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
     ].join("\n");
   }
 
+  // The reason goes into the template rather than above it. Prepending it left the template's own
+  // sentence in place underneath, so a user who ran out of points while publishing a listing was
+  // told the price of publishing and then, immediately after, the price of an owner's number.
   const instructions = await getMessage("topup_instructions", {
     paymentNumber: paymentNumber.replace("whatsapp:", ""),
+    purpose: options?.purposeText ?? `🔐 عرض رقم المؤجر يحتاج *${settings.contactRevealPoints} نقطة*.`,
     revealPoints: settings.contactRevealPoints
   });
 
-  // The balance and the reason for asking are prepended rather than left to the editable template:
-  // both are optional and depend on where the user was when the balance ran out.
+  // The balance stays outside it: it is only known in some of the places that ask for a top-up.
   return [
     ...(currentBalance !== undefined ? [`💼 رصيدك الحالي: *${currentBalance} نقطة*`, ""] : []),
-    ...(options?.purposeText ? [options.purposeText, ""] : []),
     instructions
   ].join("\n");
 }
