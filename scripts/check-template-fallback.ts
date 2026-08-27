@@ -54,5 +54,23 @@ check("no parameters at all is not", parametersAreSendable([]), false);
 // Zero is a real value a listing message can legitimately carry.
 check("a zero parameter is sendable", parametersAreSendable(["0007", "2000", "0"]), true);
 
+/**
+ * Every wired template, with the value each of its parameters is built from at its emptiest.
+ * The point is that none of these can produce a blank: a rejection with no reason still sends a
+ * stand-in, and a number is always a number even when it is zero.
+ */
+const wired: Array<[string, string[]]> = [
+  ["listing_approved", [String("0007"), String(0), String(0)]],
+  ["listing_rejected", [String("0007"), "".trim() || "لم يُذكر سبب"]],
+  ["topup_approved", [String(0), String(0)]],
+  ["balance_credited", [String(0), String(0)]],
+  ["withdrawal_paid", [String(0)]],
+  ["referral_commission", [String(0)]]
+];
+
+for (const [name, parameters] of wired) {
+  check(`${name} cannot send a blank parameter`, parametersAreSendable(parameters), true);
+}
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

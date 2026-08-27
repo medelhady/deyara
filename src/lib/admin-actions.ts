@@ -125,7 +125,17 @@ export async function setPropertyStatus(
         code: data.property_code ?? String(data.id).slice(0, 8),
         reason: adminNote
       }),
-      "listing_rejected"
+      "listing_rejected",
+      {
+        name: "listing_rejected",
+        language: "ar",
+        parameters: [
+          String(data.property_code ?? String(data.id).slice(0, 8)),
+          // Meta rejects an empty parameter, and a rejection reason is optional here, so the
+          // template gets a stand-in rather than no message reaching the owner at all.
+          adminNote?.trim() || "لم يُذكر سبب"
+        ]
+      }
     );
   }
 
@@ -194,6 +204,22 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
     wallet.referred_at as string | null
   );
 
+  const newBalance = currentPoints + points;
+
+  /**
+   * Sent unconditionally. This used to depend on the user having a parked listing draft or a
+   * contact request waiting, so someone who simply topped up in advance transferred money, had it
+   * approved, and heard nothing at all -- while the admin's own confirmation claimed otherwise.
+   */
+  await sendNotification(
+    phone,
+    ["✅ *تم اعتماد شحنك*", "", `أضفنا *${points} نقطة* إلى رصيدك.`, `رصيدك الآن: *${newBalance} نقطة*`].join(
+      "\n"
+    ),
+    "topup_approved",
+    { name: "topup_approved", language: "ar", parameters: [String(points), String(newBalance)] }
+  );
+
   // A draft still awaiting confirmation predates the move of the listing fee to approval time.
   const conversationState = await getConversationState(phone);
   const draft = conversationState.draftProperty;
@@ -221,7 +247,7 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
   return {
     ok: true,
     message: "تم اعتماد الشحن.",
-    data: { points, newBalance: currentPoints + points }
+    data: { points, newBalance }
   };
 }
 
@@ -309,7 +335,9 @@ export async function creditWalletManually(
       `رصيدك الآن: *${newBalance} نقطة*`,
       ...(note.trim() ? ["", note.trim()] : [])
     ].join("\n"),
-    "balance_credited"
+    "balance_credited",
+    // The reason stays out of the template: it is optional here and Meta refuses an empty parameter.
+    { name: "balance_credited", language: "ar", parameters: [String(points), String(newBalance)] }
   );
 
   if (contactReply) {
@@ -443,7 +471,12 @@ export async function setWithdrawalStatus(
   await sendNotification(
     phone,
     [...messages[status], ...(note ? ["", `📝 ${note}`] : [])].join("\n"),
-    withdrawalKinds[status]
+    withdrawalKinds[status],
+    // Only the payout has an approved template. Approval and rejection are less costly to miss:
+    // the money has not moved yet in either case.
+    status === "paid"
+      ? { name: "withdrawal_paid", language: "ar", parameters: [String(points)] }
+      : undefined
   );
 
   return { ok: true, message: "تم تحديث طلب السحب.", data: { withdrawal: data, points, phone } };
@@ -518,6 +551,7 @@ async function payReferralCommission(
       "",
       "📌 لمتابعة رصيدك اكتب: *رصيدي*"
     ].join("\n"),
-    "referral_commission"
+    "referral_commission",
+    { name: "referral_commission", language: "ar", parameters: [String(commission)] }
   );
 }

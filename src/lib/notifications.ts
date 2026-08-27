@@ -9,6 +9,7 @@ export type NotificationKind =
   | "listing_rejected"
   | "listing_submitted"
   | "topup_request"
+  | "topup_approved"
   | "contact_released"
   | "referral_commission"
   | "referral_signup"
@@ -26,6 +27,7 @@ export const notificationLabels: Record<NotificationKind, string> = {
   listing_rejected: "رفض إعلان",
   listing_submitted: "إرسال إعلان للمراجعة",
   topup_request: "طلب شحن رصيد",
+  topup_approved: "اعتماد شحن رصيد",
   contact_released: "إرسال رقم المؤجر",
   referral_commission: "عمولة إحالة",
   referral_signup: "تسجيل عبر رابط دعوة",

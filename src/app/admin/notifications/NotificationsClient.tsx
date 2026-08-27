@@ -22,6 +22,7 @@ const kindLabels: Record<string, string> = {
   listing_rejected: "رفض إعلان",
   listing_submitted: "إرسال إعلان للمراجعة",
   topup_request: "طلب شحن رصيد",
+  topup_approved: "اعتماد شحن رصيد",
   contact_released: "إرسال رقم المؤجر",
   referral_commission: "عمولة إحالة",
   referral_signup: "تسجيل عبر رابط دعوة",
