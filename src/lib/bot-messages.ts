@@ -68,7 +68,7 @@ export const messageDefinitions: MessageDefinition[] = [
   {
     key: "topup_instructions",
     label: "تعليمات شحن الرصيد",
-    note: "تُرسل حين ينفد رصيد المستخدم. الرصيد الحالي يُضاف تلقائيًا فوق هذا النص.",
+    note: "تُرسل حين ينفد رصيد المستخدم. سطر الرصيد يختفي وحده في المواضع التي لا يكون الرصيد معروفًا فيها.",
     variables: [
       { name: "paymentNumber", sample: "22245678901", note: "رقم استقبال الدفع" },
       {
@@ -76,16 +76,21 @@ export const messageDefinitions: MessageDefinition[] = [
         sample: "🔐 عرض رقم المؤجر يحتاج *2000 نقطة*.",
         note: "سبب الشحن، ويتغير بحسب ما كان المستخدم يحاول فعله"
       },
+      { name: "balance", sample: "0", note: "رصيد المستخدم الحالي، وقد لا يكون معروفًا" },
       { name: "revealPoints", sample: "1", note: "تكلفة عرض رقم المؤجر بالنقاط" }
     ],
     fallback: [
+      // Ordered as the reader needs it: what they were trying to do, what they have, then how to
+      // fix it. Leading with the balance asks someone to care about a number before saying why.
+      //
+      // The reason is a variable, not a fixed sentence: the same instructions are sent whether the
+      // user was publishing a listing or asking for an owner's number.
+      "{purpose}",
+      "💼 رصيدك الحالي: *{balance} نقطة*",
+      "",
       "╭──────────────",
       "💳 *شحن نقاط الديارة*",
       "╰──────────────",
-      "",
-      // The reason for topping up is a variable, not a fixed sentence: the same instructions are
-      // sent whether the user was publishing a listing or asking for an owner's number.
-      "{purpose}",
       "",
       "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
       "*{paymentNumber}*",

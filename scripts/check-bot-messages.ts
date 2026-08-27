@@ -110,5 +110,29 @@ check(
   false
 );
 
+// Reading order: what they wanted, what they have, then how to fix it.
+const topupLines = topup.fallback.split("\n");
+const purposeAt = topupLines.findIndex((line) => line.includes("{purpose}"));
+const balanceAt = topupLines.findIndex((line) => line.includes("{balance}"));
+const payAt = topupLines.findIndex((line) => line.includes("{paymentNumber}"));
+
+check("the reason comes first", purposeAt === 0, true);
+check("the balance follows the reason", balanceAt > purposeAt, true);
+check("the payment number comes after both", payAt > balanceAt, true);
+
+// An unknown balance must take its label with it, not leave "رصيدك الحالي:" hanging.
+check(
+  "an unknown balance drops its line",
+  renderMessage(topup.fallback, { purpose: "سبب", paymentNumber: "44974444" }).includes("رصيدك الحالي"),
+  false
+);
+
+check(
+  "a zero balance still shows",
+  renderMessage(topup.fallback, { purpose: "سبب", balance: 0, paymentNumber: "44974444" })
+    .includes("رصيدك الحالي: *0 نقطة*"),
+  true
+);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
