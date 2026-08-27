@@ -132,6 +132,21 @@ rejects a template with an empty parameter.
 To add another: create it in WhatsApp Manager, then pass a `templateFallback` to `sendNotification`
 with its name, its language code exactly as created, and one non-empty value per `{{n}}`.
 
+## Broadcast
+
+`/admin/broadcast` sends one message to everyone, or to renters, owners or marketers. A marketer is
+someone who has actually referred a person — every wallet gets a referral code on first use, so
+counting codes would make that audience mean everybody.
+
+Before sending, the page states how many of the audience can be reached right now. Only they are
+attempted. WhatsApp refuses free-form text to anyone who has not written in the last 24 hours, and
+trying anyway would spend one of the 250 daily business-initiated conversations per person, fail,
+and push the number's quality rating down. Reaching the rest needs a Marketing template and their
+consent to receive one.
+
+Blocked users are excluded. Sending happens in batches so a long run stays inside the function
+timeout and reports progress, and every message lands in the notification log.
+
 ## Admin WhatsApp Commands
 
 Sent from a number listed in the admin notification numbers setting:

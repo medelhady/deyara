@@ -31,6 +31,7 @@ const kindLabels: Record<string, string> = {
   withdrawal_rejected: "رفض سحب",
   withdrawal_paid: "تأكيد تحويل",
   property_rented: "إشعار تأجير الدار",
+  admin_broadcast: "رسالة جماعية",
   bot_reply: "رد البوت",
   test: "رسالة اختبار"
 };

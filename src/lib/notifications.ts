@@ -18,6 +18,7 @@ export type NotificationKind =
   | "withdrawal_rejected"
   | "withdrawal_paid"
   | "property_rented"
+  | "admin_broadcast"
   | "bot_reply"
   | "test";
 
@@ -36,6 +37,7 @@ export const notificationLabels: Record<NotificationKind, string> = {
   withdrawal_rejected: "رفض سحب",
   withdrawal_paid: "تأكيد تحويل",
   property_rented: "إشعار تأجير الدار",
+  admin_broadcast: "رسالة جماعية",
   bot_reply: "رد البوت",
   test: "رسالة اختبار"
 };
@@ -116,12 +118,16 @@ export type TemplateFallback = {
   parameters: string[];
 };
 
+export type SendResult =
+  | { ok: true; viaTemplate?: boolean }
+  | { ok: false; error: string; explained: string };
+
 export async function sendNotification(
   phone: string,
   body: string,
   kind: NotificationKind,
   templateFallback?: TemplateFallback
-) {
+): Promise<SendResult> {
   try {
     await getWhatsAppProvider().sendText(phone, body);
     await record(phone, kind, body, "sent");
