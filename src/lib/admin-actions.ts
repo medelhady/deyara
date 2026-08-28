@@ -482,6 +482,93 @@ export async function setWithdrawalStatus(
   return { ok: true, message: "تم تحديث طلب السحب.", data: { withdrawal: data, points, phone } };
 }
 
+/**
+ * Sets a wallet to exact balances, rather than adding to them.
+ *
+ * The counterpart to creditWalletManually, which can only add: a mistyped credit had no way back,
+ * and neither did a balance that drifted. Absolute values are what an admin actually knows here --
+ * "make it 500" -- while the ledger still records the difference, so the history stays a record of
+ * changes rather than of instructions.
+ */
+export async function setWalletBalance(
+  phoneInput: string,
+  usagePoints: number,
+  commissionPoints: number,
+  note: string,
+  adminPhone: string | null
+): Promise<AdminActionResult> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { ok: false, message: "قاعدة البيانات غير مربوطة.", reason: "unavailable" };
+  }
+
+  if (![usagePoints, commissionPoints].every((value) => Number.isInteger(value) && value >= 0)) {
+    return { ok: false, message: "الرصيد يجب أن يكون رقمًا صحيحًا لا يقل عن صفر." };
+  }
+
+  const digits = phoneInput.replace(/\D/g, "");
+
+  const { data: existing } = await supabase.from("users").select("phone").like("phone", `%${digits}`).limit(1);
+  const phone = (existing ?? [])[0]?.phone ?? normalizeWhatsAppPhone(digits);
+
+  const wallet = await ensureWallet(phone);
+
+  if (!wallet) {
+    return { ok: false, message: "تعذر قراءة محفظة هذا الرقم.", reason: "not_found" };
+  }
+
+  const beforeUsage = Number(wallet.usage_points ?? 0);
+  const beforeCommission = Number(wallet.commission_points ?? 0);
+
+  if (beforeUsage === usagePoints && beforeCommission === commissionPoints) {
+    return { ok: true, message: "لم يتغير شيء، الرصيد كما هو." };
+  }
+
+  const { error: updateError } = await supabase
+    .from("user_wallets")
+    .update({ usage_points: usagePoints, commission_points: commissionPoints })
+    .eq("phone", phone);
+
+  if (updateError) {
+    return { ok: false, message: updateError.message };
+  }
+
+  const byLine = adminPhone ? `بواسطة ${adminPhone}` : "بواسطة الإدارة";
+
+  const { error: ledgerError } = await supabase.from("credit_transactions").insert({
+    phone,
+    kind: "admin_adjustment",
+    usage_points_delta: usagePoints - beforeUsage,
+    commission_points_delta: commissionPoints - beforeCommission,
+    admin_note: note.trim() ? `${note.trim()} — تعديل رصيد ${byLine}` : `تعديل رصيد ${byLine}`
+  });
+
+  if (ledgerError) {
+    console.error("Failed to record the balance correction", ledgerError);
+  }
+
+  await sendNotification(
+    phone,
+    [
+      "🧾 *تم تعديل رصيدك*",
+      "",
+      `نقاط الاستخدام: *${usagePoints} نقطة*`,
+      `نقاط التسويق: *${commissionPoints} نقطة*`,
+      ...(note.trim() ? ["", note.trim()] : [])
+    ].join("\n"),
+    "balance_credited"
+  );
+
+  return {
+    ok: true,
+    message: ledgerError
+      ? `تم التعديل، لكن تعذّر تسجيله في سجل الحركات.`
+      : `تم ضبط الرصيد على ${usagePoints} نقطة استخدام و${commissionPoints} نقطة تسويق.`,
+    data: { phone, usagePoints, commissionPoints, ledgerRecorded: !ledgerError }
+  };
+}
+
 async function payReferralCommission(
   phone: string,
   referrerPhone: string | null,

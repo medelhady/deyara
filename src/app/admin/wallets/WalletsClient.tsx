@@ -193,6 +193,147 @@ export function WalletsClient() {
     }
   }
 
+  async function addBalance(wallet: Wallet) {
+    const raw = window.prompt(`كم نقطة تضيف للرقم ${wallet.phone.replace('whatsapp:', '')}؟`);
+
+    if (raw === null) {
+      return;
+    }
+
+    const points = Number(raw);
+
+    if (!Number.isInteger(points) || points <= 0) {
+      setNotice({ kind: 'error', text: 'عدد النقاط يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
+      return;
+    }
+
+    const note = window.prompt('سبب الإضافة (اختياري):') ?? '';
+
+    setBusyId(wallet.phone);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/admin/users/credit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: wallet.phone, points, note })
+      });
+      const data = await response.json();
+
+      setNotice(
+        response.ok
+          ? { kind: 'ok', text: String(data.message ?? 'تمت الإضافة.') }
+          : { kind: 'error', text: data.error ?? 'تعذر إضافة الرصيد.' }
+      );
+
+      if (response.ok) {
+        await loadAll();
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /**
+   * Sets the balance outright, rather than adding to it. Prefilled with what is there now, since a
+   * correction is usually a small change to a number the admin is looking at.
+   */
+  async function editBalance(wallet: Wallet) {
+    const usageRaw = window.prompt('نقاط الاستخدام:', String(wallet.usage_points ?? 0));
+
+    if (usageRaw === null) {
+      return;
+    }
+
+    const commissionRaw = window.prompt('نقاط التسويق:', String(wallet.commission_points ?? 0));
+
+    if (commissionRaw === null) {
+      return;
+    }
+
+    const usagePoints = Number(usageRaw);
+    const commissionPoints = Number(commissionRaw);
+
+    if (![usagePoints, commissionPoints].every((value) => Number.isInteger(value) && value >= 0)) {
+      setNotice({ kind: 'error', text: 'الرصيد يجب أن يكون رقمًا صحيحًا لا يقل عن صفر.' });
+      return;
+    }
+
+    const note = window.prompt('سبب التعديل (اختياري):') ?? '';
+
+    setBusyId(wallet.phone);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/admin/wallets/balance', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: wallet.phone, usagePoints, commissionPoints, note })
+      });
+      const data = await response.json();
+
+      setNotice(
+        response.ok
+          ? { kind: 'ok', text: String(data.message ?? 'تم التعديل.') }
+          : { kind: 'error', text: data.error ?? 'تعذر تعديل الرصيد.' }
+      );
+
+      if (response.ok) {
+        await loadAll();
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeUser(wallet: Wallet) {
+    const number = wallet.phone.replace('whatsapp:', '');
+
+    if (
+      !window.confirm(
+        `حذف المستخدم ${number} نهائيًا؟\n\n` +
+          'يُحذف معه رصيده وسجل حركاته ومحادثاته، ولا يمكن استرجاعها.\n' +
+          'إن كان مرتبطًا بإعلانات أو طلبات تواصل فسيُرفض الحذف مع بيان السبب.'
+      )
+    ) {
+      return;
+    }
+
+    setBusyId(wallet.phone);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/admin/users/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phones: [wallet.phone] })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNotice({ kind: 'error', text: data.error ?? 'تعذر الحذف.' });
+        return;
+      }
+
+      const outcome = (data.results ?? [])[0];
+
+      // The full delete flow with its second-step override lives on the users page; here the reason
+      // is reported and the admin is pointed at it rather than duplicating that flow in a table row.
+      setNotice(
+        outcome?.deleted
+          ? { kind: 'ok', text: `تم حذف ${number} نهائيًا.` }
+          : {
+              kind: 'error',
+              text: `${outcome?.reason ?? 'تعذر الحذف.'} — للحذف رغم ذلك، استخدم صفحة المستخدمين.`
+            }
+      );
+
+      await loadAll();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   useEffect(() => {
     void loadAll();
   }, []);
@@ -420,12 +561,13 @@ export function WalletsClient() {
                 <th>عدد الإحالات</th>
                 <th>كود الإحالة</th>
                 <th>دُعي بواسطة</th>
+                <th>الإجراء</th>
               </tr>
             </thead>
             <tbody>
               {visibleWallets.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>لا توجد محافظ ضمن هذا البحث.</td>
+                  <td colSpan={7}>لا توجد محافظ ضمن هذا البحث.</td>
                 </tr>
               ) : (
                 visibleWallets.map((wallet) => (
@@ -436,6 +578,32 @@ export function WalletsClient() {
                     <td>{wallet.referrals_count}</td>
                     <td>{wallet.referral_code ?? '—'}</td>
                     <td>{wallet.referred_by_phone ?? '—'}</td>
+                    <td className="row-actions">
+                      <button
+                        className="button secondary"
+                        type="button"
+                        disabled={busyId === wallet.phone}
+                        onClick={() => void addBalance(wallet)}
+                      >
+                        {busyId === wallet.phone ? '...' : 'إضافة'}
+                      </button>
+                      <button
+                        className="button secondary"
+                        type="button"
+                        disabled={busyId === wallet.phone}
+                        onClick={() => void editBalance(wallet)}
+                      >
+                        {busyId === wallet.phone ? '...' : 'تعديل'}
+                      </button>
+                      <button
+                        className="button secondary danger-action"
+                        type="button"
+                        disabled={busyId === wallet.phone}
+                        onClick={() => void removeUser(wallet)}
+                      >
+                        {busyId === wallet.phone ? '...' : 'حذف'}
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
