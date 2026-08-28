@@ -134,5 +134,23 @@ check(
   true
 );
 
+// The welcome is the first thing a new user reads, so it has to tell them what to type. It also
+// must not mention the referrer's commission: someone earning a cut of what you spend is a strange
+// thing to read on arrival, and it is not the new user's business.
+const welcome = messageDefinitions.find((definition) => definition.key === "referral_welcome")!;
+
+check("the welcome says what to type", /اكتب/.test(welcome.fallback), true);
+check("the welcome covers owners too", /عندي منزل/.test(welcome.fallback), true);
+check("the welcome does not mention commission", /عمولة|%/.test(welcome.fallback), false);
+
+// Area examples come from listings that exist, so they cannot be hard-coded into the text.
+check("area examples are a variable", welcome.fallback.includes("{areas}"), true);
+
+check(
+  "no welcome gift drops its line, not just its number",
+  renderMessage(welcome.fallback, { areas: "عرفات" }).includes("أضفنا لك"),
+  false
+);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

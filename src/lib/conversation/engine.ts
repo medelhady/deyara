@@ -583,6 +583,41 @@ export async function getActiveAreas() {
   return Array.from(new Set([...knownAreas, ...dictionary.areas]));
 }
 
+/**
+ * Areas that have listings right now, busiest first.
+ *
+ * Used for the examples in the welcome message. A hard-coded list goes stale silently and sends a
+ * brand new user's first search into an empty result, which is the worst possible first impression
+ * and the one nobody reports. Falls back to the known areas when nothing is published yet.
+ */
+export async function getAreasWithListings(limit = 4) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return knownAreas.slice(0, limit);
+  }
+
+  const { data, error } = await supabase.from("properties").select("area").eq("status", "active");
+
+  if (error) {
+    return knownAreas.slice(0, limit);
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const row of data ?? []) {
+    const area = String(row.area ?? "").trim();
+
+    if (area) {
+      counts.set(area, (counts.get(area) ?? 0) + 1);
+    }
+  }
+
+  const ranked = [...counts.entries()].sort((first, second) => second[1] - first[1]).map(([area]) => area);
+
+  return ranked.length > 0 ? ranked.slice(0, limit) : knownAreas.slice(0, limit);
+}
+
 export type AreaNotice = {
   text: string;
   /** Empty means it covers every district that no other notice claims. */
@@ -1096,12 +1131,13 @@ async function applyReferralCode(phone: string, body: string) {
     "referral_signup"
   );
 
-  return [
-    "✅ تم تسجيل كود الدعوة بنجاح.",
-    ...(referralWelcomePoints > 0 ? ["", `🎁 أضفنا لك *${referralWelcomePoints} نقطة* هدية ترحيب.`] : []),
-    "",
-    `عند أول شحن نقاط تتم الموافقة عليه، سيحصل صاحب الدعوة على *${referralCommissionPercent}%* نقاط تسويق.`
-  ].join("\n");
+  // The referrer's commission used to be spelled out here. It is not the new user's business, and
+  // reading that someone earns a cut of what you spend is a strange first impression. What they
+  // need instead is what to type next.
+  return getMessage("referral_welcome", {
+    points: referralWelcomePoints > 0 ? referralWelcomePoints : undefined,
+    areas: (await getAreasWithListings()).join("، ")
+  });
 }
 
 async function getWalletReply(phone: string) {
