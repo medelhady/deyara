@@ -130,7 +130,7 @@ check(
 check(
   "a zero balance still shows",
   renderMessage(topup.fallback, { purpose: "سبب", balance: 0, paymentNumber: "44974444" })
-    .includes("رصيدك الحالي: *0 نقطة*"),
+    .includes("رصيدك الحالي: *0 أوقية*"),
   true
 );
 

@@ -85,7 +85,7 @@ export async function setPropertyStatus(
 
     /**
      * The approved listing_approved template reads "تم نشر إعلانك رقم {{1}} بنجاح. خُصمت {{2}}
-     * نقطة، ورصيدك المتبقي {{3}} نقطة." -- it states a deduction, so it only fits a publication
+     * أوقية، ورصيدك المتبقي {{3}} أوقية." -- it states a deduction, so it only fits a publication
      * that charged one. Re-publishing a hidden listing charges nothing, and Meta refuses a template
      * with an empty parameter anyway, so that case goes without a fallback and simply relies on the
      * 24-hour window as before.
@@ -108,8 +108,8 @@ export async function setPropertyStatus(
         data,
         charged
           ? [
-              `تم خصم *${spend!.spentPoints} نقطة* من رصيدك.`,
-              `رصيدك المتبقي: *${spend!.remainingPoints} نقطة*`
+              `تم خصم *${spend!.spentPoints} أوقية* من رصيدك.`,
+              `رصيدك المتبقي: *${spend!.remainingPoints} أوقية*`
             ]
           : []
       ),
@@ -213,7 +213,7 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
    */
   await sendNotification(
     phone,
-    ["✅ *تم اعتماد شحنك*", "", `أضفنا *${points} نقطة* إلى رصيدك.`, `رصيدك الآن: *${newBalance} نقطة*`].join(
+    ["✅ *تم اعتماد شحنك*", "", `أضفنا *${points} أوقية* إلى رصيدك.`, `رصيدك الآن: *${newBalance} أوقية*`].join(
       "\n"
     ),
     "topup_approved",
@@ -278,7 +278,7 @@ export async function creditWalletManually(
   }
 
   if (!Number.isInteger(points) || points <= 0) {
-    return { ok: false, message: "عدد النقاط يجب أن يكون رقمًا صحيحًا أكبر من صفر." };
+    return { ok: false, message: "المبلغ بالأوقية يجب أن يكون رقمًا صحيحًا أكبر من صفر." };
   }
 
   // Reuse the row this number already has, whatever shape it was stored in, so crediting an existing
@@ -331,8 +331,8 @@ export async function creditWalletManually(
     [
       "💳 *تم إضافة رصيد لحسابك*",
       "",
-      `أضافت الإدارة *${points} نقطة* إلى رصيدك.`,
-      `رصيدك الآن: *${newBalance} نقطة*`,
+      `أضافت الإدارة *${points} أوقية* إلى رصيدك.`,
+      `رصيدك الآن: *${newBalance} أوقية*`,
       ...(note.trim() ? ["", note.trim()] : [])
     ].join("\n"),
     "balance_credited",
@@ -349,8 +349,8 @@ export async function creditWalletManually(
     // A missing ledger row is said out loud: the balance moved either way, and an admin who thinks
     // the change was recorded when it was not has no way to reconcile it later.
     message: ledgerError
-      ? `تمت إضافة ${points} نقطة والرصيد الآن ${newBalance}، لكن تعذّر تسجيلها في سجل الحركات.`
-      : `تمت إضافة ${points} نقطة. الرصيد الآن ${newBalance}.`,
+      ? `تمت إضافة ${points} أوقية والرصيد الآن ${newBalance}، لكن تعذّر تسجيلها في سجل الحركات.`
+      : `تمت إضافة ${points} أوقية. الرصيد الآن ${newBalance}.`,
     data: { phone, points, newBalance, releasedContact: Boolean(contactReply), ledgerRecorded: !ledgerError }
   };
 }
@@ -405,7 +405,7 @@ export async function setWithdrawalStatus(
     if (currentCommission < points) {
       return {
         ok: false,
-        message: `رصيد العمولة (${currentCommission}) لا يغطي ${points} نقطة.`,
+        message: `رصيد العمولة (${currentCommission}) لا يغطي ${points} أوقية.`,
         reason: "insufficient_points"
       };
     }
@@ -450,14 +450,14 @@ export async function setWithdrawalStatus(
     approved: [
       "✅ *تمت الموافقة على طلب السحب*",
       "",
-      `المبلغ: *${points} نقطة عمولة*`,
+      `المبلغ: *${points} أوقية عمولة*`,
       "سنحوّل لك قريبًا ونبلغك عند التحويل."
     ],
-    rejected: ["❌ *لم نعتمد طلب السحب*", "", `المبلغ المطلوب: *${points} نقطة*`],
+    rejected: ["❌ *لم نعتمد طلب السحب*", "", `المبلغ المطلوب: *${points} أوقية*`],
     paid: [
       "💸 *تم تحويل مستحقاتك*",
       "",
-      `حوّلنا لك مقابل *${points} نقطة عمولة*.`,
+      `حوّلنا لك مقابل *${points} أوقية عمولة*.`,
       "خُصمت من رصيد العمولة. اكتب *رصيدي* لمتابعة حسابك."
     ]
   };
@@ -553,8 +553,8 @@ export async function setWalletBalance(
     [
       "🧾 *تم تعديل رصيدك*",
       "",
-      `نقاط الاستخدام: *${usagePoints} نقطة*`,
-      `نقاط التسويق: *${commissionPoints} نقطة*`,
+      `رصيد الاستخدام: *${usagePoints} أوقية*`,
+      `رصيد التسويق: *${commissionPoints} أوقية*`,
       ...(note.trim() ? ["", note.trim()] : [])
     ].join("\n"),
     "balance_credited"
@@ -564,7 +564,7 @@ export async function setWalletBalance(
     ok: true,
     message: ledgerError
       ? `تم التعديل، لكن تعذّر تسجيله في سجل الحركات.`
-      : `تم ضبط الرصيد على ${usagePoints} نقطة استخدام و${commissionPoints} نقطة تسويق.`,
+      : `تم ضبط الرصيد على ${usagePoints} أوقية استخدام و${commissionPoints} أوقية تسويق.`,
     data: { phone, usagePoints, commissionPoints, ledgerRecorded: !ledgerError }
   };
 }
@@ -626,7 +626,7 @@ async function payReferralCommission(
     kind: "referral_commission",
     commission_points_delta: commission,
     related_phone: phone,
-    admin_note: `${referralCommissionPercent}% عمولة من شحن ${points} نقطة`
+    admin_note: `${referralCommissionPercent}% عمولة من شحن ${points} أوقية`
   });
 
   await sendNotification(
@@ -634,7 +634,7 @@ async function payReferralCommission(
     [
       "📣 *عمولة تسويق جديدة*",
       "",
-      `أضفنا لك *${commission} نقطة تسويق* من شحن أحد من دعوتهم.`,
+      `أضفنا لك *${commission} أوقية تسويق* من شحن أحد من دعوتهم.`,
       "",
       "📌 لمتابعة رصيدك اكتب: *رصيدي*"
     ].join("\n"),

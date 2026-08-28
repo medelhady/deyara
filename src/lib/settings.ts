@@ -32,7 +32,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "contactRevealPoints",
     column: "contact_reveal_points",
     label: "تكلفة طلب رقم المؤجر",
-    hint: "النقاط التي تُخصم من المستأجر مقابل كل رقم يستلمه.",
+    hint: "الأوقية التي تُخصم من المستأجر مقابل كل رقم يستلمه.",
     kind: "number",
     fallback: () => process.env.CONTACT_REQUEST_FEE ?? "1"
   },
@@ -40,7 +40,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "listingFeePoints",
     column: "listing_fee_points",
     label: "تكلفة نشر إعلان عقار",
-    hint: "النقاط التي تُخصم من المالك لحظة موافقة الإدارة على النشر.",
+    hint: "الأوقية التي تُخصم من المالك لحظة موافقة الإدارة على النشر.",
     kind: "number",
     fallback: () => "2000"
   },
@@ -48,7 +48,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "referralCommissionPercent",
     column: "referral_commission_percent",
     label: "نسبة عمولة المسوّقين (%)",
-    hint: "نسبة نقاط التسويق التي يحصل عليها صاحب الإحالة من كل شحنة.",
+    hint: "نسبة رصيد التسويق التي يحصل عليها صاحب الإحالة من كل شحنة.",
     kind: "number",
     fallback: () => "30"
   },
@@ -79,7 +79,7 @@ export const settingDefinitions: SettingDefinition[] = [
   {
     key: "referralWelcomePoints",
     column: "referral_welcome_points",
-    label: "نقاط ترحيب للمسجّل عبر دعوة",
+    label: "أوقية ترحيب للمسجّل عبر دعوة",
     hint: "تُمنح فورًا لمن يسجل عبر رابط مسوّق. اجعلها 0 لإيقافها.",
     kind: "number",
     fallback: () => "1"
@@ -88,7 +88,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "referralSignupBonusPoints",
     column: "referral_signup_bonus_points",
     label: "مكافأة المسوّق عند التسجيل",
-    hint: "نقاط استخدام تُمنح للمسوّق فور تسجيل شخص برابطه، قبل أي شحن. اجعلها 0 لإيقافها.",
+    hint: "رصيد استخدام تُمنح للمسوّق فور تسجيل شخص برابطه، قبل أي شحن. اجعلها 0 لإيقافها.",
     kind: "number",
     fallback: () => "300"
   },

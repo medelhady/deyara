@@ -122,7 +122,7 @@ export function WalletsClient() {
     const points = Number(pointsInput[id] ?? '');
 
     if (status === 'approved' && (!Number.isFinite(points) || points <= 0)) {
-      setNotice({ kind: 'error', text: 'اكتب عدد النقاط قبل الموافقة.' });
+      setNotice({ kind: 'error', text: 'اكتب المبلغ بالأوقية قبل الموافقة.' });
       return;
     }
 
@@ -148,7 +148,7 @@ export function WalletsClient() {
         kind: 'ok',
         text:
           status === 'approved'
-            ? `تم اعتماد ${points} نقطة للرقم ${number}، وأُبلغ صاحبها.`
+            ? `تم اعتماد ${points} أوقية للرقم ${number}، وأُبلغ صاحبها.`
             : `تم رفض طلب الشحن للرقم ${number}، وأُبلغ صاحبه.`
       });
 
@@ -183,7 +183,7 @@ export function WalletsClient() {
         kind: 'ok',
         text:
           status === 'paid'
-            ? `تم تأكيد تحويل ${withdrawal?.points ?? ''} نقطة للرقم ${number}، وخُصمت من رصيد عمولته.`
+            ? `تم تأكيد تحويل ${withdrawal?.points ?? ''} أوقية للرقم ${number}، وخُصمت من رصيد عمولته.`
             : `تم رفض طلب السحب للرقم ${number}، ورصيده لم يتغير.`
       });
 
@@ -194,7 +194,7 @@ export function WalletsClient() {
   }
 
   async function addBalance(wallet: Wallet) {
-    const raw = window.prompt(`كم نقطة تضيف للرقم ${wallet.phone.replace('whatsapp:', '')}؟`);
+    const raw = window.prompt(`كم أوقية تضيف للرقم ${wallet.phone.replace('whatsapp:', '')}؟`);
 
     if (raw === null) {
       return;
@@ -203,7 +203,7 @@ export function WalletsClient() {
     const points = Number(raw);
 
     if (!Number.isInteger(points) || points <= 0) {
-      setNotice({ kind: 'error', text: 'عدد النقاط يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
+      setNotice({ kind: 'error', text: 'المبلغ بالأوقية يجب أن يكون رقمًا صحيحًا أكبر من صفر.' });
       return;
     }
 
@@ -239,13 +239,13 @@ export function WalletsClient() {
    * correction is usually a small change to a number the admin is looking at.
    */
   async function editBalance(wallet: Wallet) {
-    const usageRaw = window.prompt('نقاط الاستخدام:', String(wallet.usage_points ?? 0));
+    const usageRaw = window.prompt('رصيد الاستخدام:', String(wallet.usage_points ?? 0));
 
     if (usageRaw === null) {
       return;
     }
 
-    const commissionRaw = window.prompt('نقاط التسويق:', String(wallet.commission_points ?? 0));
+    const commissionRaw = window.prompt('رصيد التسويق:', String(wallet.commission_points ?? 0));
 
     if (commissionRaw === null) {
       return;
@@ -367,7 +367,7 @@ export function WalletsClient() {
         <div className="panel-header">
           <div>
             <p className="eyebrow">يحتاج قرارك</p>
-            <h2>طلبات شحن النقاط</h2>
+            <h2>طلبات شحن الأوقية</h2>
           </div>
           <span className="status">{pendingTopups.length}</span>
         </div>
@@ -408,7 +408,7 @@ export function WalletsClient() {
               <div className="inline-actions">
                 <input
                   type="number"
-                  placeholder="عدد النقاط"
+                  placeholder="المبلغ بالأوقية"
                   value={pointsInput[topup.id] ?? String(topup.points ?? '')}
                   onChange={(event) =>
                     setPointsInput((current) => ({ ...current, [topup.id]: event.target.value }))
@@ -447,7 +447,7 @@ export function WalletsClient() {
               <thead>
                 <tr>
                   <th>رقم العميل</th>
-                  <th>النقاط</th>
+                  <th>الأوقية</th>
                   <th>الحالة</th>
                   <th>تاريخ الطلب</th>
                   <th>تاريخ القرار</th>
@@ -492,7 +492,7 @@ export function WalletsClient() {
               <thead>
                 <tr>
                   <th>الرقم</th>
-                  <th>النقاط</th>
+                  <th>الأوقية</th>
                   <th>الحالة</th>
                   <th>التاريخ</th>
                   <th>الإجراء</th>
@@ -556,8 +556,8 @@ export function WalletsClient() {
             <thead>
               <tr>
                 <th>الرقم</th>
-                <th>نقاط الاستخدام</th>
-                <th>نقاط التسويق</th>
+                <th>رصيد الاستخدام</th>
+                <th>رصيد التسويق</th>
                 <th>عدد الإحالات</th>
                 <th>كود الإحالة</th>
                 <th>دُعي بواسطة</th>

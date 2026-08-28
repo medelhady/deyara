@@ -134,7 +134,7 @@ async function listPendingWithdrawals() {
       const number = String(row.phone).replace("whatsapp:", "");
       const state = row.status === "approved" ? "موافق عليه" : "جديد";
 
-      return `• ${number} — *${row.points} نقطة* (${state})`;
+      return `• ${number} — *${row.points} أوقية* (${state})`;
     }),
     "",
     "لتأكيد التحويل اكتب: *دفع <الرقم>*"
@@ -191,7 +191,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
           "💸 *تم تأكيد التحويل*",
           "",
           `📱 ${number}`,
-          `💰 خُصمت *${withdrawal.points} نقطة* من رصيد عمولته.`,
+          `💰 خُصمت *${withdrawal.points} أوقية* من رصيد عمولته.`,
           "",
           "أُبلغ صاحب الرقم بالتحويل."
         ].join("\n")
@@ -199,7 +199,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
           "🚫 *تم رفض طلب السحب*",
           "",
           `📱 ${number}`,
-          `💰 *${withdrawal.points} نقطة* بقيت في رصيده.`,
+          `💰 *${withdrawal.points} أوقية* بقيت في رصيده.`,
           ...(reason ? ["", `📝 السبب: ${reason}`] : []),
           "",
           "أُبلغ صاحب الرقم بالرفض."
@@ -229,7 +229,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
         "",
         `🔖 ${label}`,
         `🏠 ${property.type ?? "دار"} في ${property.area ?? "منطقة غير محددة"}`,
-        ...(spent ? ["", `تم خصم *${spent} نقطة* من المؤجر وأُبلغ بالنشر.`] : ["", "أُبلغ المؤجر بالنشر."])
+        ...(spent ? ["", `تم خصم *${spent} أوقية* من المؤجر وأُبلغ بالنشر.`] : ["", "أُبلغ المؤجر بالنشر."])
       ].join("\n");
     }
 
@@ -246,7 +246,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
       `🔖 ${label}`,
       ...(reason ? [`📝 السبب: ${reason}`] : []),
       "",
-      "أُبلغ المؤجر بالرفض. ولم تُخصم منه أي نقطة."
+      "أُبلغ المؤجر بالرفض. ولم تُخصم منه أي أوقية."
     ].join("\n");
   }
 
@@ -291,7 +291,7 @@ export async function handleAdminCommand(phone: string, body: string): Promise<s
     "✅ *تم اعتماد الشحن*",
     "",
     `📱 ${String(pending.phone).replace("whatsapp:", "")}`,
-    `💼 أضيفت *${points} نقطة*، ورصيده الآن *${result.data?.newBalance} نقطة*.`,
+    `💼 أضيفت *${points} أوقية*، ورصيده الآن *${result.data?.newBalance} أوقية*.`,
     "",
     "أُبلغ صاحب الرقم، وأُرسل له تلقائيًا أي طلب كان بانتظار الرصيد."
   ].join("\n");

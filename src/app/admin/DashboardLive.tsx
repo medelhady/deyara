@@ -76,7 +76,7 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
       note:
         stats.urgentTopups > 0
           ? `⏰ ${formatNumber(stats.urgentTopups)} منها قارب على 24 ساعة — بعدها لن تصل رسالة التأكيد لصاحبها`
-          : "بعد موافقتك تُضاف النقاط فورًا ويكمل طلب صاحبها",
+          : "بعد موافقتك تُضاف الأوقية فورًا ويكمل طلب صاحبها",
       value: stats.pendingTopups,
       urgent: stats.urgentTopups > 0,
       href: "/admin/wallets",
@@ -105,7 +105,7 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
     {
       label: "رقم سُلّم",
       value: stats.contactReveals,
-      note: "كل رقم يعني نقطة مخصومة من مستأجر"
+      note: "كل رقم يعني أوقية مخصومة من مستأجر"
     },
     {
       label: "رسالة اليوم",

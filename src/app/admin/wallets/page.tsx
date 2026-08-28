@@ -9,7 +9,7 @@ export default function WalletsPage() {
       <header className="admin-header">
         <div>
           <p className="eyebrow">Wallets</p>
-          <h1>النقاط والإحالات</h1>
+          <h1>الأرصدة والإحالات</h1>
         </div>
         <Link className="button secondary" href="/admin">
           رجوع

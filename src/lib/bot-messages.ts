@@ -79,12 +79,12 @@ export const messageDefinitions: MessageDefinition[] = [
     label: "رسالة دعوة المسوّق",
     note: "الرسالة التي ينسخها المسوّق ويرسلها لعملائه. تصل وحدها ليسهل تحويلها.",
     variables: [
-      { name: "welcomePoints", sample: "1", note: "نقاط الترحيب لمن يسجل عبر الرابط" },
+      { name: "welcomePoints", sample: "1", note: "أوقية الترحيب لمن يسجل عبر الرابط" },
       { name: "link", sample: "https://wa.me/22248404036?text=ابدأ%20A1B2", note: "رابط الدعوة" }
     ],
     fallback: [
       "السلام عليكم، هذا بوت الديارة للبحث عن الإيجارات وعرضها على واتساب.",
-      "سجّل من الرابط واكسب *{welcomePoints} نقطة* مجانية لتجربة الخدمة 🎁",
+      "سجّل من الرابط واكسب *{welcomePoints} أوقية* مجانية لتجربة الخدمة 🎁",
       "{link}"
     ].join("\n")
   },
@@ -96,11 +96,11 @@ export const messageDefinitions: MessageDefinition[] = [
       { name: "paymentNumber", sample: "22245678901", note: "رقم استقبال الدفع" },
       {
         name: "purpose",
-        sample: "🔐 عرض رقم المؤجر يحتاج *2000 نقطة*.",
+        sample: "🔐 عرض رقم المؤجر يحتاج *2000 أوقية*.",
         note: "سبب الشحن، ويتغير بحسب ما كان المستخدم يحاول فعله"
       },
       { name: "balance", sample: "0", note: "رصيد المستخدم الحالي، وقد لا يكون معروفًا" },
-      { name: "revealPoints", sample: "1", note: "تكلفة عرض رقم المؤجر بالنقاط" }
+      { name: "revealPoints", sample: "1", note: "تكلفة عرض رقم المؤجر بالأوقية" }
     ],
     fallback: [
       // Ordered as the reader needs it: what they were trying to do, what they have, then how to
@@ -109,10 +109,10 @@ export const messageDefinitions: MessageDefinition[] = [
       // The reason is a variable, not a fixed sentence: the same instructions are sent whether the
       // user was publishing a listing or asking for an owner's number.
       "{purpose}",
-      "💼 رصيدك الحالي: *{balance} نقطة*",
+      "💼 رصيدك الحالي: *{balance} أوقية*",
       "",
       "╭──────────────",
-      "💳 *شحن نقاط الديارة*",
+      "💳 *شحن رصيد الديارة*",
       "╰──────────────",
       "",
       "1️⃣ حوّل مبلغ الشحن إلى هذا الرقم:",
@@ -120,11 +120,11 @@ export const messageDefinitions: MessageDefinition[] = [
       "",
       "2️⃣ بعد التحويل أرسل صورة الإيصال هنا.",
       "",
-      "3️⃣ بعد موافقة الإدارة تضاف النقاط لرصيدك مباشرة.",
+      "3️⃣ بعد موافقة الإدارة تضاف الأوقية لرصيدك مباشرة.",
       "",
       "📌 لمتابعة رصيدك اكتب: *رصيدي*",
       "",
-      "🎁 أو اكسب نقاطًا مجانية بدعوة غيرك — اكتب: *إحالاتي*"
+      "🎁 أو اكسب رصيدًا مجانيًا بدعوة غيرك — اكتب: *إحالاتي*"
     ].join("\n")
   },
   {

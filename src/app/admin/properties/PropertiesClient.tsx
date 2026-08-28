@@ -90,7 +90,7 @@ export function PropertiesClient() {
 
   const statusDone: Record<string, string> = {
     active: "تم نشر الإعلان وأُبلغ المؤجر",
-    rejected: "تم رفض الإعلان وأُبلغ المؤجر، ولم تُخصم منه نقطة",
+    rejected: "تم رفض الإعلان وأُبلغ المؤجر، ولم تُخصم منه أوقية",
     hidden: "تم إخفاء الإعلان من نتائج البحث",
     rented: "تم وسم الإعلان كمؤجَّر وأُبلغ من كانوا ينتظرونه"
   };

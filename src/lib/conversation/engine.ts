@@ -275,7 +275,7 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
 
   if (!paymentNumber) {
     return [
-      "⚠️ *شحن النقاط غير مفعل حاليًا*",
+      "⚠️ *شحن الأوقية غير مفعل حاليًا*",
       "",
       "الإدارة تحتاج تضيف رقم الدفع في إعدادات النظام حتى نقدر نستقبل طلبات الشحن."
     ].join("\n");
@@ -287,7 +287,7 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
   // price of an owner's number. An unknown balance empties its variable and drops its line.
   return getMessage("topup_instructions", {
     paymentNumber: paymentNumber.replace("whatsapp:", ""),
-    purpose: options?.purposeText ?? `🔐 عرض رقم المؤجر يحتاج *${settings.contactRevealPoints} نقطة*.`,
+    purpose: options?.purposeText ?? `🔐 عرض رقم المؤجر يحتاج *${settings.contactRevealPoints} أوقية*.`,
     balance: currentBalance,
     revealPoints: settings.contactRevealPoints
   });
@@ -766,7 +766,7 @@ export async function spendPointsForListing(ownerPhone: string) {
   if (!supabase) {
     return {
       ok: true,
-      reply: `تم خصم ${propertyListingFeePoints} نقطة (محاكاة فقط، بدون ربط قاعدة البيانات).`
+      reply: `تم خصم ${propertyListingFeePoints} أوقية (محاكاة فقط، بدون ربط قاعدة البيانات).`
     };
   }
 
@@ -784,7 +784,7 @@ export async function spendPointsForListing(ownerPhone: string) {
   if (usagePoints < propertyListingFeePoints) {
     return {
       ok: false,
-      reply: await getPointsTopupInstructions({ currentBalance: usagePoints, purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.` })
+      reply: await getPointsTopupInstructions({ currentBalance: usagePoints, purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} أوقية*.` })
     };
   }
 
@@ -799,7 +799,7 @@ export async function spendPointsForListing(ownerPhone: string) {
     console.error("Failed to spend listing points", walletError);
     return {
       ok: false,
-      reply: "تعذر خصم النقاط الآن. حاول مرة أخرى بعد قليل."
+      reply: "تعذر خصم الأوقية الآن. حاول مرة أخرى بعد قليل."
     };
   }
 
@@ -807,7 +807,7 @@ export async function spendPointsForListing(ownerPhone: string) {
     phone: ownerPhone,
     kind: "property_listing",
     usage_points_delta: -propertyListingFeePoints,
-    admin_note: "خصم نقاط نشر إعلان عقار"
+    admin_note: "خصم أوقية نشر إعلان عقار"
   });
 
   if (ledgerError) {
@@ -820,8 +820,8 @@ export async function spendPointsForListing(ownerPhone: string) {
     spentPoints: propertyListingFeePoints,
     remainingPoints: usagePoints - propertyListingFeePoints,
     reply: [
-      `تم خصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
-      `رصيدك المتبقي: *${usagePoints - propertyListingFeePoints} نقطة*`
+      `تم خصم *${propertyListingFeePoints} أوقية* من رصيدك.`,
+      `رصيدك المتبقي: *${usagePoints - propertyListingFeePoints} أوقية*`
     ].join("\n")
   };
 }
@@ -906,7 +906,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     console.error("Failed to spend contact point", walletError);
     return {
       ok: false,
-      reply: "تعذر خصم النقطة الآن. حاول مرة أخرى بعد قليل."
+      reply: "تعذر خصم الأوقية الآن. حاول مرة أخرى بعد قليل."
     };
   }
 
@@ -915,7 +915,7 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     kind: "contact_reveal",
     usage_points_delta: -contactRevealPoints,
     related_contact_request_id: request.id,
-    admin_note: "خصم نقاط لطلب رقم المؤجر"
+    admin_note: "خصم أوقية لطلب رقم المؤجر"
   });
 
   return {
@@ -923,10 +923,10 @@ async function spendPointForContact(renterPhone: string, selected: PropertyCandi
     id: request.id,
     reply: await formatOwnerContact(selected, [
       ...(request.existing ? ["🔁 طلب مكرر لنفس الدار."] : []),
-      `تم خصم *${contactRevealPoints} نقطة* من رصيدك.`,
-      `رصيدك المتبقي: *${usagePoints - contactRevealPoints} نقطة*`,
+      `تم خصم *${contactRevealPoints} أوقية* من رصيدك.`,
+      `رصيدك المتبقي: *${usagePoints - contactRevealPoints} أوقية*`,
       "",
-      "🎁 ادعُ أصدقاءك واكسب نقاطًا مجانية — اكتب: *إحالاتي*"
+      "🎁 ادعُ أصدقاءك واكسب رصيدًا مجانيًا — اكتب: *إحالاتي*"
     ])
   };
 }
@@ -1076,7 +1076,7 @@ async function applyReferralCode(phone: string, body: string) {
         kind: "admin_adjustment",
         usage_points_delta: referralWelcomePoints,
         related_phone: referrer.phone,
-        admin_note: "نقاط ترحيب للتسجيل عبر دعوة"
+        admin_note: "أوقية ترحيب للتسجيل عبر دعوة"
       });
 
       if (ledgerError) {
@@ -1119,9 +1119,9 @@ async function applyReferralCode(phone: string, body: string) {
     [
       "🎯 *شخص جديد سجّل عن طريق رابطك!*",
       "",
-      ...(referralWelcomePoints > 0 ? [`استلم *${referralWelcomePoints} نقطة* لتجربة الخدمة.`] : []),
+      ...(referralWelcomePoints > 0 ? [`استلم *${referralWelcomePoints} أوقية* لتجربة الخدمة.`] : []),
       ...(referralSignupBonusPoints > 0
-        ? [`🎁 وكسبت أنت *${referralSignupBonusPoints} نقطة* استخدام فورًا.`]
+        ? [`🎁 وكسبت أنت *${referralSignupBonusPoints} أوقية* استخدام فورًا.`]
         : []),
       "",
       `💰 وعند أول شحنة يقوم بها تحصل على *${referralCommissionPercent}%* عمولة قابلة للسحب.`,
@@ -1158,16 +1158,16 @@ async function getWalletReply(phone: string) {
     "💼 *محفظتك في الديارة*",
     "╰──────────────",
     "",
-    "🏠 نقاط الاستخدام",
-    `*${usagePoints} نقطة*`,
+    "🏠 رصيد الاستخدام",
+    `*${usagePoints} أوقية*`,
     "",
-    "📣 نقاط التسويق",
-    `*${commissionPoints} نقطة*`,
+    "📣 رصيد التسويق",
+    `*${commissionPoints} أوقية*`,
     "",
     "━━━━━━━━━━━━━━",
     "💸 السحب",
-    `الحد الأدنى: *${minimumWithdrawalPoints} نقطة*`,
-    remaining > 0 ? `المتبقي: *${remaining} نقطة*` : "يمكنك طلب السحب الآن. اكتب: *طلب سحب*",
+    `الحد الأدنى: *${minimumWithdrawalPoints} أوقية*`,
+    remaining > 0 ? `المتبقي: *${remaining} أوقية*` : "يمكنك طلب السحب الآن. اكتب: *طلب سحب*",
     "",
     "━━━━━━━━━━━━━━",
     "🔗 رابط دعوتك",
@@ -1374,7 +1374,7 @@ async function cancelContactRequestsForProperty(propertyId: string) {
       [
         "🔒 *الدار التي كنت مهتمًا بها لم تعد متاحة*",
         "",
-        "تم تأجيرها للتو، وألغينا طلبك دون خصم أي نقطة.",
+        "تم تأجيرها للتو، وألغينا طلبك دون خصم أي أوقية.",
         "",
         "اكتب المنطقة التي تبحث فيها ونعرض لك خيارات أخرى."
       ].join("\n"),
@@ -1486,9 +1486,9 @@ async function getReferralSummary(phone: string) {
     `📝 سجلوا ولم يشحنوا: *${waiting}*`,
     "",
     "━━━━━━━━━━━━━━",
-    `💵 عمولتك: *${commissionPoints} نقطة*`,
+    `💵 عمولتك: *${commissionPoints} أوقية*`,
     missing > 0
-      ? `🎯 باقي *${missing} نقطة* حتى تقدر تسحب.`
+      ? `🎯 باقي *${missing} أوقية* حتى تقدر تسحب.`
       : "✅ تقدر تسحب الآن — اكتب: *طلب سحب*",
     "",
     "━━━━━━━━━━━━━━",
@@ -1523,7 +1523,7 @@ async function getReferralDetails(phone: string) {
     "",
     ...ordered.map((row, index) =>
       row.topups > 0
-        ? `${index + 1}. ${maskPhone(row.phone)} — ✅ دفع (${row.topups === 1 ? "شحنة واحدة" : `${row.topups} شحنات`}، عمولتك ${row.commission} نقطة)`
+        ? `${index + 1}. ${maskPhone(row.phone)} — ✅ دفع (${row.topups === 1 ? "شحنة واحدة" : `${row.topups} شحنات`}، عمولتك ${row.commission} أوقية)`
         : `${index + 1}. ${maskPhone(row.phone)} — ⏳ سجل، ما شحن بعد`
     ),
     "",
@@ -1544,10 +1544,10 @@ async function createWithdrawalRequest(phone: string) {
 
   if (commissionPoints < minimumWithdrawalPoints) {
     return [
-      `رصيد التسويق عندك: *${commissionPoints} نقطة*`,
-      `الحد الأدنى للسحب: *${minimumWithdrawalPoints} نقطة*`,
+      `رصيد التسويق عندك: *${commissionPoints} أوقية*`,
+      `الحد الأدنى للسحب: *${minimumWithdrawalPoints} أوقية*`,
       "",
-      `باقي لك *${minimumWithdrawalPoints - commissionPoints} نقطة* حتى تقدر تطلب السحب.`
+      `باقي لك *${minimumWithdrawalPoints - commissionPoints} أوقية* حتى تقدر تطلب السحب.`
     ].join("\n");
   }
 
@@ -1577,15 +1577,15 @@ async function createWithdrawalRequest(phone: string) {
     "💸 *طلب سحب عمولة جديد*",
     "",
     `📱 من: ${phone.replace("whatsapp:", "")}`,
-    `📣 النقاط المطلوبة: ${commissionPoints} نقطة`,
+    `📣 الأوقية المطلوبة: ${commissionPoints} أوقية`,
     "",
-    "افتح لوحة الإدارة ← النقاط والإحالات لتسويته."
+    "افتح لوحة الإدارة ← الأرصدة والإحالات لتسويته."
   ]);
 
   return [
     "تم استلام طلب السحب.",
     "",
-    `النقاط المطلوبة للسحب: *${commissionPoints} نقطة*`,
+    `الأوقية المطلوبة للسحب: *${commissionPoints} أوقية*`,
     "سيتم مراجعة الطلب من الإدارة."
   ].join("\n");
 }
@@ -1612,23 +1612,23 @@ async function createCreditTopupRequest(phone: string, receiptUrl: string) {
   const senderDigits = phone.replace("whatsapp:", "").replace(/\D/g, "");
 
   await notifyAdmins([
-    "💳 *طلب شحن نقاط جديد*",
+    "💳 *طلب شحن أوقية جديد*",
     "",
     `📱 من: ${senderDigits}`,
-    `💼 رصيده الحالي: ${Number(wallet.usage_points ?? 0)} نقطة`,
+    `💼 رصيده الحالي: ${Number(wallet.usage_points ?? 0)} أوقية`,
     "",
     "━━━━━━━━━━━━━━",
-    "للاعتماد من هنا مباشرة، اكتب الأمر مع عدد النقاط:",
+    "للاعتماد من هنا مباشرة، اكتب الأمر مع المبلغ بالأوقية:",
     `*شحن ${senderDigits} 2000*`,
     "",
-    "🧾 لمشاهدة صورة الإيصال افتح لوحة الإدارة ← النقاط والإحالات."
+    "🧾 لمشاهدة صورة الإيصال افتح لوحة الإدارة ← الأرصدة والإحالات."
   ]);
 
   return [
-    "✅ تم استلام إيصال شحن النقاط.",
+    "✅ تم استلام إيصال شحن الأوقية.",
     "",
-    "سيتم مراجعته من الإدارة، وبعد الموافقة تضاف النقاط إلى رصيدك.",
-    "يمكنك كتابة *رصيدي* في أي وقت لمتابعة نقاطك."
+    "سيتم مراجعته من الإدارة، وبعد الموافقة تضاف الأوقية إلى رصيدك.",
+    "يمكنك كتابة *رصيدي* في أي وقت لمتابعة أوقيةك."
   ].join("\n");
 }
 
@@ -1849,7 +1849,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (/^(رصيدي|نقاطي|كم رصيدي|كم نقاطي|الرصيد)$/.test(normalizedBody)) {
+  if (/^(رصيدي|أوقيةي|كم رصيدي|كم أوقيةي|الرصيد)$/.test(normalizedBody)) {
     return {
       debugIntent: "intro",
       reply: await getWalletReply(message.from)
@@ -1893,7 +1893,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (/^(طلب سحب|اسحب|سحب نقاط|سحب العمولة)$/.test(normalizedBody)) {
+  if (/^(طلب سحب|اسحب|سحب أوقية|سحب العمولة)$/.test(normalizedBody)) {
     return {
       debugIntent: "intro",
       reply: await createWithdrawalRequest(message.from)
@@ -2197,7 +2197,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
             "",
             await getPointsTopupInstructions({
               currentBalance: balance,
-              purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} نقطة*.`
+              purposeText: `🔐 نشر إعلان العقار يحتاج *${propertyListingFeePoints} أوقية*.`
             })
           ].join("\n")
         };
@@ -2208,13 +2208,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         reply: [
           "✅ تم إرسال الإعلان إلى الإدارة للمراجعة.",
           "",
-          `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} نقطة* من رصيدك.`,
-          ...(balance === null ? [] : [`💼 رصيدك الآن: *${balance} نقطة*`]),
+          `🔐 عند الموافقة على النشر تُخصم *${propertyListingFeePoints} أوقية* من رصيدك.`,
+          ...(balance === null ? [] : [`💼 رصيدك الآن: *${balance} أوقية*`]),
           "",
           "سنخبرك عند الموافقة أو إذا احتاج الإعلان لتعديل.",
           "",
           // Right after a successful action is when someone is most willing to recommend the bot.
-          "🎁 ادعُ مؤجرين آخرين واكسب نقاطًا مجانية — اكتب: *إحالاتي*"
+          "🎁 ادعُ مؤجرين آخرين واكسب رصيدًا مجانيًا — اكتب: *إحالاتي*"
         ].join("\n")
       };
     }

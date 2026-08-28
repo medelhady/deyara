@@ -267,7 +267,7 @@ export function UsersClient() {
           />
         </label>
         <label>
-          عدد النقاط
+          المبلغ بالأوقية
           <input
             type="number"
             min={1}
