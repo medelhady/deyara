@@ -13,6 +13,7 @@ export type AppSettings = {
   referralSignupBonusPoints: number;
   referralMinTopupPoints: number;
   contactRevealNote: string;
+  officeCommission: string;
   adminNotifyNumbers: string;
 };
 
@@ -76,6 +77,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "officeCommission",
+    column: "office_commission",
+    label: "عمولة المكتب",
+    hint: "تظهر للمستأجر مع كل عقار قبل أن يدفع. اكتب العمولة ثم أشّر المقاطعات التي تسري عليها، والقيمة بلا مقاطعات تسري على البقية. اتركها فارغة لإخفائها.",
+    kind: "notices",
+    fallback: () => ""
   },
   {
     key: "contactRevealNote",

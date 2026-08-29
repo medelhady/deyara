@@ -296,7 +296,9 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
 function formatSearchResults(
   results: PropertyCandidate[],
   extracted: ReturnType<typeof extractMessage>,
-  options?: { startIndex?: number; total?: number; hasMore?: boolean }
+  // The raw setting, not a resolved figure: a page of results can span districts, and the
+  // commission differs by district, so it has to be resolved per property.
+  options?: { startIndex?: number; total?: number; hasMore?: boolean; commissionSetting?: string }
 ) {
   const typeText = extracted.propertyType ? propertyTypeSingular(extracted.propertyType) : "دار";
   const searchText = extracted.searchText && extracted.searchText !== "__more__" ? extracted.searchText.trim() : "";
@@ -309,14 +311,18 @@ function formatSearchResults(
     `🏠 عندنا ظرك ${total} دار للإيجار${placeText}`,
     "",
     results
-    .map(
-      (property, index) =>
-        [
-          `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
-          `💰 السعر: *${formatPrice(property.price)}*`,
-          `📍 قريبة من: ${formatLandmark(property.landmark)}`
-        ].join("\n")
-    )
+    .map((property, index) => {
+      const commission = options?.commissionSetting
+        ? resolveAreaNote(options.commissionSetting, property.area)
+        : "";
+
+      return [
+        `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
+        `💰 السعر: *${formatPrice(property.price)}*`,
+        ...(commission ? [`🏢 عمولة المكتب: *${commission}*`] : []),
+        `📍 قريبة من: ${formatLandmark(property.landmark)}`
+      ].join("\n");
+    })
     .join("\n\n----------------\n\n"),
     "",
     "اكتب رقم الدار التي أعجبتك، مثلا: *1*",
@@ -672,6 +678,7 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
   // An editable notice, so terms like the broker fee due on agreement can change without a deploy.
   const settings = await getSettings();
   const contactRevealNote = resolveAreaNote(settings.contactRevealNote, selected.area);
+  const commission = resolveAreaNote(settings.officeCommission, selected.area);
 
   return [
     "╭──────────────",
@@ -680,6 +687,9 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
     "",
     "💰 السعر",
     `*${formatPrice(selected.price)}*`,
+    // Next to the price rather than in the fine print: it is part of what the house costs, and a
+    // renter who meets it only after paying for the number has been surprised by a bill.
+    ...(commission ? ["", "🏢 عمولة المكتب", `*${commission}*`] : []),
     "",
     "🛏 الغرف",
     `${selected.rooms ?? "غير محدد"}`,
@@ -1953,6 +1963,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        commissionSetting: (await getSettings()).officeCommission,
         total: refinedResults.length,
         hasMore: refinedResults.length > visibleResults.length
       })
@@ -1995,6 +2006,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(nextResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        commissionSetting: (await getSettings()).officeCommission,
         startIndex: shownCount,
         total: allResults.length,
         hasMore: shownCount + nextResults.length < allResults.length
@@ -2062,6 +2074,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
+        commissionSetting: (await getSettings()).officeCommission,
         total: refinedResults.length,
         hasMore: refinedResults.length > visibleResults.length
       })
@@ -2103,6 +2116,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       return {
         debugIntent: "search_property",
         reply: formatSearchResults(visibleResults, mergedSearch, {
+        commissionSetting: (await getSettings()).officeCommission,
           total: results.length,
           hasMore: results.length > visibleResults.length
         })
@@ -2146,6 +2160,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, refinedSearch, {
+        commissionSetting: (await getSettings()).officeCommission,
         total: results.length,
         hasMore: results.length > visibleResults.length
       })
@@ -2489,6 +2504,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         return {
           debugIntent: "search_property",
           reply: formatSearchResults(visibleResults, extracted, {
+        commissionSetting: (await getSettings()).officeCommission,
             total: results.length,
             hasMore: results.length > visibleResults.length
           })
