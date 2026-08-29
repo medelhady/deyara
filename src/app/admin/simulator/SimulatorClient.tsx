@@ -35,7 +35,7 @@ export function SimulatorClient() {
     setMessages((current) => [...current, { direction: "inbound", body: inboundBody }]);
 
     try {
-      const response = await fetch("/api/mock/whatsapp", {
+      const response = await fetch("/api/admin/simulator", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

@@ -26,7 +26,10 @@ Before connecting a real WhatsApp number, use:
 http://localhost:3000/admin/simulator
 ```
 
-This page sends mock WhatsApp messages to `POST /api/mock/whatsapp`. It tests the owner flow, renter
+This page sends mock WhatsApp messages to `POST /api/admin/simulator`, which sits behind the admin
+session like the page itself: it runs the real conversation engine as whatever number it is given,
+so an open version of it would let anyone spend a user's balance, read owner numbers out of the
+reply, or run the admin commands by claiming an admin number. It tests the owner flow, renter
 search, property selection, and contact request fee flow without external services.
 
 ## WhatsApp Provider
