@@ -211,10 +211,8 @@ export async function sendMetaTemplate(
 }
 
 export const metaWhatsAppProvider: WhatsAppProvider = {
-  parseIncoming() {
-    throw new Error("Meta webhooks are JSON-based. Use parseMetaWebhook instead.");
-  },
-
+  // Incoming messages are parsed by parseMetaWebhook, which reads JSON. The form-data parseIncoming
+  // that used to sit here existed only to satisfy an interface shared with Twilio, and threw.
   async sendText(to, body) {
     const token = process.env.META_WHATSAPP_TOKEN;
     const phoneNumberId = process.env.META_PHONE_NUMBER_ID;

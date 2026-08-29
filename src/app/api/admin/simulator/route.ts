@@ -29,7 +29,7 @@ const mockMessageSchema = z.object({
 export async function POST(request: Request) {
   const payload = mockMessageSchema.parse(await request.json());
   const message: IncomingWhatsAppMessage = {
-    provider: "twilio",
+    provider: "simulator",
     messageId: `mock-${Date.now()}`,
     from: payload.from,
     to: "whatsapp:+14155238886",

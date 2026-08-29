@@ -10,10 +10,9 @@
     "typecheck": "tsc --noEmit",
     "eval:gpt": "npx tsx scripts/gpt-intent-eval.ts",
     "check:signature": "npx tsx scripts/check-meta-signature.ts",
-    "check:provider": "npx tsx scripts/check-whatsapp-provider.ts",
     "check:auth": "npx tsx scripts/check-admin-auth.ts",
     "check:referral": "npx tsx scripts/check-referral-commission.ts",
-    "check": "npm run check:signature && npm run check:provider && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages && npm run check:template && npm run check:broadcast && npm run check:parse && npm run check:usercommands",
+    "check": "npm run check:signature && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages && npm run check:template && npm run check:broadcast && npm run check:parse && npm run check:usercommands",
     "check:commands": "npx tsx scripts/check-admin-commands.ts",
     "check:notifications": "npx tsx scripts/check-notifications.ts",
     "check:messages": "npx tsx scripts/check-bot-messages.ts",
@@ -28,7 +27,6 @@
     "next": "^14.2.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "twilio": "^5.3.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

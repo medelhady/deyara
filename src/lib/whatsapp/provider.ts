@@ -1,29 +1,16 @@
 import { metaWhatsAppProvider } from "./meta";
-import { twilioWhatsAppProvider } from "./twilio";
 
 /**
- * Picks the provider that sends and receives WhatsApp messages.
+ * The provider that sends WhatsApp messages.
  *
- * WHATSAPP_PROVIDER wins when it names a provider. Otherwise the choice follows whichever provider
- * actually has credentials, because the old unconditional "twilio" default was silently destructive:
- * a deployment running on Meta without the variable set would route every proactive message to
- * Twilio, whose sendText logs a mock line and returns when credentials are missing. Nothing threw,
- * nothing was sent, and the flows that trigger those messages carried on as if they had been.
+ * Meta is the only one now. Twilio was removed once it had gone unused: it was a second unverified
+ * webhook and a second set of credentials to keep working, and the provider switch had already
+ * caused an outage of its own by silently routing every proactive message to the side that had no
+ * credentials.
+ *
+ * Kept as a function rather than exporting the provider directly, so adding a second one later is
+ * a change here rather than at every call site.
  */
 export function getWhatsAppProvider() {
-  const configured = process.env.WHATSAPP_PROVIDER?.trim().toLowerCase();
-
-  if (configured === "meta") {
-    return metaWhatsAppProvider;
-  }
-
-  if (configured === "twilio") {
-    return twilioWhatsAppProvider;
-  }
-
-  if (process.env.META_WHATSAPP_TOKEN && process.env.META_PHONE_NUMBER_ID) {
-    return metaWhatsAppProvider;
-  }
-
-  return twilioWhatsAppProvider;
+  return metaWhatsAppProvider;
 }

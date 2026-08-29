@@ -6,7 +6,7 @@
 
 - Next.js + TypeScript
 - Supabase Postgres + Storage
-- WhatsApp: Meta Cloud API (production) or Twilio, selected by `WHATSAPP_PROVIDER`
+- WhatsApp: Meta Cloud API
 - Vercel deployment
 
 ## Local Setup
@@ -32,12 +32,7 @@ so an open version of it would let anyone spend a user's balance, read owner num
 reply, or run the admin commands by claiming an admin number. It tests the owner flow, renter
 search, property selection, and contact request fee flow without external services.
 
-## WhatsApp Provider
-
-`WHATSAPP_PROVIDER` picks the provider for both incoming and outgoing messages. Production runs on
-`meta`; the value defaults to `twilio` when the variable is missing, so set it explicitly.
-
-### Meta Cloud API (production)
+## WhatsApp
 
 Webhook URL:
 
@@ -50,16 +45,16 @@ Messages then arrive as `POST` requests signed with the app secret.
 
 Required variables:
 
-- `META_WHATSAPP_TOKEN` — sends messages and downloads incoming media
-- `META_PHONE_NUMBER_ID` — the sender number id
-- `META_VERIFY_TOKEN` — any string, matched during webhook setup
-- `META_APP_SECRET` — App settings > Basic, in the Meta dashboard
+- `META_WHATSAPP_TOKEN` - sends messages and downloads incoming media
+- `META_PHONE_NUMBER_ID` - the sender number id
+- `META_VERIFY_TOKEN` - any string, matched during webhook setup
+- `META_APP_SECRET` - App settings > Basic, in the Meta dashboard
 
 `META_APP_SECRET` is a security requirement, not an optional extra. The admin WhatsApp commands
-(`قبول`, `رفض`, `شحن`) authorise the sender purely by phone number, and that number comes from the
-webhook body. Without the secret the endpoint cannot tell a real Meta delivery from a forged one, so
-anyone who knows the URL could approve listings or credit points. The app logs a warning on every
-unverified request while the secret is unset.
+authorise the sender purely by phone number, and that number comes from the webhook body. Without
+the secret the endpoint cannot tell a real Meta delivery from a forged one, so anyone who knows the
+URL could approve listings or credit balances. The app logs a warning on every unverified request
+while the secret is unset.
 
 Verify the signature rules still hold:
 
@@ -67,45 +62,8 @@ Verify the signature rules still hold:
 npm run check:signature
 ```
 
-### Twilio
-
-Webhook URL:
-
-```txt
-https://YOUR_DOMAIN/api/webhooks/twilio/whatsapp
-```
-
-For local testing, expose port 3000 with ngrok and use the ngrok URL. See `docs/twilio-setup.md`.
-Note that the Twilio webhook does not validate request signatures yet.
-
-## Checks
-
-```bash
-npm run check
-```
-
-Runs every offline check: Meta webhook signatures, WhatsApp provider resolution, password hashing and
-session tokens, the referral commission rules, and how admin WhatsApp commands are read. No
-credentials or network needed. Individual suites are `check:signature`, `check:provider`,
-`check:auth`, `check:referral` and `check:commands`.
-
-## Bot Messages
-
-A short list of the bot's messages can be reworded at `/admin/messages` without a deploy: the
-greeting, the service intro, the empty search reply, the pitch a marketer forwards, the top-up
-instructions, and the listing rejection notice. Run `supabase/add-bot-messages.sql` first.
-
-Only text whose wording is a business decision is here. Anything shaped by the logic around it —
-search results, error paths, the owner contact card — stays in code, where a wrong edit cannot reach
-a user unnoticed.
-
-Three rules keep editing safe:
-
-- A message declares the variables it may use, written `{name}`. Saving an unknown one is refused.
-- An empty stored value falls back to the text shipped in the code, so a message is never blank.
-  Clearing the field is how you reset one.
-- A line whose variables all render empty is dropped whole, so an optional value like a rejection
-  reason leaves no dangling label behind.
+Twilio support was removed once it went unused: a second webhook with no signature check and a
+second set of credentials, both of which had to keep working for a path nothing took.
 
 ## Notification Log
 

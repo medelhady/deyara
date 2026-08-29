@@ -2,8 +2,8 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 
 export const propertyMediaBucket = "property-media";
 
-// WhatsApp media links are not public. Meta's expire within minutes and need a bearer token, and
-// Twilio's need basic auth, so a link stored as-is is unusable by the time an admin opens it.
+// WhatsApp media links are not public: Meta's expire within minutes and need a bearer token, so a
+// link stored as-is is unusable by the time an admin opens it.
 async function downloadWhatsAppMedia(url: string) {
   const headers: Record<string, string> = {};
 
@@ -15,15 +15,6 @@ async function downloadWhatsAppMedia(url: string) {
     }
 
     headers.Authorization = `Bearer ${token}`;
-  } else if (url.includes("twilio.com")) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-
-    if (!accountSid || !authToken) {
-      return null;
-    }
-
-    headers.Authorization = `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`;
   }
 
   const response = await fetch(url, { headers });
