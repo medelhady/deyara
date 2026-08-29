@@ -1624,12 +1624,7 @@ async function createCreditTopupRequest(phone: string, receiptUrl: string) {
     "🧾 لمشاهدة صورة الإيصال افتح لوحة الإدارة ← الأرصدة والإحالات."
   ]);
 
-  return [
-    "✅ تم استلام إيصال شحن الأوقية.",
-    "",
-    "سيتم مراجعته من الإدارة، وبعد الموافقة تضاف الأوقية إلى رصيدك.",
-    "يمكنك كتابة *رصيدي* في أي وقت لمتابعة أوقيةك."
-  ].join("\n");
+  return getMessage("topup_received");
 }
 
 async function getPropertyVideoUrl(propertyId: string) {
@@ -1849,7 +1844,9 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (/^(رصيدي|أوقيةي|كم رصيدي|كم أوقيةي|الرصيد)$/.test(normalizedBody)) {
+  // Both wordings are accepted. Renaming the balance to أوقية changed what users read, and someone
+  // who learned to type نقاطي before that has no way of knowing it stopped working.
+  if (/^(رصيدي|نقاطي|أوقيتي|كم رصيدي|كم نقاطي|كم أوقيتي|الرصيد)$/.test(normalizedBody)) {
     return {
       debugIntent: "intro",
       reply: await getWalletReply(message.from)
@@ -1893,7 +1890,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
   }
 
-  if (/^(طلب سحب|اسحب|سحب أوقية|سحب العمولة)$/.test(normalizedBody)) {
+  if (/^(طلب سحب|اسحب|سحب نقاط|سحب أوقية|سحب العمولة)$/.test(normalizedBody)) {
     return {
       debugIntent: "intro",
       reply: await createWithdrawalRequest(message.from)
