@@ -128,6 +128,21 @@ export const messageDefinitions: MessageDefinition[] = [
     ].join("\n")
   },
   {
+    key: "topup_approved",
+    label: "تأكيد اعتماد الشحن",
+    note: "تصل من حوّل مبلغًا فور اعتماد شحنه. تعديلها هنا لا يغيّر قالب واتساب الذي يُرسل حين تكون نافذة الرد مقفلة.",
+    variables: [
+      { name: "points", sample: "2000", note: "المبلغ المضاف" },
+      { name: "balance", sample: "2000", note: "الرصيد بعد الإضافة" }
+    ],
+    fallback: [
+      "✅ *تم اعتماد شحنك*",
+      "",
+      "أضفنا *{points} أوقية* إلى رصيدك.",
+      "رصيدك الآن: *{balance} أوقية*"
+    ].join("\n")
+  },
+  {
     key: "listing_rejected",
     label: "إشعار رفض الإعلان",
     note: "يصل المؤجر حين تُرفض إعلانه. سطر السبب يختفي وحده إن لم تكتب سببًا.",

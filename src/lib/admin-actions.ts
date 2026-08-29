@@ -213,10 +213,10 @@ export async function creditApprovedTopup(phone: string, points: number): Promis
    */
   await sendNotification(
     phone,
-    ["✅ *تم اعتماد شحنك*", "", `أضفنا *${points} أوقية* إلى رصيدك.`, `رصيدك الآن: *${newBalance} أوقية*`].join(
-      "\n"
-    ),
+    await getMessage("topup_approved", { points, balance: newBalance }),
     "topup_approved",
+    // The template is Meta's copy of this text and cannot be edited from here, so the two are worded
+    // separately on purpose: editing the message above changes what is sent inside the window only.
     { name: "topup_approved", language: "ar", parameters: [String(points), String(newBalance)] }
   );
 
