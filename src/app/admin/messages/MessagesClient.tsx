@@ -111,14 +111,21 @@ export function MessagesClient() {
         const unknown = unknownIn(draft, row.variables);
         const changed = draft.trim() !== (row.body || row.fallback).trim();
 
+        // A line of the message in the summary, so a row is recognisable without opening it. Lines
+        // that are nothing but a placeholder are skipped: "{purpose}" identifies nothing.
+        const firstLine =
+          preview(row.body || row.fallback, row.variables)
+            .split("\n")
+            .find((line) => line.trim()) ?? "";
+
         return (
-          <section className="panel" key={row.key}>
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">{row.isCustom ? "معدّلة" : "النص الأصلي"}</p>
-                <h2>{row.label}</h2>
-              </div>
-            </div>
+          <details className="panel dash-details message-row" key={row.key}>
+            <summary>
+              <span className="message-label">
+                {row.label} {row.isCustom ? <em>✏️ معدّلة</em> : null}
+              </span>
+              <span className="message-peek">{firstLine}</span>
+            </summary>
 
             <p>{row.note}</p>
 
@@ -173,7 +180,7 @@ export function MessagesClient() {
               </button>
               {savedKey === row.key ? <span>✅ حُفظت</span> : null}
             </div>
-          </section>
+          </details>
         );
       })}
     </>
