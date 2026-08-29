@@ -5,6 +5,7 @@ export type AppSettings = {
   listingFeePoints: number;
   referralCommissionPercent: number;
   minimumWithdrawalPoints: number;
+  listingRefreshHours: number;
   pointsPaymentNumber: string;
   botWhatsAppNumber: string;
   referralWindowMonths: number;
@@ -51,6 +52,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "نسبة رصيد التسويق التي يحصل عليها صاحب الإحالة من كل شحنة.",
     kind: "number",
     fallback: () => "30"
+  },
+  {
+    key: "listingRefreshHours",
+    column: "listing_refresh_hours",
+    label: "كل كم ساعة يُذكَّر المؤجر بمراجعة إعلاناته",
+    hint: "لا يُذكَّر إلا من له إعلان لم يُحدَّث خلال هذه المدة، ولا يتكرر التذكير قبل انقضائها. اجعلها 0 لإيقاف التذكير.",
+    kind: "number",
+    fallback: () => "48"
   },
   {
     key: "minimumWithdrawalPoints",

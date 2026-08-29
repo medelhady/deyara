@@ -18,6 +18,7 @@ export type NotificationKind =
   | "withdrawal_rejected"
   | "withdrawal_paid"
   | "property_rented"
+  | "listing_refresh"
   | "admin_broadcast"
   | "bot_reply"
   | "test";
@@ -37,6 +38,7 @@ export const notificationLabels: Record<NotificationKind, string> = {
   withdrawal_rejected: "رفض سحب",
   withdrawal_paid: "تأكيد تحويل",
   property_rented: "إشعار تأجير الدار",
+  listing_refresh: "تذكير بمراجعة الإعلانات",
   admin_broadcast: "رسالة جماعية",
   bot_reply: "رد البوت",
   test: "رسالة اختبار"
