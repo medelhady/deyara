@@ -28,4 +28,6 @@ export type OutgoingWhatsAppMessage = {
 
 export type WhatsAppProvider = {
   sendText(to: string, body: string): Promise<void>;
+  /** `link` must be fetchable by Meta without our credentials, so a signed URL rather than a path. */
+  sendVideo(to: string, link: string, caption?: string): Promise<void>;
 };

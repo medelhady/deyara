@@ -166,3 +166,37 @@ export async function sendNotification(
     return { ok: false as const, error: raw, explained: explainSendError(raw) };
   }
 }
+
+/**
+ * Sends a video and records the outcome, falling back to text when it cannot be sent.
+ *
+ * The fallback is the whole point. Meta fetches the link itself and refuses anything past its size
+ * limit, and a renter who asked to see the house and got nothing has no way of knowing whether to
+ * wait or to ask again -- so a failure becomes the caption plus the link, which at least plays in a
+ * browser. Callers get told which one happened.
+ */
+export async function sendVideoNotification(
+  phone: string,
+  link: string,
+  caption: string,
+  kind: NotificationKind
+): Promise<{ ok: boolean; viaLink: boolean }> {
+  try {
+    await getWhatsAppProvider().sendVideo(phone, link, caption);
+    await record(phone, kind, `[فيديو] ${caption}`, "sent");
+
+    return { ok: true, viaLink: false };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+
+    console.error(`Video send failed (${kind}) to ${phone}`, raw);
+
+    const fallback = await sendNotification(phone, `${caption}\n\n${link}`, kind);
+
+    if (!fallback.ok) {
+      await record(phone, kind, `[فيديو] ${caption}`, "failed", raw);
+    }
+
+    return { ok: fallback.ok, viaLink: fallback.ok };
+  }
+}

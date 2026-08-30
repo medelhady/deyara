@@ -45,6 +45,9 @@ export async function POST(request: Request) {
     incoming: message,
     reply: result.reply,
     followUps: result.followUps ?? [],
+    // Surfaced so the simulator shows whether a signed link came back at all, which is the part
+    // that used to fail silently and reach the renter as a bare storage path.
+    video: result.video ?? null,
     intent: result.debugIntent
   });
 }

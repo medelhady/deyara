@@ -210,43 +210,60 @@ export async function sendMetaTemplate(
   }
 }
 
+/**
+ * Posts one message to the Graph API.
+ *
+ * Shared by every kind of send so the credential check and the error text stay in one place: a
+ * missing token used to fail differently depending on which call site hit it first.
+ */
+async function postMessage(to: string, payload: Record<string, unknown>, describe: string) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !phoneNumberId) {
+    // Silence here reads as success to every caller, so only pretend to send outside production.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Meta WhatsApp credentials are missing: META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID.");
+    }
+
+    console.log("Meta WhatsApp credentials missing. Mock reply:", { to, ...payload });
+    return;
+  }
+
+  const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: toMetaRecipient(to),
+      ...payload
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Meta WhatsApp ${describe} failed: ${await response.text()}`);
+  }
+}
+
 export const metaWhatsAppProvider: WhatsAppProvider = {
   // Incoming messages are parsed by parseMetaWebhook, which reads JSON. The form-data parseIncoming
   // that used to sit here existed only to satisfy an interface shared with Twilio, and threw.
   async sendText(to, body) {
-    const token = process.env.META_WHATSAPP_TOKEN;
-    const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+    await postMessage(to, { type: "text", text: { preview_url: false, body } }, "send");
+  },
 
-    if (!token || !phoneNumberId) {
-      // Silence here reads as success to every caller, so only pretend to send outside production.
-      if (process.env.NODE_ENV === "production") {
-        throw new Error("Meta WhatsApp credentials are missing: META_WHATSAPP_TOKEN or META_PHONE_NUMBER_ID.");
-      }
-
-      console.log("Meta WhatsApp credentials missing. Mock reply:", { to, body });
-      return;
-    }
-
-    const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/messages`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: toMetaRecipient(to),
-        type: "text",
-        text: {
-          preview_url: false,
-          body
-        }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Meta WhatsApp send failed: ${await response.text()}`);
-    }
+  /**
+   * Sends a video by link rather than by uploading it first.
+   *
+   * Meta fetches the link itself, so it has to be reachable without our credentials -- a signed
+   * storage link works, the bucket path behind it does not. Meta also refuses files past its size
+   * limit, which is why callers are expected to have a fallback rather than assume this succeeded.
+   */
+  async sendVideo(to, link, caption) {
+    await postMessage(to, { type: "video", video: caption ? { link, caption } : { link } }, "video send");
   }
 };

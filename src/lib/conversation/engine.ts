@@ -12,6 +12,7 @@ import { handleAdminCommand } from "./admin-commands";
 import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
+import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
@@ -1669,7 +1670,15 @@ async function getPropertyVideoUrl(propertyId: string) {
     return undefined;
   }
 
-  return data?.storage_url as string | undefined;
+  const stored = data?.storage_url as string | undefined;
+
+  if (!stored) {
+    return undefined;
+  }
+
+  // The bucket is private, so what is stored is a path. Sending it raw is what put
+  // "22244974444/1788127687522.mp4" in front of a renter who asked to see the house.
+  return (await signPropertyMedia(stored)) ?? undefined;
 }
 
 export function buildContextHint(state: Awaited<ReturnType<typeof getConversationState>>) {
@@ -2426,11 +2435,17 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       selectedPropertyVideoViewed: true
     });
 
+    if (!videoUrl) {
+      return {
+        debugIntent: "select_property",
+        reply: "الفيديو غير متوفر لهذا الإعلان حاليًا. جرّب اختيار دار ثانية أو اكتب بحث جديد."
+      };
+    }
+
     return {
       debugIntent: "select_property",
-      reply: videoUrl
-        ? `هذا فيديو الدار:\n${videoUrl}\n\nإذا الدار مناسبة لك وتريد رقم المؤجر، اكتب: 1`
-        : "الفيديو غير متوفر لهذا الإعلان حاليًا. جرّب اختيار دار ثانية أو اكتب بحث جديد."
+      reply: "هذا فيديو الدار.\n\nإذا الدار مناسبة لك وتريد رقم المؤجر، اكتب: 1",
+      video: { url: videoUrl }
     };
   }
 

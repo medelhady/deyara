@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
-import { sendNotification } from "@/lib/notifications";
+import { sendNotification, sendVideoNotification } from "@/lib/notifications";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -97,7 +97,13 @@ export async function POST(request: Request) {
   for (const incoming of messages) {
     const result = await handleIncomingMessage(incoming);
     await saveConversation(incoming, result.reply, result.debugIntent);
-    await sendNotification(incoming.from, result.reply, "bot_reply");
+
+    // A house video is the reply, not an attachment to it, so the text rides along as its caption.
+    if (result.video) {
+      await sendVideoNotification(incoming.from, result.video.url, result.reply, "bot_reply");
+    } else {
+      await sendNotification(incoming.from, result.reply, "bot_reply");
+    }
 
     // Sent after the reply and in order, so text meant to be forwarded arrives as its own message.
     for (const followUp of result.followUps ?? []) {

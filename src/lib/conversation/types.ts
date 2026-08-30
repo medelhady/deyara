@@ -31,6 +31,13 @@ export type ConversationResult = {
    * is asked to pass along has to arrive alone or they are left selecting it by hand.
    */
   followUps?: string[];
+  /**
+   * Sent as a WhatsApp video message carrying `reply` as its caption, instead of `reply` as text.
+   *
+   * A link is not a substitute: the renter is on WhatsApp looking at a house, and the whole point of
+   * the step is that they watch it without leaving the chat.
+   */
+  video?: { url: string };
   debugIntent: Intent;
 };
 
