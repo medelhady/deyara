@@ -16,6 +16,13 @@ type Property = {
   media?: Array<{ type: string; url: string | null; contentType: string | null }>;
 };
 
+type DeleteOutcome = {
+  id: string;
+  code: string;
+  deleted: boolean;
+  reason?: string;
+};
+
 const statusLabels: Record<string, string> = {
   all: "الكل",
   pending_review: "قيد المراجعة",
@@ -71,6 +78,9 @@ export function PropertiesClient() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteReport, setDeleteReport] = useState<DeleteOutcome[]>([]);
 
   async function loadProperties() {
     const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
@@ -167,9 +177,67 @@ export function PropertiesClient() {
     }
   }
 
+  async function deleteSelected() {
+    if (deleting) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `حذف ${selected.length} إعلان نهائيًا؟\n\n` +
+        "يُحذف معها الفيديو والصور، ولا يمكن استرجاعها.\n" +
+        "أي إعلان طلب مستأجرٌ رقم مالكه سيُتخطى مع بيان السبب."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    setNotice(null);
+    setDeleteReport([]);
+
+    try {
+      const response = await fetch("/api/admin/properties/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selected })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setNotice({ kind: "error", text: data.error ?? "تعذر الحذف." });
+        return;
+      }
+
+      const results = (data.results ?? []) as DeleteOutcome[];
+      const removed = results.filter((result) => result.deleted).length;
+
+      // Only the ones that survived stay ticked, so a second attempt after reading the reasons acts
+      // on exactly what failed rather than on everything again.
+      setSelected(results.filter((result) => !result.deleted).map((result) => result.id));
+      setDeleteReport(results);
+      setNotice({
+        kind: removed === results.length ? "ok" : "error",
+        text: `حُذف ${removed} من ${results.length} إعلان.`
+      });
+      await loadProperties();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   useEffect(() => {
     void loadProperties();
   }, []);
+
+  /**
+   * Narrowing the filter must not leave rows ticked off-screen: the count in the bar would then
+   * promise something different from what the list shows, and the delete would act on the promise.
+   */
+  useEffect(() => {
+    setSelected([]);
+    setDeleteReport([]);
+  }, [statusFilter, search]);
 
   const counts = properties.reduce<Record<string, number>>(
     (current, property) => {
@@ -224,6 +292,27 @@ export function PropertiesClient() {
       .sort((first, second) => second.items.length - first.items.length);
   }, [visibleProperties]);
 
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  function toggleOne(id: string) {
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function setMany(ids: string[], on: boolean) {
+    setSelected((current) => {
+      if (on) {
+        return [...new Set([...current, ...ids])];
+      }
+
+      const dropped = new Set(ids);
+
+      return current.filter((id) => !dropped.has(id));
+    });
+  }
+
+  const allVisibleSelected =
+    visibleProperties.length > 0 && visibleProperties.every((property) => selectedSet.has(property.id));
+
   return (
     <section className="list-panel">
       <input
@@ -249,6 +338,41 @@ export function PropertiesClient() {
 
       {message ? <p>{message}</p> : null}
 
+      {/* Scoped to what the filter and the search are showing, never to all fifty rows: the label
+          says how many, so the number the admin agrees to is the number that goes. */}
+      {visibleProperties.length > 0 ? (
+        <label className="select-all-row">
+          <input
+            type="checkbox"
+            checked={allVisibleSelected}
+            onChange={(event) => setMany(visibleProperties.map((property) => property.id), event.target.checked)}
+          />
+          تحديد كل المعروض ({visibleProperties.length})
+        </label>
+      ) : null}
+
+      {selected.length > 0 ? (
+        <div className="bulk-bar">
+          <span>{selected.length} محدد</span>
+          <button className="button" type="button" disabled={deleting} onClick={() => void deleteSelected()}>
+            {deleting ? "جارٍ الحذف..." : "حذف المحدد نهائيًا"}
+          </button>
+          <button className="button secondary" type="button" disabled={deleting} onClick={() => setSelected([])}>
+            إلغاء التحديد
+          </button>
+        </div>
+      ) : null}
+
+      {deleteReport.length > 0 ? (
+        <div className="delete-report">
+          {deleteReport.map((result) => (
+            <p key={result.id}>
+              {result.deleted ? "🗑" : "⚠️"} {result.code} {result.deleted ? "— حُذف" : `— لم يُحذف: ${result.reason}`}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
       {/* Sticky: the card that was tapped can be far down a long list on a phone. */}
       {notice ? (
         <div className={`action-notice is-${notice.kind}`} role="status">
@@ -267,21 +391,40 @@ export function PropertiesClient() {
         // and no results, which reads as "nothing found".
         const isOpen = search.trim() ? true : openAreas[group.area] ?? false;
 
+        const groupIds = group.items.map((item) => item.id);
+        const pickedInGroup = groupIds.filter((id) => selectedSet.has(id)).length;
+
         return (
           <article className="area-group" key={group.area}>
-            <button
-              className="area-header"
-              type="button"
-              onClick={() => setOpenAreas((current) => ({ ...current, [group.area]: !isOpen }))}
-            >
-              <span>
-                {isOpen ? "▾" : "▸"} 📍 {group.area}
-              </span>
-              <span className="area-counts">
-                {group.items.length} عقار
-                {group.pending > 0 ? ` — ${group.pending} بانتظار المراجعة` : ""}
-              </span>
-            </button>
+            {/* The checkbox sits beside the fold button rather than inside it: nesting it would make
+                every tick also open or shut the district. */}
+            <div className="area-header-row">
+              <input
+                type="checkbox"
+                aria-label={`تحديد كل عقارات ${group.area}`}
+                checked={pickedInGroup === groupIds.length}
+                ref={(element) => {
+                  if (element) {
+                    element.indeterminate = pickedInGroup > 0 && pickedInGroup < groupIds.length;
+                  }
+                }}
+                onChange={(event) => setMany(groupIds, event.target.checked)}
+              />
+              <button
+                className="area-header"
+                type="button"
+                onClick={() => setOpenAreas((current) => ({ ...current, [group.area]: !isOpen }))}
+              >
+                <span>
+                  {isOpen ? "▾" : "▸"} 📍 {group.area}
+                </span>
+                <span className="area-counts">
+                  {pickedInGroup > 0 ? `${pickedInGroup} محدد — ` : ""}
+                  {group.items.length} عقار
+                  {group.pending > 0 ? ` — ${group.pending} بانتظار المراجعة` : ""}
+                </span>
+              </button>
+            </div>
 
             {isOpen
               ? group.items.map((property) => {
@@ -289,17 +432,29 @@ export function PropertiesClient() {
                   const reference = property.property_code ?? property.id.slice(0, 8);
 
                   return (
-                    <div className="property-entry" key={property.id}>
-                      <button
-                        className="property-summary"
-                        type="button"
-                        onClick={() => setOpenProperty(expanded ? null : property.id)}
-                      >
-                        <span>
-                          {expanded ? "▾" : "▸"} *{reference}* — {property.type ?? "عقار"} — {formatPrice(property.price)}
-                        </span>
-                        <span className="area-counts">{statusLabels[property.status] ?? property.status}</span>
-                      </button>
+                    <div
+                      className={`property-entry${selectedSet.has(property.id) ? " is-selected" : ""}`}
+                      key={property.id}
+                    >
+                      <div className="property-summary-row">
+                        <input
+                          type="checkbox"
+                          aria-label={`تحديد ${reference}`}
+                          checked={selectedSet.has(property.id)}
+                          onChange={() => toggleOne(property.id)}
+                        />
+                        <button
+                          className="property-summary"
+                          type="button"
+                          onClick={() => setOpenProperty(expanded ? null : property.id)}
+                        >
+                          <span>
+                            {expanded ? "▾" : "▸"} *{reference}* — {property.type ?? "عقار"} —{" "}
+                            {formatPrice(property.price)}
+                          </span>
+                          <span className="area-counts">{statusLabels[property.status] ?? property.status}</span>
+                        </button>
+                      </div>
 
                       {expanded ? (
                         <div className="property-detail">

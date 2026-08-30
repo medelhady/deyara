@@ -820,6 +820,55 @@ select {
   border-top: 1px solid var(--line);
 }
 
+/* The fold button and its checkbox share a row. The button keeps its own padding and takes the rest
+   of the width, so the row still reads as one tap target apart from the box itself. */
+.area-header-row,
+.property-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.area-header-row {
+  background: #fbfaf7;
+}
+
+.area-header-row > input,
+.property-summary-row > input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 0 14px 0 0;
+  cursor: pointer;
+}
+
+.area-header-row > .area-header,
+.property-summary-row > .property-summary {
+  flex: 1;
+  min-width: 0;
+  padding-right: 0;
+}
+
+.property-entry.is-selected {
+  background: #eef6f3;
+}
+
+.select-all-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.select-all-row input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
 .property-detail {
   display: grid;
   gap: 6px;
