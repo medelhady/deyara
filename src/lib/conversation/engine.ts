@@ -130,13 +130,20 @@ export function isDraftFresh(draft: DraftProperty) {
   return Date.now() - updatedAt <= draftTtlMs;
 }
 
-function formatPropertySummary(draft: DraftProperty) {
+async function formatPropertySummary(draft: DraftProperty) {
+  // Shown to the owner as well, though the renter pays it: this is the summary of what the listing
+  // will say, and an owner surprised later by a commission they never saw advertised is an argument
+  // with a renter standing in front of the house.
+  const { officeCommission } = await getSettings();
+  const commission = resolveAreaNote(officeCommission, draft.area);
+
   return [
     "راجع ملخص الإعلان قبل إرساله للإدارة:",
     "",
     `النوع: ${draft.type ?? "غير محدد"}`,
     `المقاطعة: ${draft.area}`,
     `السعر: ${draft.price}`,
+    ...(commission ? [`عمولة المكتب: ${commission}`] : []),
     `المعلم القريب: ${draft.landmark}`,
     `الفيديو: ${draft.hasVideo ? "تم استلامه" : "لم يصل بعد"}`,
     "",
@@ -436,7 +443,7 @@ export async function submitPropertyForReview(
   return { saved: true, id: property?.id as string | undefined, propertyCode: reference };
 }
 
-function getNextPropertyQuestion(draft: DraftProperty) {
+async function getNextPropertyQuestion(draft: DraftProperty) {
   if (!draft.area) {
     return "في أي مقاطعة يقع العقار؟ مثال: تفرغ زينة، عرفات، لكصر.";
   }
@@ -2267,7 +2274,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     return {
       debugIntent: "add_property",
-      reply: getNextPropertyQuestion(draftProperty)
+      reply: await getNextPropertyQuestion(draftProperty)
     };
   }
 
@@ -2352,7 +2359,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     return {
       debugIntent: "add_property",
-      reply: getNextPropertyQuestion(draftProperty)
+      reply: await getNextPropertyQuestion(draftProperty)
     };
   }
 
@@ -2449,7 +2456,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
       return {
         debugIntent: "add_property",
-        reply: getNextPropertyQuestion(draftProperty)
+        reply: await getNextPropertyQuestion(draftProperty)
       };
     }
 
