@@ -24,7 +24,7 @@ type SettingDefinition = {
   column: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea" | "notices";
+  kind: "number" | "text" | "textarea" | "notices" | "amount";
   fallback: () => string;
 };
 
@@ -82,8 +82,8 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "officeCommission",
     column: "office_commission",
     label: "عمولة المكتب",
-    hint: "تظهر للمستأجر مع كل عقار قبل أن يدفع. اكتب العمولة ثم أشّر المقاطعات التي تسري عليها، والقيمة بلا مقاطعات تسري على البقية. اتركها فارغة لإخفائها.",
-    kind: "notices",
+    hint: "تظهر للمؤجر عند تقديم عقاره وللمستأجر مع كل إعلان قبل أن يدفع. اكتب المبلغ مرة واحدة، ولا تفتح الاستثناءات إلا لمقاطعة تختلف فعلًا.",
+    kind: "amount",
     fallback: () => ""
   },
   {

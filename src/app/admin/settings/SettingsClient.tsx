@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { NoticesField } from "./NoticesField";
+import { AmountByAreaField } from "./AmountByAreaField";
 
 type SettingRow = {
   key: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea" | "notices";
+  kind: "number" | "text" | "textarea" | "notices" | "amount";
   value: string;
 };
 
@@ -102,7 +103,13 @@ export function SettingsClient() {
         {rows.map((row) => (
           <label className="setting-field" key={row.key}>
             <span>{row.label}</span>
-            {row.kind === "notices" ? (
+            {row.kind === "amount" ? (
+              <AmountByAreaField
+                value={values[row.key] ?? ""}
+                areas={areas}
+                onChange={(next) => setValues((current) => ({ ...current, [row.key]: next }))}
+              />
+            ) : row.kind === "notices" ? (
               <NoticesField
                 value={values[row.key] ?? ""}
                 areas={areas}
