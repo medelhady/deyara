@@ -1228,7 +1228,7 @@ async function getOwnerListingsReply(ownerPhone: string) {
 
   const { data, error } = await supabase
     .from("properties")
-    .select("status,property_code,area,price")
+    .select("status,property_code,area,price,landmark")
     .eq("owner_phone", ownerPhone);
 
   if (error) {
@@ -1273,11 +1273,15 @@ async function getOwnerListingsReply(ownerPhone: string) {
           "",
           "━━━━━━━━━━━━━━",
           "🏘 *المنشورة الآن*",
-          ...published.map(
-            (item) =>
+          // The landmark is what an owner recognises. A code and a district do not separate two
+          // houses in the same district, which is exactly when naming the wrong one costs a listing.
+          ...published.map((item) =>
+            [
               `*${item.property_code ?? "—"}* — ${item.area ?? "منطقة غير محددة"}${
                 item.price ? ` — ${formatPrice(Number(item.price))}` : ""
-              }`
+              }`,
+              ...(item.landmark ? [`   📍 ${formatLandmark(String(item.landmark))}`] : [])
+            ].join("\n")
           ),
           "",
           published.length === 1

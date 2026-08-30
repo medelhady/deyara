@@ -32,7 +32,7 @@ export async function findOwnersToRemind(nowMs = Date.now()) {
 
   const { data: properties, error } = await supabase
     .from("properties")
-    .select("owner_phone,property_code,area,updated_at")
+    .select("owner_phone,property_code,area,landmark,updated_at")
     .eq("status", "active")
     .lt("updated_at", staleBefore);
 
@@ -41,7 +41,7 @@ export async function findOwnersToRemind(nowMs = Date.now()) {
     return [];
   }
 
-  const byOwner = new Map<string, Array<{ code: string; area: string }>>();
+  const byOwner = new Map<string, Array<{ code: string; area: string; landmark: string }>>();
 
   for (const row of properties ?? []) {
     const owner = String(row.owner_phone ?? "");
@@ -52,7 +52,11 @@ export async function findOwnersToRemind(nowMs = Date.now()) {
 
     byOwner.set(owner, [
       ...(byOwner.get(owner) ?? []),
-      { code: String(row.property_code ?? ""), area: String(row.area ?? "") }
+      {
+        code: String(row.property_code ?? ""),
+        area: String(row.area ?? ""),
+        landmark: String(row.landmark ?? "")
+      }
     ]);
   }
 
@@ -81,8 +85,10 @@ export async function sendRefreshReminders(nowMs = Date.now()): Promise<RefreshO
   const outcomes: RefreshOutcome[] = [];
 
   for (const owner of owners) {
+    // The landmark is included for the same reason as in the listings summary: this message asks the
+    // owner to name a house, and a code plus a district does not tell two of theirs apart.
     const lines = owner.listings
-      .map((listing) => `• *${listing.code}* — ${listing.area}`)
+      .map((listing) => `• *${listing.code}* — ${listing.area}${listing.landmark ? ` — ${listing.landmark}` : ""}`)
       .join("\n");
 
     const body = await getMessage("listing_refresh", {
