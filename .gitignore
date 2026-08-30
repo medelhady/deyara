@@ -7,3 +7,6 @@ dist
 coverage
 *.tsbuildinfo
 .env*
+
+# Database dumps: real customer data, never committed.
+backups/

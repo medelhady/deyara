@@ -20,7 +20,8 @@
     "check:template": "npx tsx scripts/check-template-fallback.ts",
     "check:broadcast": "npx tsx scripts/check-broadcast.ts",
     "check:parse": "npx tsx scripts/check-referral-parse.ts",
-    "check:usercommands": "npx tsx scripts/check-user-commands.ts"
+    "check:usercommands": "npx tsx scripts/check-user-commands.ts",
+    "backup": "npx tsx scripts/backup.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -137,6 +137,20 @@ Privacy rules enforced by the app:
 
 See `docs/product-rules.md` for the full rules.
 
+## Backups
+
+```bash
+npm run backup
+```
+
+Writes every table to `backups/<timestamp>/<table>.json` using the service key from `.env.local`.
+Data only: the schema is in `supabase/*.sql` in git, so the two together rebuild the database.
+
+Files in Supabase Storage are not included - listing videos and payment receipts are copies of what
+WhatsApp sent and cannot be recovered from a dump.
+
+`backups/` is gitignored. It is real customer data and does not belong in the repository.
+
 ## Settings
 
 Prices, commission rates, referral rules, the payment number and the admin notification numbers are
