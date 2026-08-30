@@ -1605,3 +1605,19 @@ select {
 .amount-row input {
   margin: 0;
 }
+
+/* Export links reuse the chip row, but they are links so they need the chip's look explicitly. */
+.dash-auto a {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dash-auto a:hover {
+  border-color: var(--accent);
+}

@@ -43,6 +43,42 @@ export default function BackupPage() {
           واتساب، ولا يمكن استرجاعها من هذا الملف.
         </div>
       </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">للقراءة والمحاسبة</p>
+            <h2>تصدير جدول إلى إكسل</h2>
+          </div>
+        </div>
+
+        <p>
+          ملف JSON أعلاه للاسترجاع، وهذه للقراءة. الملفات مهيّأة لتفتح العربية سليمة في إكسل،
+          وأرقام الهواتف تبقى كما هي بلا تحويلها إلى صيغة علمية.
+        </p>
+
+        <div className="dash-auto">
+          {[
+            { table: "properties", label: "العقارات" },
+            { table: "users", label: "المستخدمون" },
+            { table: "user_wallets", label: "الأرصدة" },
+            { table: "credit_transactions", label: "الحركات المالية" },
+            { table: "credit_topups", label: "طلبات الشحن" },
+            { table: "withdrawal_requests", label: "طلبات السحب" },
+            { table: "contact_requests", label: "طلبات التواصل" },
+            { table: "notification_log", label: "سجل الإشعارات" }
+          ].map((item) => (
+            <a key={item.table} href={`/api/admin/backup/csv?table=${item.table}`}>
+              ⬇ {item.label}
+            </a>
+          ))}
+        </div>
+
+        <p className="amount-note">
+          للاسترجاع استخدم ملف JSON دائمًا: إكسل يغيّر شكل الأرقام والتواريخ، فلا يصلح لإعادة
+          الإدخال.
+        </p>
+      </section>
     </main>
   );
 }
