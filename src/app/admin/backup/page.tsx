@@ -53,26 +53,37 @@ export default function BackupPage() {
         </div>
 
         <p>
-          ملف JSON أعلاه للاسترجاع، وهذه للقراءة. الملفات مهيّأة لتفتح العربية سليمة في إكسل،
-          وأرقام الهواتف تبقى كما هي بلا تحويلها إلى صيغة علمية.
+          ملف JSON أعلاه للاسترجاع، وهذا للقراءة. ملف إكسل واحد فيه كل جدول في ورقة مستقلة:
+          العقارات، المستخدمون، الأرصدة، الحركات المالية، طلبات الشحن والسحب والتواصل، وسجل
+          الإشعارات.
         </p>
 
-        <div className="dash-auto">
-          {[
-            { table: "properties", label: "العقارات" },
-            { table: "users", label: "المستخدمون" },
-            { table: "user_wallets", label: "الأرصدة" },
-            { table: "credit_transactions", label: "الحركات المالية" },
-            { table: "credit_topups", label: "طلبات الشحن" },
-            { table: "withdrawal_requests", label: "طلبات السحب" },
-            { table: "contact_requests", label: "طلبات التواصل" },
-            { table: "notification_log", label: "سجل الإشعارات" }
-          ].map((item) => (
-            <a key={item.table} href={`/api/admin/backup/csv?table=${item.table}`}>
-              ⬇ {item.label}
-            </a>
-          ))}
-        </div>
+        <p>
+          <a className="button" href="/api/admin/backup/excel">
+            تحميل كل الجداول في ملف إكسل
+          </a>
+        </p>
+
+        <details className="message-row">
+          <summary>أو حمّل جدولًا واحدًا بصيغة CSV</summary>
+
+          <div className="dash-auto">
+            {[
+              { table: "properties", label: "العقارات" },
+              { table: "users", label: "المستخدمون" },
+              { table: "user_wallets", label: "الأرصدة" },
+              { table: "credit_transactions", label: "الحركات المالية" },
+              { table: "credit_topups", label: "طلبات الشحن" },
+              { table: "withdrawal_requests", label: "طلبات السحب" },
+              { table: "contact_requests", label: "طلبات التواصل" },
+              { table: "notification_log", label: "سجل الإشعارات" }
+            ].map((item) => (
+              <a key={item.table} href={`/api/admin/backup/csv?table=${item.table}`}>
+                ⬇ {item.label}
+              </a>
+            ))}
+          </div>
+        </details>
 
         <p className="amount-note">
           للاسترجاع استخدم ملف JSON دائمًا: إكسل يغيّر شكل الأرقام والتواريخ، فلا يصلح لإعادة
