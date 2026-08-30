@@ -2444,7 +2444,9 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
     return {
       debugIntent: "select_property",
-      reply: "هذا فيديو الدار.\n\nإذا الدار مناسبة لك وتريد رقم المؤجر، اكتب: 1",
+      // The digit sits inside the sentence rather than after a colon at the end: a line ending on a
+      // lone Latin numeral is the part that wrapped away from its own instruction.
+      reply: "هذا فيديو الدار.\n\nإذا أعجبتك، اكتب *1* لطلب رقم المؤجر.",
       video: { url: videoUrl }
     };
   }

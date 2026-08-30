@@ -168,22 +168,27 @@ export async function sendNotification(
 }
 
 /**
- * Sends a video and records the outcome, falling back to text when it cannot be sent.
+ * Sends a video and records the outcome, falling back to a link when it cannot be sent.
  *
- * The fallback is the whole point. Meta fetches the link itself and refuses anything past its size
+ * Deliberately without a caption. A caption box is narrower than a message bubble and wraps on its
+ * own terms, which left the "1" of "اكتب: 1" stranded alone on a line; the instruction is sent as
+ * its own message instead, arriving right behind the video.
+ *
+ * The fallback is the other half. Meta fetches the link itself and refuses anything past its size
  * limit, and a renter who asked to see the house and got nothing has no way of knowing whether to
- * wait or to ask again -- so a failure becomes the caption plus the link, which at least plays in a
- * browser. Callers get told which one happened.
+ * wait or to ask again -- so a failure becomes a link, which at least plays in a browser. Callers
+ * get told which one happened.
  */
 export async function sendVideoNotification(
   phone: string,
   link: string,
-  caption: string,
   kind: NotificationKind
 ): Promise<{ ok: boolean; viaLink: boolean }> {
+  const logged = "[فيديو] فيديو الدار";
+
   try {
-    await getWhatsAppProvider().sendVideo(phone, link, caption);
-    await record(phone, kind, `[فيديو] ${caption}`, "sent");
+    await getWhatsAppProvider().sendVideo(phone, link);
+    await record(phone, kind, logged, "sent");
 
     return { ok: true, viaLink: false };
   } catch (error) {
@@ -191,10 +196,10 @@ export async function sendVideoNotification(
 
     console.error(`Video send failed (${kind}) to ${phone}`, raw);
 
-    const fallback = await sendNotification(phone, `${caption}\n\n${link}`, kind);
+    const fallback = await sendNotification(phone, `🎥 فيديو الدار:\n${link}`, kind);
 
     if (!fallback.ok) {
-      await record(phone, kind, `[فيديو] ${caption}`, "failed", raw);
+      await record(phone, kind, logged, "failed", raw);
     }
 
     return { ok: fallback.ok, viaLink: fallback.ok };

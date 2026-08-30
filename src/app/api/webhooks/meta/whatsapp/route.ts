@@ -98,12 +98,13 @@ export async function POST(request: Request) {
     const result = await handleIncomingMessage(incoming);
     await saveConversation(incoming, result.reply, result.debugIntent);
 
-    // A house video is the reply, not an attachment to it, so the text rides along as its caption.
+    // The video leads and the text follows as its own bubble, rather than riding along as a caption:
+    // captions wrap in a narrower box and broke the instruction across lines.
     if (result.video) {
-      await sendVideoNotification(incoming.from, result.video.url, result.reply, "bot_reply");
-    } else {
-      await sendNotification(incoming.from, result.reply, "bot_reply");
+      await sendVideoNotification(incoming.from, result.video.url, "bot_reply");
     }
+
+    await sendNotification(incoming.from, result.reply, "bot_reply");
 
     // Sent after the reply and in order, so text meant to be forwarded arrives as its own message.
     for (const followUp of result.followUps ?? []) {
