@@ -139,11 +139,15 @@ See `docs/product-rules.md` for the full rules.
 
 ## Backups
 
+Open `/admin/backup` and press the download button. That path needs no setup, which is the point: a
+backup with a setup step in front of it is one that never gets taken.
+
 ```bash
 npm run backup
 ```
 
-Writes every table to `backups/<timestamp>/<table>.json` using the service key from `.env.local`.
+The same dump split one file per table, for when that is easier to work with. Needs the Supabase
+keys in `.env.local` first. Writes every table to `backups/<timestamp>/<table>.json` using the service key from `.env.local`.
 Data only: the schema is in `supabase/*.sql` in git, so the two together rebuild the database.
 
 Files in Supabase Storage are not included - listing videos and payment receipts are copies of what
