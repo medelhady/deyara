@@ -12,6 +12,7 @@ import { handleAdminCommand } from "./admin-commands";
 import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
+import { salutationFor } from "./greeting";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -2455,7 +2456,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     case "greeting":
       return {
         debugIntent: "greeting",
-        reply: await getMessage("greeting")
+        // The salutation answers whatever was typed, so "صباح الخير" is not met with "وعليكم السلام".
+        reply: await getMessage("greeting", { salutation: salutationFor(message.body) })
       };
 
     case "intro":

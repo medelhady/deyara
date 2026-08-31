@@ -80,6 +80,43 @@ export function SettingsClient() {
     }
   }
 
+  /**
+   * Asks whether GPT is actually running the bot.
+   *
+   * It cannot be told from the outside: when the OpenAI call fails the engine falls back to keyword
+   * matching and keeps answering, so nothing looks broken. The answer shows both readings of one
+   * sentence side by side rather than asserting which one is live.
+   */
+  async function checkAi() {
+    setIsTesting(true);
+    setMessage("جار فحص فهم الجمل...");
+
+    try {
+      const response = await fetch("/api/admin/ai-health", { method: "POST" });
+      const data = await response.json();
+
+      if (!data.ok) {
+        setMessage(`⚠️ ${data.message}`);
+        return;
+      }
+
+      const field = (value: string | number | null) => (value === null ? "لم يفهمها" : String(value));
+
+      setMessage(
+        [
+          `✅ ${data.message}`,
+          "",
+          `الجملة المختبَرة: ${data.probe}`,
+          "",
+          `بـGPT: المنطقة ${field(data.ai.area)} — الغرف ${field(data.ai.rooms)} — الحد الأقصى ${field(data.ai.maxPrice)}`,
+          `بالكلمات المفتاحية وحدها: المنطقة ${field(data.local.area)} — الغرف ${field(data.local.rooms)} — الحد الأقصى ${field(data.local.maxPrice)}`
+        ].join("\n")
+      );
+    } finally {
+      setIsTesting(false);
+    }
+  }
+
   useEffect(() => {
     void loadSettings();
   }, []);
@@ -147,6 +184,14 @@ export function SettingsClient() {
           disabled={isSaving || isTesting}
         >
           إرسال تنبيه تجريبي
+        </button>
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => void checkAi()}
+          disabled={isSaving || isTesting}
+        >
+          فحص فهم الجمل (GPT)
         </button>
       </div>
     </section>
