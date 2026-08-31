@@ -1,0 +1,86 @@
+/**
+ * Walks a whole listing conversation. Runs offline: `npm run check:listingflow`.
+ *
+ * Asking for the room count put a bare number in the middle of a flow that already reads bare
+ * numbers two other ways -- as a price, and as picking the nth result of an earlier search. This
+ * drives the real engine end to end so those three readings stay separated, and so the count
+ * actually reaches the summary the owner confirms.
+ */
+import { handleIncomingMessage } from "../src/lib/conversation/engine";
+import type { IncomingWhatsAppMessage } from "../src/lib/whatsapp/types";
+
+let failures = 0;
+
+function check(name: string, actual: unknown, expected: unknown) {
+  const pass = actual === expected;
+  if (!pass) failures++;
+  console.log(`${pass ? "PASS" : "FAIL"}  ${name}  (expected ${expected}, got ${actual})`);
+}
+
+const owner = "whatsapp:+22240000001";
+
+function say(body: string, media: IncomingWhatsAppMessage["media"] = []): IncomingWhatsAppMessage {
+  return { provider: "simulator", from: owner, body, media };
+}
+
+async function main() {
+  const asksArea = await handleIncomingMessage(say("عندي منزل للايجار"));
+  check("it starts by asking the district", asksArea.reply.includes("مقاطعة"), true);
+
+  const asksPrice = await handleIncomingMessage(say("لكصر"));
+  check("then the rent", asksPrice.reply.includes("سعر"), true);
+
+  const asksLandmark = await handleIncomingMessage(say("45000"));
+  check("then the landmark", asksLandmark.reply.includes("معلم"), true);
+
+  // The new step.
+  const asksRooms = await handleIncomingMessage(say("قرب السوق"));
+  check("then the room count", asksRooms.reply.includes("عدد الغرف"), true);
+  check("and it asks for a bare number", asksRooms.reply.includes("3"), true);
+
+  const asksVideo = await handleIncomingMessage(say("3"));
+  check("the video is asked for last", asksVideo.reply.includes("فيديو"), true);
+  check("answering rooms does not re-ask them", asksVideo.reply.includes("عدد الغرف"), false);
+
+  const summary = await handleIncomingMessage(
+    say("", [{ url: "https://example.test/house.mp4", contentType: "video/mp4" }])
+  );
+
+  check("the video completes the draft", summary.reply.includes("راجع ملخص الإعلان"), true);
+  check("the summary carries the room count", summary.reply.includes("عدد الغرف: 3"), true);
+
+  // The regression the room question invited: "3" must not have overwritten the rent.
+  check("the price survived the room answer", summary.reply.includes("45000"), true);
+  check("and was not replaced by the room count", summary.reply.includes("السعر: 3\n"), false);
+
+  check("the district survived too", summary.reply.includes("لكصر"), true);
+  check("so did the landmark", summary.reply.includes("قرب السوق"), true);
+
+  // A draft cannot be confirmed before the count is in: without this the question is skippable.
+  const other = "whatsapp:+22240000002";
+  const short: IncomingWhatsAppMessage = { provider: "simulator", from: other, body: "", media: [] };
+
+  await handleIncomingMessage({ ...short, body: "عندي شقة للايجار" });
+  await handleIncomingMessage({ ...short, body: "عرفات" });
+  await handleIncomingMessage({ ...short, body: "30000" });
+  await handleIncomingMessage({ ...short, body: "قرب المستشفى" });
+
+  const videoBeforeRooms = await handleIncomingMessage({
+    ...short,
+    media: [{ url: "https://example.test/flat.mp4", contentType: "video/mp4" }]
+  });
+
+  check("a video sent early does not skip the count", videoBeforeRooms.reply.includes("عدد الغرف"), true);
+  check("and no summary is shown yet", videoBeforeRooms.reply.includes("راجع ملخص الإعلان"), false);
+
+  const nowSummary = await handleIncomingMessage({ ...short, body: "2" });
+
+  check("giving the count then finishes the draft", nowSummary.reply.includes("راجع ملخص الإعلان"), true);
+  check("with the count in it", nowSummary.reply.includes("عدد الغرف: 2"), true);
+  check("and the rent intact", nowSummary.reply.includes("30000"), true);
+}
+
+void main().then(() => {
+  console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
+  process.exit(failures === 0 ? 0 : 1);
+});

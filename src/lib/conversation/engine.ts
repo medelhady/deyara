@@ -16,7 +16,7 @@ import { salutationFor } from "./greeting";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
-const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "فيديو للعقار"];
+const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "عدد الغرف", "فيديو للعقار"];
 const knownAreas = ["تفرغ زينة", "عرفات", "لكصر", "تيارت", "دار النعيم", "السبخة", "الميناء"];
 const selectionTtlMs = 15 * 60 * 1000;
 const draftTtlMs = 60 * 60 * 1000;
@@ -147,6 +147,7 @@ async function formatPropertySummary(draft: DraftProperty) {
     `السعر: ${draft.price}`,
     ...(commission ? [`عمولة المكتب: ${commission}`] : []),
     `المعلم القريب: ${draft.landmark}`,
+    `عدد الغرف: ${draft.rooms ?? "غير محدد"}`,
     `الفيديو: ${draft.hasVideo ? "تم استلامه" : "لم يصل بعد"}`,
     "",
     "هل المعلومات صحيحة؟ اكتب نعم لإرسالها للإدارة، أو لا للتعديل أو الإلغاء."
@@ -458,6 +459,10 @@ async function getNextPropertyQuestion(draft: DraftProperty) {
     return "ما هو أقرب معلم مشهور للعقار؟ مثال: المستشفى الإسباني، كارفور، سوق معروف.";
   }
 
+  if (!draft.rooms) {
+    return "كم عدد الغرف في العقار؟ اكتب الرقم فقط، مثلاً: 3";
+  }
+
   if (!draft.hasVideo) {
     return "أرسل فيديو واضح للعقار من فضلك. الفيديو ضروري قبل مراجعة الإدارة.";
   }
@@ -472,15 +477,28 @@ function mergeDraftFromMessage(
   activeAreas = knownAreas
 ) {
   const areaFromText = findAreaCandidate(body, activeAreas);
-  const numericAnswer = body.trim().match(/^\d{2,8}$/);
+  const trimmed = body.trim();
+
+  /**
+   * A bare number belongs to whichever question is still open.
+   *
+   * The room count is asked last of the text fields, so by then a price is already on the draft --
+   * and "3" typed as an answer would otherwise have been read as a price and replaced 45000 with 3.
+   * Rooms are only claimed once everything before them is filled, which is exactly when they are
+   * the thing being asked for.
+   */
+  const awaitsRooms = Boolean(draft.area && draft.price && draft.landmark && !draft.rooms);
+  const priceAnswer = draft.price ? null : trimmed.match(/^\d{2,8}$/);
+  const roomsAnswer = awaitsRooms ? trimmed.match(/^\d{1,2}$/) : null;
 
   return {
     ...draft,
     type: extracted.propertyType ?? draft.type,
     area: extracted.area ?? areaFromText ?? draft.area,
     landmark: extracted.landmark ?? draft.landmark,
-    price: extracted.price ?? (numericAnswer ? Number(numericAnswer[0]) : undefined) ?? draft.price,
-    rooms: extracted.rooms ?? draft.rooms
+    // GPT reads a lone "3" as a price as readily as we did, so it is ignored while rooms are open.
+    price: (awaitsRooms ? undefined : extracted.price) ?? (priceAnswer ? Number(priceAnswer[0]) : undefined) ?? draft.price,
+    rooms: extracted.rooms ?? (roomsAnswer ? Number(roomsAnswer[0]) : undefined) ?? draft.rooms
   };
 }
 
@@ -1694,6 +1712,10 @@ export function buildContextHint(state: Awaited<ReturnType<typeof getConversatio
       return "البوت سأل المستخدم للتو عن سعر إيجار العقار الذي يعرضه (يملكه). اعتبر أي رقم أو رد نصي استكمالاً لإضافة العقار (add_property).";
     }
 
+    if (draft.landmark && !draft.rooms) {
+      return "البوت سأل المستخدم للتو عن عدد غرف العقار الذي يعرضه (يملكه). الرقم المجرد هو عدد الغرف (rooms)، وليس سعراً ولا اختياراً من نتائج بحث. النية تبقى add_property.";
+    }
+
     if (!draft.landmark) {
       return [
         "البوت سأل المستخدم للتو عن أقرب معلم لعقاره الذي يعرضه (يملكه). اعتبر أي رد نصي استكمالاً لإضافة العقار (add_property)، وليس بحثاً جديداً أو منطقة بحث.",
@@ -2279,7 +2301,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       hasVideo: true,
       videoUrl: storedPath ?? incomingVideo.url,
       videoContentType: incomingVideo.contentType,
-      awaitingConfirmation: Boolean(state.draftProperty?.area && state.draftProperty?.price && state.draftProperty?.landmark)
+      awaitingConfirmation: Boolean(
+        state.draftProperty?.area &&
+          state.draftProperty?.price &&
+          state.draftProperty?.landmark &&
+          state.draftProperty?.rooms
+      )
     });
     await setConversationState(message.from, {
       ...state,
@@ -2334,6 +2361,12 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
 
   const trimmedBody = message.body.trim();
   const draftAwaitsPrice = Boolean(state.draftProperty?.area && !state.draftProperty?.price);
+  const draftAwaitsRooms = Boolean(
+    state.draftProperty?.area &&
+      state.draftProperty?.price &&
+      state.draftProperty?.landmark &&
+      !state.draftProperty?.rooms
+  );
   // A bare number that indexes the last search results is the renter picking a property. It must win
   // over an unfinished listing draft parked in the same conversation, since one phone can be both a
   // renter and an owner. While a draft is open the message has to be nothing but that number: GPT
@@ -2343,6 +2376,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     extracted.intent === "select_property" &&
     (!state.draftProperty || /^\d+$/.test(trimmedBody)) &&
     !(draftAwaitsPrice && /^\d{2,8}$/.test(trimmedBody)) &&
+    // "3" answering the room count is not the third result of a search from an earlier session.
+    !(draftAwaitsRooms && /^\d{1,2}$/.test(trimmedBody)) &&
     Boolean(extracted.selectedIndex && state.lastSearchResults?.[extracted.selectedIndex - 1]);
 
   if (
@@ -2363,7 +2398,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
 
     draftProperty.awaitingConfirmation = Boolean(
-      draftProperty.area && draftProperty.price && draftProperty.landmark && draftProperty.hasVideo
+      draftProperty.area &&
+        draftProperty.price &&
+        draftProperty.landmark &&
+        draftProperty.rooms &&
+        draftProperty.hasVideo
     );
 
     await setConversationState(message.from, {
@@ -2469,7 +2508,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     case "add_property": {
       const draftProperty = mergeDraftFromMessage(state.draftProperty ?? {}, extracted, message.body, activeAreas);
       draftProperty.awaitingConfirmation = Boolean(
-        draftProperty.area && draftProperty.price && draftProperty.landmark && draftProperty.hasVideo
+        draftProperty.area &&
+          draftProperty.price &&
+          draftProperty.landmark &&
+          draftProperty.rooms &&
+          draftProperty.hasVideo
       );
 
       await setConversationState(message.from, {
