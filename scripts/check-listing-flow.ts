@@ -40,6 +40,11 @@ async function main() {
 
   const asksVideo = await handleIncomingMessage(say("3"));
   check("the video is asked for last", asksVideo.reply.includes("فيديو"), true);
+  // A number burned into the video routes renters around the paywall, so the ask has to say so
+  // every time it is repeated -- not once in a welcome message nobody rereads.
+  check("and warns against a number in it", asksVideo.reply.includes("ولا تضع رقمك داخل الفيديو"), true);
+  check("saying why it is in the owner's interest", asksVideo.reply.includes("الجاد وحده"), true);
+  check("on its own line, not run together", asksVideo.reply.split("\n").length, 3);
   check("answering rooms does not re-ask them", asksVideo.reply.includes("عدد الغرف"), false);
 
   const summary = await handleIncomingMessage(

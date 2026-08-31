@@ -465,7 +465,14 @@ async function getNextPropertyQuestion(draft: DraftProperty) {
   }
 
   if (!draft.hasVideo) {
-    return "أرسل فيديو واضح للعقار من فضلك. الفيديو ضروري قبل مراجعة الإدارة.";
+    // Framed as what the owner gains rather than as a rule: a number burned into the video routes
+    // renters around the paywall, and an owner who is told why keeps it out better than one who
+    // is only forbidden.
+    return [
+      "أرسل فيديو واضح للعقار من فضلك. الفيديو ضروري قبل مراجعة الإدارة.",
+      "",
+      "ولا تضع رقمك داخل الفيديو — رقمك يصل للمستأجر الجاد وحده، فترتاح من مكالمات من لا ينوي الكراء."
+    ].join("\n");
   }
 
   return formatPropertySummary(draft);
