@@ -13,6 +13,7 @@ import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { salutationFor } from "./greeting";
+import { commissionLines, formatCommission } from "@/lib/commission";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -145,7 +146,7 @@ async function formatPropertySummary(draft: DraftProperty) {
     `النوع: ${draft.type ?? "غير محدد"}`,
     `المقاطعة: ${draft.area}`,
     `السعر: ${draft.price}`,
-    ...(commission ? [`عمولة المكتب: ${commission}`] : []),
+    ...(commission ? [`عمولة المكتب: ${commissionLines(commission).join(" — ")}`] : []),
     `المعلم القريب: ${draft.landmark}`,
     `عدد الغرف: ${draft.rooms ?? "غير محدد"}`,
     `الفيديو: ${draft.hasVideo ? "تم استلامه" : "لم يصل بعد"}`,
@@ -329,7 +330,7 @@ function formatSearchResults(
       return [
         `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
         `💰 السعر: *${formatPrice(property.price)}*`,
-        ...(commission ? [`🏢 عمولة المكتب: *${commission}*`] : []),
+        ...(commission ? [`🏢 عمولة المكتب: *${formatCommission(commission)}*`] : []),
         `📍 قريبة من: ${formatLandmark(property.landmark)}`
       ].join("\n");
     })
@@ -716,7 +717,9 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
     `*${formatPrice(selected.price)}*`,
     // Next to the price rather than in the fine print: it is part of what the house costs, and a
     // renter who meets it only after paying for the number has been surprised by a bill.
-    ...(commission ? ["", "🏢 عمولة المكتب", `*${commission}*`] : []),
+    ...(commission
+      ? ["", "🏢 عمولة المكتب", ...commissionLines(commission).map((line, index) => (index === 0 ? `*${line}*` : line))]
+      : []),
     "",
     "🛏 الغرف",
     `${selected.rooms ?? "غير محدد"}`,

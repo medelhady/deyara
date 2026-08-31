@@ -93,7 +93,7 @@ export function NoticesField({
 
           <textarea
             rows={2}
-            placeholder="مثال: المستأجر يدفع 12 ألف عند الاتفاق للسمسار."
+            placeholder="مثال: عاين الدار بنفسك قبل دفع أي مبلغ."
             value={notice.text}
             onChange={(event) => update(index, { text: event.target.value })}
           />
@@ -124,13 +124,23 @@ export function NoticesField({
         </div>
       ))}
 
-      <button
-        className="button secondary"
-        type="button"
-        onClick={() => commit([...notices, { text: "", areas: [] }])}
-      >
-        ＋ إضافة تنبيه
-      </button>
+      <div className="row-actions">
+        <button
+          className="button secondary"
+          type="button"
+          onClick={() => commit([...notices, { text: "", areas: [] }])}
+        >
+          ＋ إضافة تنبيه
+        </button>
+
+        {/* One action rather than a delete per card: the common reason to be here is that the
+            commission was typed in by mistake and every card has to go. */}
+        {notices.length > 0 ? (
+          <button className="button secondary danger-action" type="button" onClick={() => commit([])}>
+            مسح كل التنبيهات
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

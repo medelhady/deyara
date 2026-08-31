@@ -82,7 +82,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "officeCommission",
     column: "office_commission",
     label: "عمولة المكتب",
-    hint: "تظهر للمؤجر عند تقديم عقاره وللمستأجر مع كل إعلان قبل أن يدفع. اكتب المبلغ مرة واحدة، ولا تفتح الاستثناءات إلا لمقاطعة تختلف فعلًا.",
+    hint: "المبلغ رقمًا فقط مثل 12000 — البوت يكتب الجملة من عنده. تظهر للمؤجر عند تقديم عقاره وللمستأجر مع كل إعلان قبل أن يدفع.",
     kind: "amount",
     fallback: () => ""
   },
@@ -90,7 +90,7 @@ export const settingDefinitions: SettingDefinition[] = [
     key: "contactRevealNote",
     column: "contact_reveal_note",
     label: "تنبيه يظهر مع رقم المؤجر",
-    hint: "اكتب التنبيه ثم أشّر المقاطعات التي يسري عليها. التنبيه بلا مقاطعات يسري على البقية.",
+    hint: "لتحذير غير العمولة — للعمولة حقلها أعلاه. اكتب التنبيه ثم أشّر المقاطعات التي يسري عليها، واتركه فارغًا إن لم تحتجه.",
     kind: "notices",
     fallback: () => process.env.CONTACT_REVEAL_NOTE ?? ""
   },
