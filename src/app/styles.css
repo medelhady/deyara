@@ -655,6 +655,7 @@ select {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 560px) {
@@ -683,6 +684,7 @@ select {
   .dictionary-row {
     display: grid;
   }
+
 }
 
 .property-video {
@@ -733,6 +735,7 @@ select {
   .settings-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+
 }
 
 .log-toggle {
@@ -885,45 +888,6 @@ select {
   line-height: 1.8;
 }
 
-.notices-field {
-  display: grid;
-  gap: 12px;
-}
-
-.notices-empty {
-  margin: 0;
-  color: var(--muted);
-}
-
-.notice-card {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfaf7;
-}
-
-.notice-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.notice-head button {
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  cursor: pointer;
-}
-
-.notice-areas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .area-chip {
   display: flex;
   align-items: center;
@@ -938,15 +902,6 @@ select {
 .area-chip.taken {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.notice-card textarea {
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  font: inherit;
-  resize: vertical;
 }
 
 .setting-field:has(.notices-field) {
@@ -1035,6 +990,7 @@ select {
   50% {
     opacity: 0.25;
   }
+
 }
 
 .dash-stale {
@@ -1313,6 +1269,7 @@ select {
   .dash-task .button {
     width: 100%;
   }
+
 }
 
 /* Receipt shown inline in the top-up queue: reading the amount off it is the decision itself. */
@@ -1479,6 +1436,7 @@ select {
   .receipt-thumb img {
     max-width: 100%;
   }
+
 }
 
 @media (max-width: 720px) {
@@ -1497,6 +1455,7 @@ select {
     display: grid;
     gap: 10px;
   }
+
 }
 
 /* Outcome of an approve or reject. Sticky because the queue is long and worked from a phone:

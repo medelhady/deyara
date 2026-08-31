@@ -703,9 +703,9 @@ export function resolveAreaNote(value: string, area?: string | null) {
 }
 
 export async function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
-  // An editable notice, so terms like the broker fee due on agreement can change without a deploy.
+  // The commission is read fresh rather than baked in: it is a business figure that changes, and a
+  // renter must never be quoted one number here and charged another at the office.
   const settings = await getSettings();
-  const contactRevealNote = resolveAreaNote(settings.contactRevealNote, selected.area);
   const commission = resolveAreaNote(settings.officeCommission, selected.area);
 
   return [
@@ -734,7 +734,6 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
     "",
     "🔗 محادثة مباشرة",
     `https://wa.me/${selected.ownerPhone?.replace("whatsapp:", "").replace(/\D/g, "")}`,
-    ...(contactRevealNote ? ["", "━━━━━━━━━━━━━━", `⚠️ ${contactRevealNote}`] : []),
     ...(note.length ? ["", "━━━━━━━━━━━━━━", ...note] : [])
   ].join("\n");
 }

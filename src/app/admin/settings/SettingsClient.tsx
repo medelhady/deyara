@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NoticesField } from "./NoticesField";
 import { AmountByAreaField } from "./AmountByAreaField";
 
 type SettingRow = {
   key: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea" | "notices" | "amount";
+  kind: "number" | "text" | "textarea" | "amount";
   value: string;
 };
 
@@ -142,12 +141,6 @@ export function SettingsClient() {
             <span>{row.label}</span>
             {row.kind === "amount" ? (
               <AmountByAreaField
-                value={values[row.key] ?? ""}
-                areas={areas}
-                onChange={(next) => setValues((current) => ({ ...current, [row.key]: next }))}
-              />
-            ) : row.kind === "notices" ? (
-              <NoticesField
                 value={values[row.key] ?? ""}
                 areas={areas}
                 onChange={(next) => setValues((current) => ({ ...current, [row.key]: next }))}

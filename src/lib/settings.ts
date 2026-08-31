@@ -12,7 +12,6 @@ export type AppSettings = {
   referralWelcomePoints: number;
   referralSignupBonusPoints: number;
   referralMinTopupPoints: number;
-  contactRevealNote: string;
   officeCommission: string;
   adminNotifyNumbers: string;
 };
@@ -24,7 +23,7 @@ type SettingDefinition = {
   column: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea" | "notices" | "amount";
+  kind: "number" | "text" | "textarea" | "amount";
   fallback: () => string;
 };
 
@@ -85,14 +84,6 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "المبلغ رقمًا فقط مثل 12000 — البوت يكتب الجملة من عنده. تظهر للمؤجر عند تقديم عقاره وللمستأجر مع كل إعلان قبل أن يدفع.",
     kind: "amount",
     fallback: () => ""
-  },
-  {
-    key: "contactRevealNote",
-    column: "contact_reveal_note",
-    label: "تنبيه يظهر مع رقم المؤجر",
-    hint: "لتحذير غير العمولة — للعمولة حقلها أعلاه. اكتب التنبيه ثم أشّر المقاطعات التي يسري عليها، واتركه فارغًا إن لم تحتجه.",
-    kind: "notices",
-    fallback: () => process.env.CONTACT_REVEAL_NOTE ?? ""
   },
   {
     key: "referralWelcomePoints",
