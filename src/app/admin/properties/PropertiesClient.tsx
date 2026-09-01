@@ -83,6 +83,42 @@ export function PropertiesClient() {
   const [deleteReport, setDeleteReport] = useState<DeleteOutcome[]>([]);
   const [videoReport, setVideoReport] = useState<string[] | null>(null);
   const [checkingVideos, setCheckingVideos] = useState(false);
+  const [probingId, setProbingId] = useState<string | null>(null);
+
+  /**
+   * Runs one listing's video through the whole path to the admin's own phone.
+   *
+   * The failure this diagnoses is invisible everywhere else -- Meta accepts a link-based send before
+   * it fetches the link -- so the only way to learn what actually happens is to make the real call
+   * and read back what Meta said.
+   */
+  async function probeVideo(id: string, reference: string) {
+    setProbingId(id);
+    setVideoReport(null);
+
+    try {
+      const response = await fetch("/api/admin/video-health/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ propertyId: id })
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setVideoReport([`⚠️ ${data.error ?? "تعذر الفحص."}`]);
+        return;
+      }
+
+      const steps = (data.steps ?? []) as Array<{ name: string; ok: boolean; detail: string }>;
+
+      setVideoReport([
+        `تشخيص فيديو الإعلان ${reference} — أُرسل إلى ${data.target}`,
+        ...steps.map((step) => `${step.ok ? "✅" : "⚠️"} ${step.name}: ${step.detail}`)
+      ]);
+    } finally {
+      setProbingId(null);
+    }
+  }
 
   /**
    * Asks which active listings still have a playable video.
@@ -535,6 +571,13 @@ export function PropertiesClient() {
                                 {busyId === property.id ? action.busy : action.label}
                               </button>
                             ))}
+                            <button
+                              type="button"
+                              disabled={probingId === property.id}
+                              onClick={() => void probeVideo(property.id, reference)}
+                            >
+                              {probingId === property.id ? "جارٍ الفحص..." : "🎥 جرّب إرسال الفيديو لرقمي"}
+                            </button>
                             {/* Last, and visually apart: it is the only one of these that cannot be
                                 undone. Hiding is the reversible option for everything else. */}
                             <button

@@ -191,7 +191,9 @@ export async function sendVideoNotification(
    * Meta answers before it fetches the link, so handing it a dead URL succeeds and delivers nothing.
    * Checking first is what turns that into a message the renter actually receives.
    */
-  const health = await checkVideoUrl(link);
+  // Five seconds, not the helper's default: this runs inside the webhook that also called GPT, and
+  // a slow storage host must not eat the budget the reply itself needs.
+  const health = await checkVideoUrl(link, 5000);
 
   if (!health.ok) {
     console.error(`Video link unusable (${kind}) for ${phone}: ${health.reason}`);

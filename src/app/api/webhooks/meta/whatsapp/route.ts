@@ -6,6 +6,9 @@ import { sendNotification, sendVideoNotification } from "@/lib/notifications";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
+// A reply can involve GPT, a media check and two sends. The platform default cuts that off mid-way,
+// which loses the message with no error anywhere.
+export const maxDuration = 30;
 
 async function saveConversation(incoming: IncomingWhatsAppMessage, reply: string, intent: string) {
   const supabase = getServiceSupabase();
