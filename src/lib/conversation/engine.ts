@@ -2373,9 +2373,23 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     // Copy it now: the WhatsApp link expires long before the owner confirms the listing.
     const storedPath = await storePropertyMedia(incomingVideo.url, incomingVideo.contentType, message.from);
 
+    /**
+     * A failed copy used to fall back to the WhatsApp link, which dies within minutes. The listing
+     * then looked complete and had a video nobody could ever watch -- WhatsApp accepts the dead link
+     * and drops the message without an error, so it surfaced weeks later as a renter seeing nothing.
+     * Asking for it again costs one message; the alternative costs the listing.
+     */
+    if (!storedPath && getServiceSupabase()) {
+      return {
+        debugIntent: "add_property",
+        reply: "تعذّر حفظ الفيديو. أعد إرساله من فضلك — إن تكرر الأمر جرّب فيديو أقصر."
+      };
+    }
+
     const draftProperty = touchDraft({
       ...state.draftProperty,
       hasVideo: true,
+      // Only reached with no database at all, where nothing is being saved anyway.
       videoUrl: storedPath ?? incomingVideo.url,
       videoContentType: incomingVideo.contentType,
       awaitingConfirmation: Boolean(

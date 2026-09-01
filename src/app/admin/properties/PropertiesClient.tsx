@@ -81,6 +81,45 @@ export function PropertiesClient() {
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   const [deleteReport, setDeleteReport] = useState<DeleteOutcome[]>([]);
+  const [videoReport, setVideoReport] = useState<string[] | null>(null);
+  const [checkingVideos, setCheckingVideos] = useState(false);
+
+  /**
+   * Asks which active listings still have a playable video.
+   *
+   * A dead stored URL is invisible from every screen but the renter's: WhatsApp accepts the send and
+   * drops it, so nothing is logged and nobody complains -- they just leave.
+   */
+  async function checkVideos() {
+    setCheckingVideos(true);
+    setVideoReport(null);
+
+    try {
+      const response = await fetch("/api/admin/video-health", { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setVideoReport([`⚠️ ${data.error ?? "تعذر الفحص."}`]);
+        return;
+      }
+
+      const broken = (data.broken ?? []) as Array<{ code: string; area: string | null; ownerPhone: string; reason: string }>;
+      const missing = (data.missing ?? []) as Array<{ code: string; area: string | null; ownerPhone: string }>;
+
+      if (broken.length === 0 && missing.length === 0) {
+        setVideoReport([`✅ فُحص ${data.checked} إعلانًا نشطًا، وكل الفيديوهات تعمل.`]);
+        return;
+      }
+
+      setVideoReport([
+        `فُحص ${data.checked} إعلانًا نشطًا.`,
+        ...broken.map((item) => `⚠️ ${item.code} — ${item.area ?? "بلا مقاطعة"} — ${item.ownerPhone}: ${item.reason}`),
+        ...missing.map((item) => `🎥 ${item.code} — ${item.area ?? "بلا مقاطعة"} — ${item.ownerPhone}: لا يوجد فيديو محفوظ.`)
+      ]);
+    } finally {
+      setCheckingVideos(false);
+    }
+  }
 
   async function loadProperties() {
     const response = await fetch(`/api/admin/properties?t=${Date.now()}`, {
@@ -337,6 +376,20 @@ export function PropertiesClient() {
       </div>
 
       {message ? <p>{message}</p> : null}
+
+      <div className="row-actions">
+        <button className="button secondary" type="button" disabled={checkingVideos} onClick={() => void checkVideos()}>
+          {checkingVideos ? "جارٍ فحص الفيديوهات..." : "🎥 افحص فيديوهات الإعلانات"}
+        </button>
+      </div>
+
+      {videoReport ? (
+        <div className="delete-report">
+          {videoReport.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
+      ) : null}
 
       {/* Scoped to what the filter and the search are showing, never to all fifty rows: the label
           says how many, so the number the admin agrees to is the number that goes. */}

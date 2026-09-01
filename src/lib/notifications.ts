@@ -1,5 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { checkVideoUrl } from "@/lib/video-health";
 import { sendMetaTemplate } from "@/lib/whatsapp/meta";
 
 /** What triggered a message, so the log can be read without deciphering the text. */
@@ -185,6 +186,22 @@ export async function sendVideoNotification(
   kind: NotificationKind
 ): Promise<{ ok: boolean; viaLink: boolean }> {
   const logged = "[فيديو] فيديو الدار";
+
+  /**
+   * Meta answers before it fetches the link, so handing it a dead URL succeeds and delivers nothing.
+   * Checking first is what turns that into a message the renter actually receives.
+   */
+  const health = await checkVideoUrl(link);
+
+  if (!health.ok) {
+    console.error(`Video link unusable (${kind}) for ${phone}: ${health.reason}`);
+
+    const fallback = await sendNotification(phone, `🎥 فيديو الدار:\n${link}`, kind);
+
+    await record(phone, kind, logged, fallback.ok ? "sent" : "failed", `الفيديو لم يُرسَل كوسائط: ${health.reason}`);
+
+    return { ok: fallback.ok, viaLink: fallback.ok };
+  }
 
   try {
     await getWhatsAppProvider().sendVideo(phone, link);

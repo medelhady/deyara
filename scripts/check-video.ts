@@ -30,7 +30,18 @@ type Sent = { type: string; body: Record<string, any> };
 const sent: Sent[] = [];
 let refuseVideo = false;
 
-globalThis.fetch = (async (_url: string, init: any) => {
+/** Set to make the storage link look dead, the way an expired signature does. */
+let breakLink = false;
+
+globalThis.fetch = (async (url: string, init: any) => {
+  // Two very different calls come through here: the preflight on the storage link, and the send to
+  // Meta. Only the second carries a JSON body.
+  if (!init?.body) {
+    return breakLink
+      ? new Response(null, { status: 403 })
+      : new Response(null, { status: 200, headers: { "content-type": "video/mp4", "content-length": "2000000" } });
+  }
+
   const body = JSON.parse(init.body);
   sent.push({ type: body.type, body });
 
@@ -68,6 +79,21 @@ async function main() {
   check("then text was sent", sent[1].type, "text");
   check("the text carries the link so it can still be watched", sent[1].body.text.body.includes(link), true);
   check("and says what the link is", sent[1].body.text.body.includes("فيديو الدار"), true);
+
+  // A dead storage link must be caught before Meta sees it. Meta answers a link-based send before it
+  // fetches the link, so handing one over succeeds and delivers nothing at all.
+  sent.length = 0;
+  refuseVideo = false;
+  breakLink = true;
+
+  const deadLink = await sendVideoNotification("whatsapp:+22244974444", link, "bot_reply");
+
+  check("a dead link never reaches Meta as a video", sent.some((item) => item.type === "video"), false);
+  check("the renter still gets something", deadLink.ok, true);
+  check("and it is the link as text", sent[0]?.type, "text");
+  check("carrying the url", sent[0]?.body.text.body.includes(link), true);
+
+  breakLink = false;
 
   // Both failing is a real failure, and the caller has to be able to see it.
   sent.length = 0;
