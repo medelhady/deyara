@@ -2385,13 +2385,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
      * and shows a renter nothing, which is a fault nobody reports because the renter simply leaves.
      */
     if (videoError) {
+      // The reason is a codec name, and the owner is a landlord with a phone. They are told what to
+      // do; the sentence that says why is kept for the logs, where someone can act on it.
+      console.error(`Rejected a listing video from ${message.from}: ${videoError}`);
+
       return {
         debugIntent: "add_property",
-        reply: [
-          `⚠️ ${videoError}`,
-          "",
-          "أرسله كـ*فيديو* لا كملف أو مستند — واتساب يهيّئ الفيديو المرسل بهذه الطريقة تلقائيًا."
-        ].join("\n")
+        reply: await getMessage("video_rejected")
       };
     }
 

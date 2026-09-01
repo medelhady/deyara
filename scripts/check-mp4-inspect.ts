@@ -7,6 +7,7 @@
  * recorded always passes; one exported from an editor may not.
  */
 import { inspectMp4 } from "../src/lib/mp4-inspect";
+import { messageDefinitions } from "../src/lib/bot-messages";
 
 let failures = 0;
 
@@ -87,6 +88,22 @@ check("the codec Meta rejected is the one flagged", asMetaSawIt.videoCodec, "H.2
 check("the audio Meta accepted is not flagged", asMetaSawIt.audioCodec, "AAC");
 check("and exactly one problem is raised", asMetaSawIt.problems.length, 1);
 check("about the video, not the audio", asMetaSawIt.problems[0].includes("الفيديو"), true);
+
+/**
+ * The owner is a landlord with a phone, not someone who knows what a codec is. The technical reason
+ * belongs in the logs; what reaches WhatsApp has to be an action they can take.
+ */
+const ownerFacing = messageDefinitions.find((definition) => definition.key === "video_rejected")!.fallback;
+
+for (const jargon of ["H.265", "H.264", "HEVC", "codec", "mp4", "moov", "AAC"]) {
+  check(`the owner is never shown "${jargon}"`, ownerFacing.includes(jargon), false);
+}
+
+check("but is told to record with their phone", ownerFacing.includes("كاميرا هاتفك"), true);
+check("and why an edited video failed", ownerFacing.includes("المونتاج"), true);
+
+// The technical wording still exists, for the log line and the admin diagnostic.
+check("the technical reason is still produced", inspectMp4(mp4({ codes: ["hvc1"] })).problems[0].includes("H.264"), true);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
