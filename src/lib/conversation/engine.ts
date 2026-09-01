@@ -652,6 +652,57 @@ export async function getAreasWithListings(limit = 4) {
   return ranked.length > 0 ? ranked.slice(0, limit) : knownAreas.slice(0, limit);
 }
 
+/**
+ * A district and a price to use as examples, taken from what is actually listed.
+ *
+ * The examples in the bot's text were written once and never revisited: it was still telling people
+ * to try "أقل من 2500" while the cheapest house on the books was 45,000. An example that cannot
+ * match anything is worse than none -- it sends a first-time searcher into an empty result and
+ * teaches them the wrong shape of number.
+ *
+ * The price is the median rounded up to a round figure, so it reads like something a person would
+ * type and still returns about half the listings.
+ */
+export async function getSearchExample() {
+  const supabase = getServiceSupabase();
+  const fallback = { area: knownAreas[0], maxPrice: 50000 };
+
+  if (!supabase) {
+    return fallback;
+  }
+
+  const { data, error } = await supabase.from("properties").select("area,price").eq("status", "active");
+
+  if (error || !data || data.length === 0) {
+    return fallback;
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const row of data) {
+    const area = String(row.area ?? "").trim();
+
+    if (area) {
+      counts.set(area, (counts.get(area) ?? 0) + 1);
+    }
+  }
+
+  const busiest = [...counts.entries()].sort((first, second) => second[1] - first[1])[0]?.[0];
+  const prices = data
+    .map((row) => Number(row.price))
+    .filter((price) => Number.isFinite(price) && price > 0)
+    .sort((first, second) => first - second);
+
+  if (prices.length === 0) {
+    return { area: busiest ?? fallback.area, maxPrice: fallback.maxPrice };
+  }
+
+  const median = prices[Math.floor(prices.length / 2)];
+  const step = median >= 10000 ? 10000 : 1000;
+
+  return { area: busiest ?? fallback.area, maxPrice: Math.ceil(median / step) * step };
+}
+
 /** The same ranking with the counts kept, for telling a searcher what is actually on the shelf. */
 export async function getAreaInventory(limit = 5) {
   const supabase = getServiceSupabase();
@@ -2139,9 +2190,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     const allResults = state.lastSearchResults ?? [];
 
     if (allResults.length === 0) {
+      const example = await getSearchExample();
+
       return {
         debugIntent: "search_property",
-        reply: "أرسل بحثًا أولًا، مثلا: دار للكراء في عرفات. بعدها تقدر تكتب: أرخص، غرفتين، أو أقل من 2500."
+        reply: await getMessage("refine_without_search", { area: example.area, price: example.maxPrice })
       };
     }
 
@@ -2151,16 +2204,18 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         awaitingMaxPriceFilter: true
       });
 
+      const example = await getSearchExample();
+
       return {
         debugIntent: "search_property",
         reply: [
           "تحب نضيّق البحث كيف؟",
           "",
-          "💰 سعر أقصى — اكتب الرقم، مثلا: *2500*",
+          `💰 سعر أقصى — اكتب الرقم، مثلا: *${example.maxPrice}*`,
           "🛏 عدد الغرف — اكتب: *غرفتين*",
           "↕️ الترتيب — اكتب: *أرخص* أو *أغلى*",
           "🏠 دار غير هذه — اكتب: *اخرى*",
-          "📍 منطقة ثانية — اكتب اسمها، مثلا: *عرفات*"
+          `📍 منطقة ثانية — اكتب اسمها، مثلا: *${example.area}*`
         ].join("\n")
       };
     }
@@ -2360,10 +2415,11 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         })
       });
 
+      const example = await getSearchExample();
+
       return {
         debugIntent: "add_property",
-        reply:
-          "تمام. اكتب الشيء الذي تريد تعديله مثل: السعر 3000، المقاطعة عرفات، المعلم قرب كارفور. أو اكتب إلغاء لحذف المسودة."
+        reply: `تمام. اكتب الشيء الذي تريد تعديله مثل: السعر ${example.maxPrice}، المقاطعة ${example.area}، المعلم قرب السوق. أو اكتب إلغاء لحذف المسودة.`
       };
     }
   }
@@ -2782,11 +2838,14 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         reply: await getPointsTopupInstructions()
       };
 
-    default:
+    default: {
+      const example = await getSearchExample();
+
       return {
         debugIntent: "unknown",
-        reply: `أهلًا بك. يمكنك إرسال طلب مثل: لدي شقة للإيجار، أو: أريد شقة في تفرغ زينة بحد أقصى 2500. الحقول الأساسية للعقار: ${requiredPropertyFields.join("، ")}.`
+        reply: `أهلًا بك. يمكنك إرسال طلب مثل: لدي شقة للإيجار، أو: أريد شقة في ${example.area} بحد أقصى ${example.maxPrice}. الحقول الأساسية للعقار: ${requiredPropertyFields.join("، ")}.`
       };
+    }
   }
 }
 
