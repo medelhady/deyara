@@ -33,13 +33,31 @@ let refuseVideo = false;
 /** Set to make the storage link look dead, the way an expired signature does. */
 let breakLink = false;
 
+/** Set to make Meta refuse the upload, so the link path is exercised instead. */
+let refuseUpload = false;
+
+const uploads: string[] = [];
+
 globalThis.fetch = (async (url: string, init: any) => {
-  // Two very different calls come through here: the preflight on the storage link, and the send to
-  // Meta. Only the second carries a JSON body.
+  const target = String(url);
+
+  // Three different calls arrive here: the preflight and the file read (no body), the media upload
+  // (a FormData body), and the send itself (JSON).
+  if (target.includes("/media")) {
+    uploads.push(target);
+
+    return refuseUpload
+      ? new Response('{"error":{"code":131053,"message":"Media upload error"}}', { status: 400 })
+      : new Response('{"id":"media-123"}', { status: 200 });
+  }
+
   if (!init?.body) {
     return breakLink
       ? new Response(null, { status: 403 })
-      : new Response(null, { status: 200, headers: { "content-type": "video/mp4", "content-length": "2000000" } });
+      : new Response("videobytes", {
+          status: 200,
+          headers: { "content-type": "video/mp4", "content-length": "2000000" }
+        });
   }
 
   const body = JSON.parse(init.body);
@@ -60,12 +78,29 @@ async function main() {
 
   check("one message goes out", sent.length, 1);
   check("it is a video, not text", sent[0].type, "video");
-  check("the link is the signed url", sent[0].body.video.link, link);
   check("no caption rides on the video", sent[0].body.video.caption, undefined);
   check("the whatsapp: prefix is stripped", sent[0].body.to, "22244974444");
 
-  // A path instead of a link is exactly the bug, and it must never be what goes out.
-  check("nothing bare-path shaped is sent", sent[0].body.video.link.startsWith("https://"), true);
+  // The file is uploaded and sent by id. Handing Meta a link means it fetches the URL after
+  // answering us, so anything that goes wrong there is accepted and then silently dropped.
+  check("the file is uploaded first", uploads.length, 1);
+  check("and sent by its media id", sent[0].body.video.id, "media-123");
+  check("no link is handed over when the upload worked", sent[0].body.video.link, undefined);
+
+  // If Meta refuses the upload it says so, and that failure is worth falling back on rather than
+  // giving up: the link path is the one thing left that might still work.
+  sent.length = 0;
+  uploads.length = 0;
+  refuseUpload = true;
+
+  await metaWhatsAppProvider.sendVideo("whatsapp:+22244974444", link);
+
+  check("a refused upload falls back to the link", sent[0].body.video.link, link);
+  check("and the link is a url, never a bare storage path", sent[0].body.video.link.startsWith("https://"), true);
+
+  refuseUpload = false;
+  sent.length = 0;
+  uploads.length = 0;
 
   // Meta refusing the file -- too large, or unfetchable -- must not end in silence.
   sent.length = 0;

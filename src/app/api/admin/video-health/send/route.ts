@@ -3,7 +3,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import { checkVideoUrl } from "@/lib/video-health";
-import { metaWhatsAppProvider } from "@/lib/whatsapp/meta";
+import { metaWhatsAppProvider, uploadMetaVideo } from "@/lib/whatsapp/meta";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -97,7 +97,26 @@ export async function POST(request: Request) {
       : health.reason
   });
 
-  // Attempted even when the check failed: the point is to see what Meta says, and a check that is
+  // Reported separately from the send, because these fail for entirely different reasons and the
+  // whole point of this page is to say which half broke.
+  let mediaId: string | null = null;
+
+  try {
+    mediaId = await uploadMetaVideo(signed);
+    steps.push({
+      name: "رفع الملف إلى ميتا",
+      ok: Boolean(mediaId),
+      detail: mediaId ? `تم — المعرّف ${mediaId}` : "لم يُرفع — تعذّر قراءة الملف من التخزين."
+    });
+  } catch (error) {
+    steps.push({
+      name: "رفع الملف إلى ميتا",
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error)
+    });
+  }
+
+  // Attempted even when the checks failed: the point is to see what Meta says, and a check that is
   // wrong about a working file would otherwise never be caught.
   try {
     await metaWhatsAppProvider.sendVideo(target, signed);

@@ -249,6 +249,61 @@ async function postMessage(to: string, payload: Record<string, unknown>, describ
   }
 }
 
+/**
+ * Puts a video into Meta's own media store and returns its id.
+ *
+ * Returns null when there is nothing to upload with, so the caller can fall back rather than fail:
+ * during development there are no credentials, and if fetching the file from storage is what broke,
+ * Meta fetching it itself is still worth a try.
+ *
+ * Throws when Meta rejects the upload, because that is the answer worth having -- an id that never
+ * comes back is exactly the silence this exists to end.
+ */
+export async function uploadMetaVideo(link: string) {
+  const token = process.env.META_WHATSAPP_TOKEN;
+  const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
+
+  if (!token || !phoneNumberId) {
+    return null;
+  }
+
+  const file = await fetch(link);
+
+  if (!file.ok) {
+    console.error("Could not read the video from storage", file.status);
+    return null;
+  }
+
+  const contentType = file.headers.get("content-type") ?? "video/mp4";
+  const form = new FormData();
+
+  form.append("messaging_product", "whatsapp");
+  form.append("type", contentType);
+  form.append("file", new Blob([await file.arrayBuffer()], { type: contentType }), "video.mp4");
+
+  // No Content-Type header: fetch sets the multipart boundary itself, and overriding it corrupts the
+  // body in a way Meta reports only as a generic upload error.
+  const response = await fetch(`https://graph.facebook.com/v20.0/${phoneNumberId}/media`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Meta media upload failed: ${text}`);
+  }
+
+  const id = (JSON.parse(text) as { id?: string }).id;
+
+  if (!id) {
+    throw new Error(`Meta media upload returned no id: ${text}`);
+  }
+
+  return id;
+}
+
 export const metaWhatsAppProvider: WhatsAppProvider = {
   // Incoming messages are parsed by parseMetaWebhook, which reads JSON. The form-data parseIncoming
   // that used to sit here existed only to satisfy an interface shared with Twilio, and threw.
@@ -257,13 +312,31 @@ export const metaWhatsAppProvider: WhatsAppProvider = {
   },
 
   /**
-   * Sends a video by link rather than by uploading it first.
+   * Sends a video by uploading it to Meta first, falling back to handing over the link.
    *
-   * Meta fetches the link itself, so it has to be reachable without our credentials -- a signed
-   * storage link works, the bucket path behind it does not. Meta also refuses files past its size
-   * limit, which is why callers are expected to have a fallback rather than assume this succeeded.
+   * Handing Meta a link looks simpler and hid a whole class of failure: Meta answers the send before
+   * it fetches the URL, so anything that goes wrong on its side -- an expired signature, a host it
+   * cannot reach, a file it will not take -- is accepted with a 200 and then dropped. Nothing is
+   * logged, and the listing looks identical to one that sent fine.
+   *
+   * Uploading first moves every one of those failures in front of us, where they arrive as an error
+   * with a reason attached. The link path is kept for the case where our own fetch of the file is
+   * what fails, since that is the one situation where Meta might still manage it.
    */
   async sendVideo(to, link, caption) {
-    await postMessage(to, { type: "video", video: caption ? { link, caption } : { link } }, "video send");
+    let id: string | null = null;
+
+    // Only the upload is caught. A send that fails has already been accepted as far as the media is
+    // concerned, so retrying it by link would post the video twice on any error that is not about
+    // the file at all -- a closed 24-hour window, an unreachable number.
+    try {
+      id = await uploadMetaVideo(link);
+    } catch (error) {
+      console.error("Meta media upload failed, falling back to the link", error);
+    }
+
+    const media = id ? { id } : { link };
+
+    await postMessage(to, { type: "video", video: caption ? { ...media, caption } : media }, "video send");
   }
 };
