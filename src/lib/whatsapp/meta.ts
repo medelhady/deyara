@@ -38,10 +38,56 @@ type MetaWebhookPayload = {
             name?: string;
           };
         }>;
+        /**
+         * What became of a message after Meta accepted it.
+         *
+         * The only place a delivery failure is ever reported. Meta answers a send with a 200 and an
+         * id, then decides separately whether it can actually deliver -- so a message that is
+         * refused after acceptance leaves no trace at all unless these are read.
+         */
+        statuses?: Array<{
+          id?: string;
+          status?: string;
+          recipient_id?: string;
+          errors?: Array<{ code?: number; title?: string; message?: string; error_data?: { details?: string } }>;
+        }>;
       };
     }>;
   }>;
 };
+
+export type MetaDeliveryStatus = {
+  messageId: string;
+  status: string;
+  recipient: string;
+  error?: string;
+};
+
+/** Pulls the delivery outcomes out of a webhook payload. Empty for an ordinary incoming message. */
+export function parseMetaStatuses(payload: MetaWebhookPayload): MetaDeliveryStatus[] {
+  const statuses: MetaDeliveryStatus[] = [];
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const item of change.value?.statuses ?? []) {
+        const failure = item.errors?.[0];
+
+        statuses.push({
+          messageId: String(item.id ?? ""),
+          status: String(item.status ?? ""),
+          recipient: item.recipient_id ? normalizeWhatsAppPhone(String(item.recipient_id)) : "",
+          error: failure
+            ? [failure.code ? `(#${failure.code})` : "", failure.title, failure.message, failure.error_data?.details]
+                .filter(Boolean)
+                .join(" — ")
+            : undefined
+        });
+      }
+    }
+  }
+
+  return statuses;
+}
 
 /** The shape every phone number is stored in. Exported so nothing builds a second, subtly different one. */
 export function normalizeWhatsAppPhone(phone: string) {

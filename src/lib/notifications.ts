@@ -224,3 +224,14 @@ export async function sendVideoNotification(
     return { ok: fallback.ok, viaLink: fallback.ok };
   }
 }
+
+/**
+ * Writes down a message Meta accepted and then refused to deliver.
+ *
+ * There is no other record of it. The send succeeded, the log says "sent", and the only sign that
+ * anything went wrong is a status callback arriving seconds later -- which is how a video could be
+ * uploaded, acknowledged with an id, and never reach anyone.
+ */
+export async function recordDeliveryFailure(phone: string, reason: string) {
+  await record(phone, "bot_reply", "[لم تُسلَّم] رسالة قبلتها ميتا ثم رفضت تسليمها", "failed", reason);
+}

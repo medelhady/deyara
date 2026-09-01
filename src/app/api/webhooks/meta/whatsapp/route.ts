@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
-import { parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
-import { sendNotification, sendVideoNotification } from "@/lib/notifications";
+import { parseMetaStatuses, parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
+import { recordDeliveryFailure, sendNotification, sendVideoNotification } from "@/lib/notifications";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +94,24 @@ export async function POST(request: Request) {
   }
 
   const payload = JSON.parse(rawBody);
+
+  /**
+   * What became of messages we already sent.
+   *
+   * Meta answers a send with a 200 and an id, then decides separately whether it can deliver. A
+   * message refused after that point is reported only here -- which is why a video that Meta
+   * accepted, uploaded and acknowledged could still never arrive, with nothing written down
+   * anywhere. Only failures are recorded; sent/delivered/read would bury the log.
+   */
+  for (const status of parseMetaStatuses(payload)) {
+    if (status.status !== "failed") {
+      continue;
+    }
+
+    console.error(`Delivery failed to ${status.recipient}: ${status.error ?? "no reason given"}`);
+    await recordDeliveryFailure(status.recipient, status.error ?? "رفضت ميتا تسليم الرسالة بلا سبب معلن.");
+  }
+
   const messages = await parseMetaWebhook(payload);
   const replies = [];
 
