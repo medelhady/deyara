@@ -78,14 +78,29 @@ async function countRecentFailedNotifications(since: string) {
     return null;
   }
 
+  /**
+   * Reviewed failures stop counting.
+   *
+   * A banner that cannot be dismissed warns about a fault the admin has already diagnosed and fixed,
+   * for a full day -- which teaches them to ignore the banner, and the next real failure is ignored
+   * along with it.
+   */
   const { count, error } = await supabase
     .from("notification_log")
     .select("*", { count: "exact", head: true })
     .eq("status", "failed")
+    .is("reviewed_at", null)
     .gte("created_at", since);
 
   if (error) {
-    return null;
+    // The column arrives with a migration. Until it is run, count every failure rather than none.
+    const { count: withoutColumn, error: fallbackError } = await supabase
+      .from("notification_log")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "failed")
+      .gte("created_at", since);
+
+    return fallbackError ? null : (withoutColumn ?? 0);
   }
 
   return count ?? 0;

@@ -52,6 +52,7 @@ export function NotificationsClient() {
   const [error, setError] = useState("");
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   async function load(failedOnly: boolean) {
     const response = await fetch(`/api/admin/notifications?failed=${failedOnly ? "1" : "0"}&t=${Date.now()}`, {
@@ -71,6 +72,33 @@ export function NotificationsClient() {
     setMessage((data.notifications ?? []).length ? "" : "لا يوجد إشعارات مسجلة بعد.");
   }
 
+  /**
+   * Records that the failures have been looked at, which is what closes the dashboard banner.
+   *
+   * Nothing is deleted or altered. The banner otherwise keeps warning for a full day about a fault
+   * already diagnosed and fixed, and a warning you cannot answer is one you learn to scroll past.
+   */
+  async function markReviewed() {
+    setReviewing(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/admin/notifications/review", { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error ?? "تعذر الحفظ.");
+        return;
+      }
+
+      // After the reload, not before: load() sets its own message and would wipe this one out.
+      await load(onlyFailed);
+      setMessage(`✅ تم الاطلاع على ${data.reviewed} إشعارًا. التنبيه في اللوحة سيختفي.`);
+    } finally {
+      setReviewing(false);
+    }
+  }
+
   useEffect(() => {
     void load(onlyFailed);
   }, [onlyFailed]);
@@ -88,9 +116,18 @@ export function NotificationsClient() {
                   : `${summary.failed} لم تصل من أصل ${summary.total}`}
               </h2>
             </div>
-            <button className="button secondary" type="button" onClick={() => setOnlyFailed(!onlyFailed)}>
-              {onlyFailed ? "عرض الكل" : "الفاشلة فقط"}
-            </button>
+            <div className="row-actions">
+              <button className="button secondary" type="button" onClick={() => setOnlyFailed(!onlyFailed)}>
+                {onlyFailed ? "عرض الكل" : "الفاشلة فقط"}
+              </button>
+              {/* Closes the dashboard banner. The rows stay exactly as they are; this only records
+                  that someone looked, so a fault already fixed stops warning for a day. */}
+              {summary.failed > 0 ? (
+                <button className="button secondary" type="button" disabled={reviewing} onClick={() => void markReviewed()}>
+                  {reviewing ? "جارٍ الحفظ..." : "تم الاطلاع"}
+                </button>
+              ) : null}
+            </div>
           </div>
 
           {summary.outsideWindow > 0 ? (
