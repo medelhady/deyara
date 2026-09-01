@@ -53,9 +53,24 @@ export const messageDefinitions: MessageDefinition[] = [
   {
     key: "no_results",
     label: "لا توجد نتائج",
-    note: "حين لا يجد البحث أي دار. فرصة لتوجيهه إلى بحث أوسع بدل أن يغادر.",
-    variables: [],
-    fallback: "ما حصلت نتيجة مناسبة حاليًا.\n\nاكتب منطقة أو معلم ثاني ونبحث لك مباشرة."
+    note: "حين لا يجد البحث أي دار. سطر {place} يختفي وحده إن لم يكن المكتوب اسم مكان، و{available} تُملأ من الإعلانات المنشورة فعلًا.",
+    variables: [
+      { name: "place", sample: "تنسويلم", note: "ما بحث عنه المستخدم، وقد يكون فارغًا" },
+      {
+        name: "available",
+        sample: "المتوفر الآن:\n• لكصر — 12 دار\n• تفرغ زينة — 10 دور",
+        note: "قائمة المقاطعات التي فيها إعلانات الآن بعنوانها، وتختفي كلها إن لم يكن هناك أي إعلان منشور"
+      }
+    ],
+    fallback: [
+      "ما عندنا دور في {place} حاليًا.",
+      "",
+      "جرّب تبحث عن المقاطعة اللي فيها منطقتك، ممكن تطلع لك نتائج.",
+      "",
+      "{available}",
+      "",
+      "اكتب اسم المقاطعة اللي تناسبك."
+    ].join("\n")
   },
   {
     key: "referral_welcome",
@@ -247,7 +262,7 @@ function isEmptyValue(value: string | number | undefined | null) {
  * lines an admin typed for spacing survive.
  */
 export function renderMessage(template: string, values: Record<string, string | number | undefined>) {
-  return template
+  const lines = template
     .split("\n")
     .filter((line) => {
       const names = variablesUsedIn(line);
@@ -258,8 +273,32 @@ export function renderMessage(template: string, values: Record<string, string | 
       line.replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, name: string) =>
         isEmptyValue(values[name]) ? "" : String(values[name])
       )
-    )
-    .join("\n");
+    );
+
+  /**
+   * Tidies the gaps a dropped line leaves behind.
+   *
+   * A line surrounded by the blank lines an admin typed for spacing takes only itself when it goes,
+   * leaving the message opening on an empty line or carrying a double gap in the middle. One blank
+   * line is spacing; two is the hole where something used to be.
+   */
+  const tidied: string[] = [];
+
+  for (const line of lines) {
+    const blank = line.trim() === "";
+
+    if (blank && (tidied.length === 0 || tidied[tidied.length - 1].trim() === "")) {
+      continue;
+    }
+
+    tidied.push(line);
+  }
+
+  while (tidied.length > 0 && tidied[tidied.length - 1].trim() === "") {
+    tidied.pop();
+  }
+
+  return tidied.join("\n");
 }
 
 const cacheTtlMs = 30 * 1000;

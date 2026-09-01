@@ -652,6 +652,82 @@ export async function getAreasWithListings(limit = 4) {
   return ranked.length > 0 ? ranked.slice(0, limit) : knownAreas.slice(0, limit);
 }
 
+/** The same ranking with the counts kept, for telling a searcher what is actually on the shelf. */
+export async function getAreaInventory(limit = 5) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const { data, error } = await supabase.from("properties").select("area").eq("status", "active");
+
+  if (error) {
+    return [];
+  }
+
+  const counts = new Map<string, number>();
+
+  for (const row of data ?? []) {
+    const area = String(row.area ?? "").trim();
+
+    if (area) {
+      counts.set(area, (counts.get(area) ?? 0) + 1);
+    }
+  }
+
+  return [...counts.entries()]
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, limit)
+    .map(([area, count]) => ({ area, count }));
+}
+
+function houseCount(count: number) {
+  if (count === 1) return "دار واحدة";
+  if (count === 2) return "دارين";
+
+  return count <= 10 ? `${count} دور` : `${count} دار`;
+}
+
+/**
+ * True when a search term is worth repeating back to the user.
+ *
+ * "؟" reached this message as a place name and produced "ما عندنا دور في ؟ حاليًا". A term with no
+ * letters in it is not somewhere anyone lives.
+ */
+function looksLikePlace(text: string) {
+  const trimmed = text.trim();
+
+  // "__more__" is the sentinel for "show me the rest", not a district, and it would have been read
+  // back to the user as one.
+  if (trimmed === "__more__") {
+    return false;
+  }
+
+  return trimmed.length >= 2 && /[ء-يA-Za-z]/.test(trimmed);
+}
+
+/**
+ * What the bot says when a search comes back empty.
+ *
+ * The old wording named two districts chosen when the code was written, which is a promise the
+ * database does not have to keep: it sent people to look where nothing was listed. This names what
+ * is actually published, busiest first, so a dead end becomes a list to pick from.
+ */
+export async function buildNoResults(place?: string | null) {
+  const inventory = await getAreaInventory();
+  const named = place && looksLikePlace(place) ? place.trim() : "";
+
+  // The heading travels with the list so both disappear together. Promising "المتوفر الآن" and then
+  // showing nothing is worse than saying nothing, and an empty database is exactly when it happens.
+  const available =
+    inventory.length > 0
+      ? ["المتوفر الآن:", ...inventory.map((item) => `• ${item.area} — ${houseCount(item.count)}`)].join("\n")
+      : "";
+
+  return getMessage("no_results", { place: named, available });
+}
+
 export type AreaNotice = {
   text: string;
   /** Empty means it covers every district that no other notice claims. */
@@ -2154,7 +2230,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       if (results.length === 0) {
         return {
           debugIntent: "search_property",
-        reply: `ما حصلت ${mergedSearch.propertyType ?? "عقار"} في ${mergedSearch.area} حاليًا.\n\nاكتب منطقة ثانية أو معلم قريب، مثلا: كارفور أو تفرغ زينة.`
+        reply: await buildNoResults(mergedSearch.area)
         };
       }
 
@@ -2195,10 +2271,9 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     });
 
     if (results.length === 0) {
-      const placeText = areaFromText ?? text;
       return {
         debugIntent: "search_property",
-        reply: `ما حصلت نتيجة مناسبة لـ ${placeText} حاليًا.\n\nجرّب منطقة أو معلم ثاني، مثل: تفرغ زينة أو كارفور.`
+        reply: await buildNoResults(areaFromText ?? text)
       };
     }
 
@@ -2572,7 +2647,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         if (results.length === 0) {
           return {
             debugIntent: "search_property",
-            reply: await getMessage("no_results")
+            reply: await buildNoResults(extracted.area ?? extracted.searchText)
           };
         }
 
