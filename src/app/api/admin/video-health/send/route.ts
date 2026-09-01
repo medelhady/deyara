@@ -3,6 +3,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
 import { getSettings } from "@/lib/settings";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import { checkVideoUrl } from "@/lib/video-health";
+import { inspectMp4 } from "@/lib/mp4-inspect";
 import { metaWhatsAppProvider, uploadMetaVideo } from "@/lib/whatsapp/meta";
 
 export const dynamic = "force-dynamic";
@@ -96,6 +97,33 @@ export async function POST(request: Request) {
         }`
       : health.reason
   });
+
+  /**
+   * What is actually inside the file.
+   *
+   * Everything up to here can pass on a video WhatsApp will not relay: it takes the upload, accepts
+   * the send, and declines to deliver, which looks exactly like success. The codec is the last thing
+   * left that can differ between a video that arrives and one that does not.
+   */
+  try {
+    const file = await fetch(signed);
+    const report = inspectMp4(new Uint8Array(await file.arrayBuffer()));
+
+    steps.push({
+      name: "محتوى الملف",
+      ok: report.problems.length === 0,
+      detail:
+        report.problems.length > 0
+          ? report.problems.join(" ")
+          : `سليم — فيديو ${report.videoCodec ?? "غير معروف"}${report.audioCodec ? ` وصوت ${report.audioCodec}` : ""}`
+    });
+  } catch (error) {
+    steps.push({
+      name: "محتوى الملف",
+      ok: false,
+      detail: `تعذّرت قراءة الملف: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
 
   // Reported separately from the send, because these fail for entirely different reasons and the
   // whole point of this page is to say which half broke.

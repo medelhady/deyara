@@ -5,7 +5,7 @@ import { aiExtractMessage } from "./ai-extract";
 import { getRuntimeDictionary, includesAny } from "./local-dictionary";
 import { mockProperties } from "./mock-data";
 import { getConversationState, setConversationState } from "./store";
-import { storePropertyMedia } from "@/lib/whatsapp/media";
+import { storePropertyMedia, storePropertyVideo } from "@/lib/whatsapp/media";
 import { getSettings } from "@/lib/settings";
 import { notifyAdmins } from "@/lib/notify-admins";
 import { handleAdminCommand } from "./admin-commands";
@@ -2371,18 +2371,27 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   const incomingVideo = message.media.find((item) => item.contentType.startsWith("video/"));
   if (incomingVideo) {
     // Copy it now: the WhatsApp link expires long before the owner confirms the listing.
-    const storedPath = await storePropertyMedia(incomingVideo.url, incomingVideo.contentType, message.from);
+    const { path: storedPath, error: videoError } = await storePropertyVideo(
+      incomingVideo.url,
+      incomingVideo.contentType,
+      message.from
+    );
 
     /**
-     * A failed copy used to fall back to the WhatsApp link, which dies within minutes. The listing
-     * then looked complete and had a video nobody could ever watch -- WhatsApp accepts the dead link
-     * and drops the message without an error, so it surfaced weeks later as a renter seeing nothing.
-     * Asking for it again costs one message; the alternative costs the listing.
+     * Refused here rather than accepted and discovered later.
+     *
+     * A video WhatsApp will not relay -- an H.265 export, a copy that stopped partway -- is taken by
+     * Meta, acknowledged with a media id, and then silently not delivered. The listing looks complete
+     * and shows a renter nothing, which is a fault nobody reports because the renter simply leaves.
      */
-    if (!storedPath && getServiceSupabase()) {
+    if (videoError) {
       return {
         debugIntent: "add_property",
-        reply: "تعذّر حفظ الفيديو. أعد إرساله من فضلك — إن تكرر الأمر جرّب فيديو أقصر."
+        reply: [
+          `⚠️ ${videoError}`,
+          "",
+          "أرسله كـ*فيديو* لا كملف أو مستند — واتساب يهيّئ الفيديو المرسل بهذه الطريقة تلقائيًا."
+        ].join("\n")
       };
     }
 

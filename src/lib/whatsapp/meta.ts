@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { inspectMp4 } from "@/lib/mp4-inspect";
 import type { IncomingWhatsAppMessage, WhatsAppProvider } from "./types";
 
 type MetaWebhookPayload = {
@@ -296,6 +297,15 @@ async function postMessage(to: string, payload: Record<string, unknown>, describ
 }
 
 /**
+ * A file WhatsApp will never relay, whatever we do with it.
+ *
+ * Separate from an upload that merely failed: retrying by link is worth it when the upload broke,
+ * and pointless when the file itself is the problem -- Meta would accept the link too, and drop it
+ * just as quietly.
+ */
+export class UnusableMediaError extends Error {}
+
+/**
  * Puts a video into Meta's own media store and returns its id.
  *
  * Returns null when there is nothing to upload with, so the caller can fall back rather than fail:
@@ -321,11 +331,26 @@ export async function uploadMetaVideo(link: string) {
   }
 
   const contentType = file.headers.get("content-type") ?? "video/mp4";
+  const bytes = new Uint8Array(await file.arrayBuffer());
+
+  /**
+   * Checked here because these bytes are already in hand, and because Meta will not tell us in time.
+   * It accepts the upload, returns a media id, accepts the send -- and only then decides it cannot
+   * process the file, reporting that in a delivery callback seconds later. A renter meanwhile sees
+   * nothing at all. This is the last moment the difference can still be acted on.
+   */
+  const report = inspectMp4(bytes);
+
+  if (report.problems.length > 0) {
+    throw new UnusableMediaError(report.problems.join(" "));
+  }
+
   const form = new FormData();
 
   form.append("messaging_product", "whatsapp");
   form.append("type", contentType);
-  form.append("file", new Blob([await file.arrayBuffer()], { type: contentType }), "video.mp4");
+  // The bytes already read above: a response body can only be consumed once.
+  form.append("file", new Blob([bytes], { type: contentType }), "video.mp4");
 
   // No Content-Type header: fetch sets the multipart boundary itself, and overriding it corrupts the
   // body in a way Meta reports only as a generic upload error.
@@ -378,6 +403,12 @@ export const metaWhatsAppProvider: WhatsAppProvider = {
     try {
       id = await uploadMetaVideo(link);
     } catch (error) {
+      // A file Meta cannot process is refused by link too, and by link it is refused silently. The
+      // caller has a text fallback that at least reaches the renter, so let this reach it.
+      if (error instanceof UnusableMediaError) {
+        throw error;
+      }
+
       console.error("Meta media upload failed, falling back to the link", error);
     }
 
