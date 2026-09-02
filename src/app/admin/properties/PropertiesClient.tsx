@@ -11,6 +11,8 @@ type Property = {
   landmark: string | null;
   price: number | null;
   rooms: number | null;
+  /** Set by the owner while listing. 0 means none; null means the listing predates the question. */
+  office_commission: number | null;
   status: string;
   created_at: string;
   media?: Array<{ type: string; url: string | null; contentType: string | null }>;
@@ -549,6 +551,17 @@ export function PropertiesClient() {
                         <div className="property-detail">
                           <p>المعلم القريب: {property.landmark ?? "غير محدد"}</p>
                           <p>الغرف: {property.rooms ?? "غير محدد"}</p>
+                          {/* Three states, not two: an owner who said "no commission" and a listing
+                              published before the question existed are different facts, and only the
+                              second is something to go and ask about. */}
+                          <p>
+                            عمولة المكتب:{" "}
+                            {property.office_commission === null
+                              ? "لم يُسأل عنها — إعلان قديم"
+                              : property.office_commission === 0
+                                ? "لا توجد"
+                                : formatPrice(property.office_commission)}
+                          </p>
                           <p>رقم المؤجر: {property.owner_phone}</p>
                           <PropertyVideo media={property.media} startOpen={property.status === "pending_review"} />
                           {/* The label carries the busy state: a disabled button alone is easy to
