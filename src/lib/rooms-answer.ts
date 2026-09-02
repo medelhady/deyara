@@ -14,14 +14,15 @@ export type RoomsAnswer = {
   extras?: string;
 };
 
-const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
-
-function toLatinDigits(text: string) {
-  return text.replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit)));
-}
-
+/**
+ * Latin digits only, deliberately.
+ *
+ * Mauritania writes numbers 0-9, not ٠-٩, so accepting both would be guarding against a
+ * keyboard nobody here uses. An answer written with Eastern digits is left without a count rather
+ * than mis-read: the question is asked again, and GPT still gets its chance at the sentence.
+ */
 export function parseRoomsAnswer(body: string): RoomsAnswer {
-  const text = toLatinDigits(body).trim();
+  const text = body.trim();
   const match = text.match(/\d{1,2}/);
 
   if (!match) {

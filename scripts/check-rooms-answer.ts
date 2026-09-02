@@ -30,11 +30,12 @@ check("the rest becomes the extras", full.extras, "جراج السيارات و�
 check("the word غرف is not repeated in them", full.extras?.includes("غرف"), false);
 check("nor the joining و", full.extras?.startsWith("و"), false);
 
-// Arabic-Indic digits are what many keyboards produce.
-const arabic = parseRoomsAnswer("٤ غرف مع مطبخ كبير");
+// Eastern Arabic digits are not written here, so they are not read as a count. The sentence is kept
+// and the question asked again rather than a number being guessed at.
+const eastern = parseRoomsAnswer("٤ غرف مع مطبخ كبير");
 
-check("arabic digits are read", arabic.rooms, 4);
-check("with their extras kept", arabic.extras, "مع مطبخ كبير");
+check("eastern digits are not read as a count", eastern.rooms, undefined);
+check("but the answer is not thrown away", eastern.extras, "٤ غرف مع مطبخ كبير");
 
 check("no space before غرف is fine", parseRoomsAnswer("3غرف").rooms, 3);
 check("and leaves nothing behind", parseRoomsAnswer("3غرف").extras, undefined);
