@@ -12,7 +12,6 @@ export type AppSettings = {
   referralWelcomePoints: number;
   referralSignupBonusPoints: number;
   referralMinTopupPoints: number;
-  officeCommission: string;
   adminNotifyNumbers: string;
 };
 
@@ -23,7 +22,7 @@ type SettingDefinition = {
   column: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea" | "amount";
+  kind: "number" | "text" | "textarea";
   fallback: () => string;
 };
 
@@ -76,14 +75,6 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
-  },
-  {
-    key: "officeCommission",
-    column: "office_commission",
-    label: "عمولة المكتب",
-    hint: "المبلغ رقمًا فقط مثل 12000 — البوت يكتب الجملة من عنده. تظهر للمؤجر عند تقديم عقاره وللمستأجر مع كل إعلان قبل أن يدفع.",
-    kind: "amount",
-    fallback: () => ""
   },
   {
     key: "referralWelcomePoints",

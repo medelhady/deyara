@@ -51,6 +51,8 @@ export type PropertyCandidate = {
   landmark: string;
   price: number;
   rooms?: number;
+  /** What this owner charges the office. Zero is a real answer, and different from unanswered. */
+  commission?: number;
 };
 
 export type DraftProperty = {
@@ -59,6 +61,13 @@ export type DraftProperty = {
   landmark?: string;
   price?: number;
   rooms?: number;
+  /**
+   * Set by the owner while listing, not by an admin setting.
+   *
+   * Zero means "no commission on this house" and is a complete answer; undefined means the question
+   * has not been reached yet. Anything testing this with Boolean() would confuse the two.
+   */
+  commission?: number;
   hasVideo?: boolean;
   videoUrl?: string;
   videoContentType?: string;

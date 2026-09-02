@@ -13,7 +13,7 @@ import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { salutationFor } from "./greeting";
-import { commissionLines, formatCommission } from "@/lib/commission";
+import { commissionNote } from "@/lib/commission";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -137,16 +137,15 @@ async function formatPropertySummary(draft: DraftProperty) {
   // Shown to the owner as well, though the renter pays it: this is the summary of what the listing
   // will say, and an owner surprised later by a commission they never saw advertised is an argument
   // with a renter standing in front of the house.
-  const { officeCommission } = await getSettings();
-  const commission = resolveAreaNote(officeCommission, draft.area);
-
   return [
     "راجع ملخص الإعلان قبل إرساله للإدارة:",
     "",
     `النوع: ${draft.type ?? "غير محدد"}`,
     `المقاطعة: ${draft.area}`,
     `السعر: ${draft.price}`,
-    ...(commission ? [`عمولة المكتب: ${commissionLines(commission).join(" — ")}`] : []),
+    // The owner's own figure, shown back to them before it goes out: they set it, and this is where
+    // a wrong number is still cheap to fix.
+    `عمولة المكتب: ${draft.commission ? formatPrice(draft.commission) : "لا توجد"}`,
     `المعلم القريب: ${draft.landmark}`,
     `عدد الغرف: ${draft.rooms ?? "غير محدد"}`,
     `الفيديو: ${draft.hasVideo ? "تم استلامه" : "لم يصل بعد"}`,
@@ -307,9 +306,7 @@ export async function getPointsTopupInstructions(options?: { currentBalance?: nu
 function formatSearchResults(
   results: PropertyCandidate[],
   extracted: ReturnType<typeof extractMessage>,
-  // The raw setting, not a resolved figure: a page of results can span districts, and the
-  // commission differs by district, so it has to be resolved per property.
-  options?: { startIndex?: number; total?: number; hasMore?: boolean; commissionSetting?: string }
+  options?: { startIndex?: number; total?: number; hasMore?: boolean }
 ) {
   const typeText = extracted.propertyType ? propertyTypeSingular(extracted.propertyType) : "دار";
   const searchText = extracted.searchText && extracted.searchText !== "__more__" ? extracted.searchText.trim() : "";
@@ -323,14 +320,10 @@ function formatSearchResults(
     "",
     results
     .map((property, index) => {
-      const commission = options?.commissionSetting
-        ? resolveAreaNote(options.commissionSetting, property.area)
-        : "";
-
       return [
         `*${startIndex + index + 1}.* 🏠 دار في ${property.area}`,
         `💰 السعر: *${formatPrice(property.price)}*`,
-        ...(commission ? [`🏢 عمولة المكتب: *${formatCommission(commission)}*`] : []),
+        ...(property.commission ? [`🏢 عمولة المكتب: *${formatPrice(property.commission)}*`] : []),
         `📍 قريبة من: ${formatLandmark(property.landmark)}`
       ].join("\n");
     })
@@ -398,6 +391,7 @@ export async function submitPropertyForReview(
       landmark: draft.landmark,
       price: draft.price,
       rooms: draft.rooms,
+      office_commission: draft.commission ?? null,
       status: "pending_review",
       description: "تم إنشاء الإعلان من محادثة واتساب."
     })
@@ -464,6 +458,10 @@ async function getNextPropertyQuestion(draft: DraftProperty) {
     return "كم عدد الغرف في العقار؟ اكتب الرقم فقط، مثلاً: 3";
   }
 
+  if (draft.commission === undefined) {
+    return getMessage("commission_request");
+  }
+
   if (!draft.hasVideo) {
     return getMessage("video_request");
   }
@@ -489,8 +487,12 @@ function mergeDraftFromMessage(
    * the thing being asked for.
    */
   const awaitsRooms = Boolean(draft.area && draft.price && draft.landmark && !draft.rooms);
+  const awaitsCommission = Boolean(draft.area && draft.price && draft.landmark && draft.rooms) && draft.commission === undefined;
   const priceAnswer = draft.price ? null : trimmed.match(/^\d{2,8}$/);
   const roomsAnswer = awaitsRooms ? trimmed.match(/^\d{1,2}$/) : null;
+  // Zero is a real answer here -- "no commission on this house" -- so the pattern allows it and the
+  // result is compared against undefined rather than tested for truthiness.
+  const commissionAnswer = awaitsCommission ? trimmed.match(/^\d{1,8}$/) : null;
 
   return {
     ...draft,
@@ -498,8 +500,9 @@ function mergeDraftFromMessage(
     area: extracted.area ?? areaFromText ?? draft.area,
     landmark: extracted.landmark ?? draft.landmark,
     // GPT reads a lone "3" as a price as readily as we did, so it is ignored while rooms are open.
-    price: (awaitsRooms ? undefined : extracted.price) ?? (priceAnswer ? Number(priceAnswer[0]) : undefined) ?? draft.price,
-    rooms: extracted.rooms ?? (roomsAnswer ? Number(roomsAnswer[0]) : undefined) ?? draft.rooms
+    price: (awaitsRooms || awaitsCommission ? undefined : extracted.price) ?? (priceAnswer ? Number(priceAnswer[0]) : undefined) ?? draft.price,
+    rooms: extracted.rooms ?? (roomsAnswer ? Number(roomsAnswer[0]) : undefined) ?? draft.rooms,
+    commission: commissionAnswer ? Number(commissionAnswer[0]) : draft.commission
   };
 }
 
@@ -514,7 +517,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
       .slice(0, 20);
   }
 
-  const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms";
+  const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms,office_commission";
   let query = supabase
     .from("properties")
     .select(selectColumns)
@@ -604,7 +607,8 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     area: property.area ?? "غير محددة",
     landmark: property.landmark ?? "غير محدد",
     price: Number(property.price ?? 0),
-    rooms: property.rooms ?? undefined
+    rooms: property.rooms ?? undefined,
+    commission: property.office_commission ?? undefined
   }));
 }
 
@@ -830,11 +834,6 @@ export function resolveAreaNote(value: string, area?: string | null) {
 }
 
 export async function formatOwnerContact(selected: PropertyCandidate, note: string[] = []) {
-  // The commission is read fresh rather than baked in: it is a business figure that changes, and a
-  // renter must never be quoted one number here and charged another at the office.
-  const settings = await getSettings();
-  const commission = resolveAreaNote(settings.officeCommission, selected.area);
-
   return [
     "╭──────────────",
     `🏠 *${selected.type ?? "دار"} في ${selected.area}*`,
@@ -844,8 +843,8 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
     `*${formatPrice(selected.price)}*`,
     // Next to the price rather than in the fine print: it is part of what the house costs, and a
     // renter who meets it only after paying for the number has been surprised by a bill.
-    ...(commission
-      ? ["", "🏢 عمولة المكتب", ...commissionLines(commission).map((line, index) => (index === 0 ? `*${line}*` : line))]
+    ...(selected.commission
+      ? ["", "🏢 عمولة المكتب", `*${formatPrice(selected.commission)}*`, commissionNote]
       : []),
     "",
     "🛏 الغرف",
@@ -1841,6 +1840,10 @@ export function buildContextHint(state: Awaited<ReturnType<typeof getConversatio
       return "البوت سأل المستخدم للتو عن سعر إيجار العقار الذي يعرضه (يملكه). اعتبر أي رقم أو رد نصي استكمالاً لإضافة العقار (add_property).";
     }
 
+    if (draft.rooms && draft.commission === undefined) {
+      return "البوت سأل المستخدم للتو عن مبلغ عمولة المكتب لعقاره. الرقم المجرد هو العمولة، وليس سعراً ولا اختياراً من نتائج بحث. النية تبقى add_property.";
+    }
+
     if (draft.landmark && !draft.rooms) {
       return "البوت سأل المستخدم للتو عن عدد غرف العقار الذي يعرضه (يملكه). الرقم المجرد هو عدد الغرف (rooms)، وليس سعراً ولا اختياراً من نتائج بحث. النية تبقى add_property.";
     }
@@ -2135,7 +2138,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
-        commissionSetting: (await getSettings()).officeCommission,
         total: refinedResults.length,
         hasMore: refinedResults.length > visibleResults.length
       })
@@ -2178,7 +2180,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(nextResults, state.lastSearchQuery ?? { intent: "search_property" }, {
-        commissionSetting: (await getSettings()).officeCommission,
         startIndex: shownCount,
         total: allResults.length,
         hasMore: shownCount + nextResults.length < allResults.length
@@ -2250,7 +2251,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, state.lastSearchQuery ?? { intent: "search_property" }, {
-        commissionSetting: (await getSettings()).officeCommission,
         total: refinedResults.length,
         hasMore: refinedResults.length > visibleResults.length
       })
@@ -2292,7 +2292,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       return {
         debugIntent: "search_property",
         reply: formatSearchResults(visibleResults, mergedSearch, {
-        commissionSetting: (await getSettings()).officeCommission,
           total: results.length,
           hasMore: results.length > visibleResults.length
         })
@@ -2335,7 +2334,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     return {
       debugIntent: "search_property",
       reply: formatSearchResults(visibleResults, refinedSearch, {
-        commissionSetting: (await getSettings()).officeCommission,
         total: results.length,
         hasMore: results.length > visibleResults.length
       })
@@ -2476,7 +2474,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         state.draftProperty?.area &&
           state.draftProperty?.price &&
           state.draftProperty?.landmark &&
-          state.draftProperty?.rooms
+          state.draftProperty?.rooms &&
+          state.draftProperty?.commission !== undefined
       )
     });
     await setConversationState(message.from, {
@@ -2538,6 +2537,13 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       state.draftProperty?.landmark &&
       !state.draftProperty?.rooms
   );
+  const draftAwaitsCommission =
+    Boolean(
+      state.draftProperty?.area &&
+        state.draftProperty?.price &&
+        state.draftProperty?.landmark &&
+        state.draftProperty?.rooms
+    ) && state.draftProperty?.commission === undefined;
   // A bare number that indexes the last search results is the renter picking a property. It must win
   // over an unfinished listing draft parked in the same conversation, since one phone can be both a
   // renter and an owner. While a draft is open the message has to be nothing but that number: GPT
@@ -2549,6 +2555,8 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     !(draftAwaitsPrice && /^\d{2,8}$/.test(trimmedBody)) &&
     // "3" answering the room count is not the third result of a search from an earlier session.
     !(draftAwaitsRooms && /^\d{1,2}$/.test(trimmedBody)) &&
+    // Nor is one answering the commission, which may legitimately be any amount at all.
+    !(draftAwaitsCommission && /^\d{1,8}$/.test(trimmedBody)) &&
     Boolean(extracted.selectedIndex && state.lastSearchResults?.[extracted.selectedIndex - 1]);
 
   if (
@@ -2573,6 +2581,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         draftProperty.price &&
         draftProperty.landmark &&
         draftProperty.rooms &&
+        draftProperty.commission !== undefined &&
         draftProperty.hasVideo
     );
 
@@ -2683,6 +2692,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           draftProperty.price &&
           draftProperty.landmark &&
           draftProperty.rooms &&
+          draftProperty.commission !== undefined &&
           draftProperty.hasVideo
       );
 
@@ -2748,7 +2758,6 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
         return {
           debugIntent: "search_property",
           reply: formatSearchResults(visibleResults, extracted, {
-        commissionSetting: (await getSettings()).officeCommission,
             total: results.length,
             hasMore: results.length > visibleResults.length
           })

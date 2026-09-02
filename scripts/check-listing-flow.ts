@@ -38,7 +38,12 @@ async function main() {
   check("then the room count", asksRooms.reply.includes("عدد الغرف"), true);
   check("and it asks for a bare number", asksRooms.reply.includes("3"), true);
 
-  const asksVideo = await handleIncomingMessage(say("3"));
+  const asksCommission = await handleIncomingMessage(say("3"));
+
+  check("then the office commission", asksCommission.reply.includes("عمولة المكتب"), true);
+  check("and zero is offered as an answer", asksCommission.reply.includes("اكتب: 0"), true);
+
+  const asksVideo = await handleIncomingMessage(say("12000"));
   check("the video is asked for last", asksVideo.reply.includes("فيديو"), true);
   // A number burned into the video routes renters around the paywall, so the ask has to say so
   // every time it is repeated -- not once in a welcome message nobody rereads.
@@ -53,6 +58,7 @@ async function main() {
 
   check("the video completes the draft", summary.reply.includes("راجع ملخص الإعلان"), true);
   check("the summary carries the room count", summary.reply.includes("عدد الغرف: 3"), true);
+  check("and the commission the owner set", summary.reply.includes("12,000"), true);
 
   // The regression the room question invited: "3" must not have overwritten the rent.
   check("the price survived the room answer", summary.reply.includes("45000"), true);
@@ -69,19 +75,22 @@ async function main() {
   await handleIncomingMessage({ ...short, body: "عرفات" });
   await handleIncomingMessage({ ...short, body: "30000" });
   await handleIncomingMessage({ ...short, body: "قرب المستشفى" });
+  await handleIncomingMessage({ ...short, body: "2" });
 
   const videoBeforeRooms = await handleIncomingMessage({
     ...short,
     media: [{ url: "https://example.test/flat.mp4", contentType: "video/mp4" }]
   });
 
-  check("a video sent early does not skip the count", videoBeforeRooms.reply.includes("عدد الغرف"), true);
+  check("a video sent early does not skip the questions", videoBeforeRooms.reply.includes("عمولة المكتب"), true);
   check("and no summary is shown yet", videoBeforeRooms.reply.includes("راجع ملخص الإعلان"), false);
 
-  const nowSummary = await handleIncomingMessage({ ...short, body: "2" });
+  // Zero is a complete answer -- "no commission on this house" -- and must not read as unanswered.
+  const nowSummary = await handleIncomingMessage({ ...short, body: "0" });
 
   check("giving the count then finishes the draft", nowSummary.reply.includes("راجع ملخص الإعلان"), true);
   check("with the count in it", nowSummary.reply.includes("عدد الغرف: 2"), true);
+  check("a zero commission finishes the draft rather than repeating", nowSummary.reply.includes("لا توجد"), true);
   check("and the rent intact", nowSummary.reply.includes("30000"), true);
 }
 
