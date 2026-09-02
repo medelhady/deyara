@@ -53,6 +53,8 @@ export type PropertyCandidate = {
   rooms?: number;
   /** What this owner charges the office. Zero is a real answer, and different from unanswered. */
   commission?: number;
+  /** Whatever the owner added beside the room count -- a garage, a sitting room. */
+  extras?: string;
 };
 
 export type DraftProperty = {
@@ -68,6 +70,8 @@ export type DraftProperty = {
    * has not been reached yet. Anything testing this with Boolean() would confuse the two.
    */
   commission?: number;
+  /** Whatever the owner added beside the room count. Written in their own words, kept as given. */
+  extras?: string;
   hasVideo?: boolean;
   videoUrl?: string;
   videoContentType?: string;

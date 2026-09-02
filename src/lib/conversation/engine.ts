@@ -14,6 +14,7 @@ import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { salutationFor } from "./greeting";
 import { commissionNote } from "@/lib/commission";
+import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
@@ -148,6 +149,7 @@ async function formatPropertySummary(draft: DraftProperty) {
     `عمولة المكتب: ${draft.commission ? formatPrice(draft.commission) : "لا توجد"}`,
     `المعلم القريب: ${draft.landmark}`,
     `عدد الغرف: ${draft.rooms ?? "غير محدد"}`,
+    ...(draft.extras ? [`إضافات: ${draft.extras}`] : []),
     `الفيديو: ${draft.hasVideo ? "تم استلامه" : "لم يصل بعد"}`,
     "",
     "هل المعلومات صحيحة؟ اكتب نعم لإرسالها للإدارة، أو لا للتعديل أو الإلغاء."
@@ -393,7 +395,8 @@ export async function submitPropertyForReview(
       rooms: draft.rooms,
       office_commission: draft.commission ?? null,
       status: "pending_review",
-      description: "تم إنشاء الإعلان من محادثة واتساب."
+      // The owner's own words, where a fixed sentence carrying no information used to be.
+      description: draft.extras ?? null
     })
     .select("id,property_code")
     .single();
@@ -455,7 +458,7 @@ async function getNextPropertyQuestion(draft: DraftProperty) {
   }
 
   if (!draft.rooms) {
-    return "كم عدد الغرف في العقار؟ اكتب الرقم فقط، مثلاً: 3";
+    return getMessage("rooms_request");
   }
 
   if (draft.commission === undefined) {
@@ -489,7 +492,7 @@ function mergeDraftFromMessage(
   const awaitsRooms = Boolean(draft.area && draft.price && draft.landmark && !draft.rooms);
   const awaitsCommission = Boolean(draft.area && draft.price && draft.landmark && draft.rooms) && draft.commission === undefined;
   const priceAnswer = draft.price ? null : trimmed.match(/^\d{2,8}$/);
-  const roomsAnswer = awaitsRooms ? trimmed.match(/^\d{1,2}$/) : null;
+  const roomsAnswer = awaitsRooms ? parseRoomsAnswer(trimmed) : null;
   // Zero is a real answer here -- "no commission on this house" -- so the pattern allows it and the
   // result is compared against undefined rather than tested for truthiness.
   const commissionAnswer = awaitsCommission ? trimmed.match(/^\d{1,8}$/) : null;
@@ -501,7 +504,8 @@ function mergeDraftFromMessage(
     landmark: extracted.landmark ?? draft.landmark,
     // GPT reads a lone "3" as a price as readily as we did, so it is ignored while rooms are open.
     price: (awaitsRooms || awaitsCommission ? undefined : extracted.price) ?? (priceAnswer ? Number(priceAnswer[0]) : undefined) ?? draft.price,
-    rooms: extracted.rooms ?? (roomsAnswer ? Number(roomsAnswer[0]) : undefined) ?? draft.rooms,
+    rooms: roomsAnswer?.rooms ?? extracted.rooms ?? draft.rooms,
+    extras: roomsAnswer?.extras ?? draft.extras,
     commission: commissionAnswer ? Number(commissionAnswer[0]) : draft.commission
   };
 }
@@ -517,7 +521,7 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
       .slice(0, 20);
   }
 
-  const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms,office_commission";
+  const selectColumns = "id,property_code,owner_phone,type,area,landmark,price,rooms,office_commission,description";
   let query = supabase
     .from("properties")
     .select(selectColumns)
@@ -608,7 +612,8 @@ async function searchActiveProperties(extracted: ReturnType<typeof extractMessag
     landmark: property.landmark ?? "غير محدد",
     price: Number(property.price ?? 0),
     rooms: property.rooms ?? undefined,
-    commission: property.office_commission ?? undefined
+    commission: property.office_commission ?? undefined,
+    extras: property.description ?? undefined
   }));
 }
 
@@ -849,6 +854,7 @@ export async function formatOwnerContact(selected: PropertyCandidate, note: stri
     "",
     "🛏 الغرف",
     `${selected.rooms ?? "غير محدد"}`,
+    ...(selected.extras ? ["", "✨ إضافات", selected.extras] : []),
     "",
     "📍 قريبة من",
     formatLandmark(selected.landmark),
@@ -2801,6 +2807,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
             "",
             "🛏 الغرف",
             `${selected.rooms ?? "غير محدد"}`,
+            ...(selected.extras ? ["", "✨ إضافات", selected.extras] : []),
             "",
             "📍 قريبة من",
             formatLandmark(selected.landmark),

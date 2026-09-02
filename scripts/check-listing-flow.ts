@@ -38,7 +38,9 @@ async function main() {
   check("then the room count", asksRooms.reply.includes("عدد الغرف"), true);
   check("and it asks for a bare number", asksRooms.reply.includes("3"), true);
 
-  const asksCommission = await handleIncomingMessage(say("3"));
+  // Answered the way an owner actually would: the count and what makes the house worth more, in one
+  // message. Insisting on a bare number is what threw the second half away.
+  const asksCommission = await handleIncomingMessage(say("3 غرف وجراج السيارات وجلسة"));
 
   check("then the office commission", asksCommission.reply.includes("عمولة المكتب"), true);
   check("and zero is offered as an answer", asksCommission.reply.includes("اكتب: 0"), true);
@@ -59,6 +61,7 @@ async function main() {
   check("the video completes the draft", summary.reply.includes("راجع ملخص الإعلان"), true);
   check("the summary carries the room count", summary.reply.includes("عدد الغرف: 3"), true);
   check("and the commission the owner set", summary.reply.includes("12,000"), true);
+  check("and what the owner added beside the count", summary.reply.includes("جراج السيارات وجلسة"), true);
 
   // The regression the room question invited: "3" must not have overwritten the rent.
   check("the price survived the room answer", summary.reply.includes("45000"), true);
