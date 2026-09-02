@@ -2424,6 +2424,21 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     }
   }
 
+  /**
+   * Answered before anything else touches the media.
+   *
+   * A voice note carries no text, so it used to fall through every branch and land on the generic
+   * welcome: someone spoke for a minute and was answered as though they had said nothing, with no
+   * hint that they had not been heard. Placed above the video and receipt branches so it cannot be
+   * mistaken for either.
+   */
+  if (message.media.some((item) => item.contentType.startsWith("audio/"))) {
+    return {
+      debugIntent: "unknown",
+      reply: await getMessage("voice_not_supported")
+    };
+  }
+
   const incomingVideo = message.media.find((item) => item.contentType.startsWith("video/"));
   if (incomingVideo) {
     // Copy it now: the WhatsApp link expires long before the owner confirms the listing.

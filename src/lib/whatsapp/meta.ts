@@ -32,6 +32,16 @@ type MetaWebhookPayload = {
             caption?: string;
             filename?: string;
           };
+          /**
+           * A voice note or an audio file. Parsed only so the bot can say it cannot listen: without
+           * this the message arrived with no body and no media, and someone who spoke for a minute
+           * was answered with a generic welcome, as though they had said nothing.
+           */
+          audio?: {
+            id?: string;
+            mime_type?: string;
+            voice?: boolean;
+          };
           location?: {
             latitude?: number;
             longitude?: number;
@@ -163,7 +173,7 @@ export async function parseMetaWebhook(payload: MetaWebhookPayload): Promise<Inc
           continue;
         }
 
-        const mediaSource = item.image ?? item.video ?? item.document;
+        const mediaSource = item.image ?? item.video ?? item.document ?? item.audio;
         const mediaUrl = await getMetaMediaUrl(mediaSource?.id);
         const media = mediaUrl
           ? [
@@ -179,7 +189,12 @@ export async function parseMetaWebhook(payload: MetaWebhookPayload): Promise<Inc
           messageId: item.id,
           from: normalizeWhatsAppPhone(item.from),
           to: value?.metadata?.phone_number_id,
-          body: item.text?.body?.trim() ?? mediaSource?.caption?.trim() ?? "",
+          // Taken from the three kinds that can carry one, rather than widening the audio type with
+          // a field WhatsApp never sets on a voice note.
+          body:
+            item.text?.body?.trim() ??
+            (item.image?.caption ?? item.video?.caption ?? item.document?.caption)?.trim() ??
+            "",
           media,
           location:
             item.location?.latitude && item.location?.longitude
