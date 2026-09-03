@@ -2008,7 +2008,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   // "0" is the shortcut the results list itself advertises, and GPT reads it as picking option zero,
   // which matches nothing and answers "ما لقيت هذا الرقم".
   const asksForMoreResults =
-    /^[0٠]$/.test(message.body.trim()) ||
+    /^0$/.test(message.body.trim()) ||
     /^(المزيد|مزيد|اكثر|زيد|زد|عرض المزيد|خيارات اخري)$/.test(normalizedBody) ||
     /(^|\s)(اخر|اخري|غيرها|غيره|ثاني|ثانيه)($|\s)/.test(normalizedBody);
 

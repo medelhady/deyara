@@ -12,9 +12,13 @@ import {
 const areas = ["تفرغ زينة", "لكصر", "عرفات", "تيارت", "دار النعيم", "السبخة", "الميناء", "نواكشوط"];
 const propertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "مكتب"];
 
+/**
+ * Latin digits only. Mauritania writes 0-9, and the Eastern forms are not read here at all -- so
+ * accepting them was code guarding against a keyboard nobody uses, on a path where a wrong number is
+ * a wrong rent.
+ */
 function extractNumber(text: string) {
-  const normalized = text.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
-  const match = normalized.match(/\d{2,8}/);
+  const match = text.match(/\d{2,8}/);
   return match ? Number(match[0]) : undefined;
 }
 
