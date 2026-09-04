@@ -13,6 +13,7 @@ import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { salutationFor } from "./greeting";
+import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { signPropertyMedia } from "@/lib/whatsapp/media";
@@ -508,6 +509,23 @@ function mergeDraftFromMessage(
     extras: roomsAnswer?.extras ?? draft.extras,
     commission: commissionAnswer ? Number(commissionAnswer[0]) : draft.commission
   };
+}
+
+/**
+ * Search results while the walkthrough is open: their own listing, and nothing else.
+ *
+ * Mixing real listings in would mean a free reveal of a real owner's number, and would blur whose
+ * house they are looking at -- which is the single thing the walkthrough exists to show them.
+ */
+function searchDemoListing(demo: DemoState | undefined, extracted: ReturnType<typeof extractMessage>) {
+  if (!demo?.listing) {
+    return [];
+  }
+
+  const wanted = extracted.area ?? extracted.searchText;
+  const matches = !wanted || wanted === "__more__" || normalizeDictionaryText(demo.listing.area).includes(normalizeDictionaryText(wanted));
+
+  return matches ? [demo.listing] : [];
 }
 
 async function searchActiveProperties(extracted: ReturnType<typeof extractMessage>): Promise<PropertyCandidate[]> {
@@ -1932,7 +1950,30 @@ export function normalizeGenericSearchText(extracted: ExtractedMessage): Extract
   };
 }
 
+/**
+ * Marks every reply sent while the walkthrough is open.
+ *
+ * Explaining the difference once at the end is not enough: what someone remembers is what they saw
+ * at each step, and a marketer who remembers "the listing went live immediately" will say exactly
+ * that to a landlord. Wrapping here rather than at each return means a step added later cannot
+ * forget the mark.
+ */
+async function withDemoMark(phone: string, result: Promise<ConversationResult>): Promise<ConversationResult> {
+  const answer = await result;
+  const state = await getConversationState(phone);
+
+  if (!state.demo || answer.reply.startsWith(demoMark)) {
+    return answer;
+  }
+
+  return { ...answer, reply: markDemo(answer.reply) };
+}
+
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
+  return withDemoMark(message.from, runConversation(message));
+}
+
+async function runConversation(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   const dictionary = await getRuntimeDictionary();
   const activeAreas = [...knownAreas, ...dictionary.areas];
   if (await isBlocked(message.from)) {
@@ -1957,6 +1998,39 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   const storedState = await getConversationState(message.from);
+
+  /**
+   * The walkthrough, opened and closed before anything else reads the message.
+   *
+   * Entry and exit are checked first so neither can be swallowed by a half-filled draft: someone who
+   * types "خروج" while three questions into a demo listing means to leave, not to answer.
+   */
+  const demoAllowed = (await getSettings()).demoEnabled !== "off";
+
+  if (storedState.demo && (isDemoExit(message.body) || hasDemoExpired(storedState.demo))) {
+    await setConversationState(message.from, {
+      ...storedState,
+      demo: undefined,
+      draftProperty: undefined,
+      lastSearchResults: undefined,
+      selectedProperty: undefined,
+      selectedPropertyId: undefined,
+      awaitingContactChoice: undefined
+    });
+
+    return { debugIntent: "intro", reply: await getMessage("demo_exit") };
+  }
+
+  if (demoAllowed && !storedState.demo && isDemoEntry(message.body)) {
+    // A fresh slate: a draft or search results left over from real use would leak into the
+    // walkthrough and make it teach the wrong thing.
+    await setConversationState(message.from, {
+      demo: { startedAt: new Date().toISOString() }
+    });
+
+    return { debugIntent: "intro", reply: markDemo(await getMessage("demo_start")) };
+  }
+
   const draftExpired = Boolean(storedState.draftProperty && !isDraftFresh(storedState.draftProperty));
 
   if (draftExpired) {
@@ -2271,7 +2345,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
     };
 
     if (mergedSearch.area) {
-      const results = await searchActiveProperties(mergedSearch);
+      const results = (state.demo ? searchDemoListing(state.demo, mergedSearch) : await searchActiveProperties(mergedSearch));
       const visibleResults = results.slice(0, 5);
 
       await setConversationState(message.from, {
@@ -2313,7 +2387,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
       area: areaFromText,
       searchText: areaFromText ? state.lastSearchQuery.searchText : text
     };
-    const results = await searchActiveProperties(refinedSearch);
+    const results = (state.demo ? searchDemoListing(state.demo, refinedSearch) : await searchActiveProperties(refinedSearch));
     const visibleResults = results.slice(0, 5);
 
     await setConversationState(message.from, {
@@ -2359,6 +2433,22 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.draftProperty?.awaitingConfirmation) {
+    if (isYes(message.body) && state.demo) {
+      /**
+       * The whole reason this feature is safe: the listing stops here.
+       *
+       * It goes into the conversation, not the properties table, so it can never appear in a real
+       * search and no renter can ever pay to reveal a number for a house that does not exist.
+       */
+      await setConversationState(message.from, {
+        ...state,
+        draftProperty: undefined,
+        demo: { ...state.demo, listing: demoListingFrom(state.draftProperty, message.from) }
+      });
+
+      return { debugIntent: "add_property", reply: markDemo(await getMessage("demo_published")) };
+    }
+
     if (isYes(message.body)) {
       // Submitting is free. The fee is taken when an admin publishes, so nothing is charged for a
       // listing that ends up rejected.
@@ -2603,6 +2693,29 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
   }
 
   if (state.awaitingContactChoice && message.body.trim() === "1") {
+    /**
+     * The last step of the walkthrough: the card a renter gets after paying, and no payment.
+     *
+     * The video gate is skipped too. It exists to stop a renter buying a number for a house they
+     * have not looked at, and here the house is their own -- being asked to watch a video they
+     * recorded a minute ago teaches nothing and stalls the demo.
+     */
+    if (state.demo?.listing && state.selectedProperty) {
+      const card = await formatOwnerContact(state.demo.listing);
+
+      await setConversationState(message.from, {
+        ...state,
+        demo: { ...state.demo, finished: true },
+        awaitingContactChoice: false
+      });
+
+      return {
+        debugIntent: "request_contact",
+        reply: markDemo(card),
+        followUps: [await getMessage("demo_revealed")]
+      };
+    }
+
     if (!state.selectedPropertyId || !state.selectedProperty || !hasFreshSelection(state)) {
       return {
         debugIntent: "request_contact",
@@ -2736,7 +2849,7 @@ export async function handleIncomingMessage(message: IncomingWhatsAppMessage): P
           };
         }
 
-        const results = await searchActiveProperties(extracted);
+        const results = (state.demo ? searchDemoListing(state.demo, extracted) : await searchActiveProperties(extracted));
 
         const visibleResults = results.slice(0, 5);
 

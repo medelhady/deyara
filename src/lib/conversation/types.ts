@@ -80,6 +80,8 @@ export type DraftProperty = {
   updatedAt?: string;
 };
 
+import type { DemoState } from "./demo";
+
 export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
   lastSearchShownCount?: number;
@@ -95,4 +97,9 @@ export type ConversationState = {
   draftProperty?: DraftProperty;
   // Contact request the renter could not pay for yet. Fulfilled automatically once a top-up is approved.
   pendingContactProperty?: PropertyCandidate;
+  /**
+   * An open walkthrough. Its listing lives here and nowhere else -- see lib/conversation/demo.ts for
+   * why nothing is written to the database.
+   */
+  demo?: DemoState;
 };

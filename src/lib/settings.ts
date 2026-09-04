@@ -13,6 +13,7 @@ export type AppSettings = {
   referralSignupBonusPoints: number;
   referralMinTopupPoints: number;
   adminNotifyNumbers: string;
+  demoEnabled: string;
 };
 
 export type SettingKey = keyof AppSettings;
@@ -75,6 +76,14 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "demoEnabled",
+    column: "demo_enabled",
+    label: "وضع التجربة للمسوّقين",
+    hint: "اكتب off لإيقافه. كل رسالة تجريبية تستدعي الذكاء الاصطناعي وتُحتسب عليك، فأوقفه إن كثر الفضوليون.",
+    kind: "text",
+    fallback: () => "on"
   },
   {
     key: "referralWelcomePoints",
