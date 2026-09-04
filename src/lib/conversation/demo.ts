@@ -26,6 +26,14 @@ export const demoMark = "🧪 تجربة —";
 
 export type DemoState = {
   startedAt: string;
+  /**
+   * Where the marketer's own video was stored.
+   *
+   * The file is uploaded like any other -- the walkthrough shows them their own house, and a step
+   * that says "الفيديو غير متوفر" teaches exactly the wrong thing. It is deleted when the
+   * walkthrough closes, so no file is left behind that nothing points at.
+   */
+  videoPath?: string;
   /** The listing they published here. Held in the conversation, never in the database. */
   listing?: PropertyCandidate;
   /** Set once the closing message has been sent, so it is not repeated on every message after. */

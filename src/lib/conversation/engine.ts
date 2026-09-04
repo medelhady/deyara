@@ -16,7 +16,7 @@ import { salutationFor } from "./greeting";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
-import { signPropertyMedia } from "@/lib/whatsapp/media";
+import { deletePropertyMedia, signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
 
 const requiredPropertyFields = ["السعر", "المنطقة", "معلم مشهور قريب", "عدد الغرف", "فيديو للعقار"];
@@ -2008,6 +2008,11 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
   const demoAllowed = (await getSettings()).demoEnabled !== "off";
 
   if (storedState.demo && (isDemoExit(message.body) || hasDemoExpired(storedState.demo))) {
+    // The one thing the walkthrough did put anywhere lasting, taken back out.
+    if (storedState.demo.videoPath) {
+      await deletePropertyMedia(storedState.demo.videoPath);
+    }
+
     await setConversationState(message.from, {
       ...storedState,
       demo: undefined,
@@ -2560,6 +2565,11 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
       };
     }
 
+    if (state.demo && storedPath) {
+      // Kept on the walkthrough rather than the listing, so it can be deleted when it closes.
+      state = { ...state, demo: { ...state.demo, videoPath: storedPath } };
+    }
+
     const draftProperty = touchDraft({
       ...state.draftProperty,
       hasVideo: true,
@@ -2767,7 +2777,11 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
       };
     }
 
-    const videoUrl = await getPropertyVideoUrl(state.selectedProperty.id);
+    const videoUrl = state.demo
+      ? state.demo.videoPath
+        ? ((await signPropertyMedia(state.demo.videoPath)) ?? undefined)
+        : undefined
+      : await getPropertyVideoUrl(state.selectedProperty.id);
 
     await setConversationState(message.from, {
       ...state,
@@ -2775,9 +2789,18 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     });
 
     if (!videoUrl) {
+      /**
+       * Inside the walkthrough this must not read as a broken listing.
+       *
+       * A marketer who sees "الفيديو غير متوفر" learns that videos do not show, and will
+       * say so to a landlord. The step is explained instead, which is true whether or not the file
+       * made it into storage.
+       */
       return {
         debugIntent: "select_property",
-        reply: "الفيديو غير متوفر لهذا الإعلان حاليًا. جرّب اختيار دار ثانية أو اكتب بحث جديد."
+        reply: state.demo
+          ? await getMessage("demo_video_step")
+          : "الفيديو غير متوفر لهذا الإعلان حاليًا. جرّب اختيار دار ثانية أو اكتب بحث جديد."
       };
     }
 

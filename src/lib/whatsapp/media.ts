@@ -139,3 +139,23 @@ export async function signPropertyMedia(storageUrl: string, expiresInSeconds = 6
 
   return data?.signedUrl ?? null;
 }
+
+/**
+ * Removes one file from the bucket.
+ *
+ * For the walkthrough video, which no row ever points at: an orphaned object cannot be found again
+ * to clean up later, so it is deleted at the moment its owner is still known.
+ */
+export async function deletePropertyMedia(storageUrl: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase || /^https?:\/\//i.test(storageUrl)) {
+    return;
+  }
+
+  const { error } = await supabase.storage.from(propertyMediaBucket).remove([storageUrl]);
+
+  if (error) {
+    console.error("Failed to remove property media", error);
+  }
+}

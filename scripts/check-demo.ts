@@ -80,7 +80,19 @@ async function main() {
 
   check("searching finds the demo listing", results.reply.includes("70,000"), true);
 
+  /**
+   * The video step, which used to answer "الفيديو غير متوفر".
+   *
+   * The listing has no row, so looking it up by id found nothing -- and a walkthrough that tells a
+   * marketer videos do not show teaches them to promise the opposite of the truth.
+   */
   await handleIncomingMessage(say("1"));
+
+  const watched = await handleIncomingMessage(say("2"));
+
+  check("the video step never reads as a broken listing", watched.reply.includes("غير متوفر"), false);
+  check("it explains what the renter sees here", watched.reply.includes("يشوف المستأجر فيديو"), true);
+  check("and names why it matters to a marketer", watched.reply.includes("ما يدفع إلا بعد"), true);
 
   const revealed = await handleIncomingMessage(say("1"));
 
