@@ -5,7 +5,17 @@ const publicAdminPaths = ["/admin/login", "/api/admin/login"];
 
 function deny(request: NextRequest, protectsAdminApi: boolean) {
   if (protectsAdminApi) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    /**
+     * Said in the language of whoever reads it, and with the way out.
+     *
+     * A page open past the twelve-hour session showed a bare "Unauthorized" in a red box: an admin
+     * who cannot read it has no way to tell an expired login from a broken dashboard, and the two
+     * call for very different reactions.
+     */
+    return NextResponse.json(
+      { error: "انتهت جلستك. سجّل الدخول من جديد للمتابعة.", code: "session_expired" },
+      { status: 401 }
+    );
   }
 
   const loginUrl = request.nextUrl.clone();
