@@ -64,8 +64,9 @@ async function main() {
   check("and what the owner added beside the count", summary.reply.includes("جراج السيارات وجلسة"), true);
 
   // The regression the room question invited: "3" must not have overwritten the rent.
-  check("the price survived the room answer", summary.reply.includes("45000"), true);
-  check("and was not replaced by the room count", summary.reply.includes("السعر: 3\n"), false);
+  // Formatted like every amount the bot shows, so the assertion follows the reader's eye.
+  check("the price survived the room answer", summary.reply.includes("45,000 أوقية"), true);
+  check("and was not replaced by the room count", summary.reply.includes("السعر: 3 "), false);
 
   check("the district survived too", summary.reply.includes("لكصر"), true);
   check("so did the landmark", summary.reply.includes("قرب السوق"), true);
@@ -94,7 +95,7 @@ async function main() {
   check("giving the count then finishes the draft", nowSummary.reply.includes("راجع ملخص الإعلان"), true);
   check("with the count in it", nowSummary.reply.includes("عدد الغرف: 2"), true);
   check("a zero commission finishes the draft rather than repeating", nowSummary.reply.includes("لا توجد"), true);
-  check("and the rent intact", nowSummary.reply.includes("30000"), true);
+  check("and the rent intact", nowSummary.reply.includes("30,000 أوقية"), true);
 }
 
 void main().then(() => {

@@ -38,7 +38,7 @@ export function formatCommission(raw: string) {
 
   const amount = Number(trimmed.replace(/[\s,،.]/g, ""));
 
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)} جديدة`;
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(amount)} أوقية`;
 }
 
 /**

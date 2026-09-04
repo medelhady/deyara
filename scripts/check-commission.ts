@@ -18,15 +18,15 @@ function check(name: string, actual: unknown, expected: unknown) {
 }
 
 // The shape the field now writes.
-check("a plain amount is formatted", formatCommission("12000"), "12,000 جديدة");
+check("a plain amount is formatted", formatCommission("12000"), "12,000 أوقية");
 check("and recognised as an amount", isPlainAmount("12000"), true);
 check("it carries the explanation", commissionLines("12000").length, 2);
-check("the amount comes first", commissionLines("12000")[0], "12,000 جديدة");
+check("the amount comes first", commissionLines("12000")[0], "12,000 أوقية");
 check("the note comes second", commissionLines("12000")[1], commissionNote);
 
 // Digits typed with separators are still an amount, not a sentence.
-check("a thousands separator is tolerated", formatCommission("12,000"), "12,000 جديدة");
-check("so are stray spaces", formatCommission(" 8000 "), "8,000 جديدة");
+check("a thousands separator is tolerated", formatCommission("12,000"), "12,000 أوقية");
+check("so are stray spaces", formatCommission(" 8000 "), "8,000 أوقية");
 
 // A sentence saved before the change must survive untouched, with no invented note after it.
 const legacy = "المستأجر يدفع 12 الف للمكتب بعد الاتفاق على الايجار";
@@ -47,9 +47,9 @@ const stored = JSON.stringify([
   { text: "15000", areas: ["تفرغ زينة"] }
 ]);
 
-check("the district override wins", formatCommission(resolveAreaNote(stored, "تفرغ زينة")), "15,000 جديدة");
-check("another district takes the default", formatCommission(resolveAreaNote(stored, "لكصر")), "12,000 جديدة");
-check("an unknown district takes the default too", formatCommission(resolveAreaNote(stored, "نواذيبو")), "12,000 جديدة");
+check("the district override wins", formatCommission(resolveAreaNote(stored, "تفرغ زينة")), "15,000 أوقية");
+check("another district takes the default", formatCommission(resolveAreaNote(stored, "لكصر")), "12,000 أوقية");
+check("an unknown district takes the default too", formatCommission(resolveAreaNote(stored, "نواذيبو")), "12,000 أوقية");
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

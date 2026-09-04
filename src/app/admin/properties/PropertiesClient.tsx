@@ -37,7 +37,7 @@ const statusLabels: Record<string, string> = {
 const unknownArea = "بدون مقاطعة";
 
 function formatPrice(price: number | null) {
-  return price === null ? "غير محدد" : `${new Intl.NumberFormat("en-US").format(price)} جديدة`;
+  return price === null ? "غير محدد" : `${new Intl.NumberFormat("en-US").format(price)} أوقية`;
 }
 
 function PropertyVideo({ media, startOpen }: { media?: Property["media"]; startOpen: boolean }) {

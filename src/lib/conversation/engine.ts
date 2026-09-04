@@ -144,7 +144,9 @@ async function formatPropertySummary(draft: DraftProperty) {
     "",
     `النوع: ${draft.type ?? "غير محدد"}`,
     `المقاطعة: ${draft.area}`,
-    `السعر: ${draft.price}`,
+    // Formatted like every other amount: an owner reviewing "70000" beside "30,000 أوقية" has to
+    // work out whether the two are even the same kind of number.
+    `السعر: ${draft.price ? formatPrice(draft.price) : "غير محدد"}`,
     // The owner's own figure, shown back to them before it goes out: they set it, and this is where
     // a wrong number is still cheap to fix.
     `عمولة المكتب: ${draft.commission ? formatPrice(draft.commission) : "لا توجد"}`,
@@ -182,7 +184,7 @@ function propertyTypeSingular(type?: string) {
 }
 
 function formatPrice(price: number) {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(price)} جديدة`;
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(price)} أوقية`;
 }
 
 function formatLandmark(landmark: string) {
