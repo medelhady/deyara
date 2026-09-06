@@ -139,11 +139,35 @@ const entries: CollectionEntry[] = [
   { id: "4", phone: "d", side: "renter", area: "عرفات", price: 40000, specs: null, rooms: null, commission: null, addedByAdmin: true, createdAt: "" }
 ];
 
-const summary = summariseByArea(entries);
+/**
+ * Summarised against the known districts, as the page calls it.
+ *
+ * The intake stores the answer as written, so people who reply to "في أي مقاطعة" with a whole
+ * sentence each became their own row -- a summary with one line per person counts nothing.
+ */
+const known = ["لكصر", "عرفات", "تفرغ زينة"];
+const summary = summariseByArea(entries, known);
 
 check("the busiest district comes first", summary[0].area, "لكصر");
 check("with both sides counted", `${summary[0].owners}/${summary[0].renters}`, "1/2");
 check("and quieter ones after", summary[1].area, "عرفات");
+
+// A sentence is matched on the district inside it rather than becoming a row of its own.
+const sentence = summariseByArea(
+  [{ id: "5", phone: "e", side: "renter", area: "ابحث عن دار في عرفات قريبة من السوق", price: null, specs: null, rooms: null, commission: null, addedByAdmin: false, createdAt: "" }],
+  known
+);
+
+check("a sentence is filed under its district", sentence[0].area, "عرفات");
+
+const unknown = summariseByArea(
+  [{ id: "6", phone: "f", side: "renter", area: "منطقة لا نغطيها", price: null, specs: null, rooms: null, commission: null, addedByAdmin: false, createdAt: "" }],
+  known
+);
+
+// Not dropped: a request in a district nobody covers is the most useful line on the sheet.
+check("an unmatched district is gathered, not lost", unknown[0].area, "مناطق أخرى");
+check("and still counted", unknown[0].renters, 1);
 
 // The messages page splits on this, so what is live is not buried under what is not.
 check("collection messages are grouped apart", messageGroup("collect_start"), "collection");

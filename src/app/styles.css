@@ -1684,3 +1684,41 @@ select {
 .thread-open {
   font-size: 0.85em;
 }
+
+/* District counts as buttons: a number is only useful if you can then see who it is made of. */
+.demand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.demand-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.demand-card:hover {
+  border-color: var(--accent);
+}
+
+.demand-card.is-active {
+  border-color: var(--accent);
+  background: #eef6f3;
+}
+
+.demand-card span {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.property-entry.is-selected {
+  background: #eef6f3;
+}

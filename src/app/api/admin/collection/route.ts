@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
-import { listCollectionEntries, saveCollectionEntry, summariseByArea } from "@/lib/collection-entries";
+import { listCollectionEntries, matchArea, saveCollectionEntry, summariseByArea } from "@/lib/collection-entries";
+import { getActiveAreas } from "@/lib/conversation/engine";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /** Everything collected, plus the per-district counts that are the point of collecting it. */
 export async function GET() {
-  const entries = await listCollectionEntries();
+  const [entries, known] = await Promise.all([listCollectionEntries(), getActiveAreas()]);
+
+  // Each row carries the district it was matched to as well as its own words, so the page can filter
+  // on one and still show the other.
+  const withArea = entries.map((entry) => ({ ...entry, matchedArea: matchArea(entry.area, known) }));
 
   return NextResponse.json(
-    { entries, byArea: summariseByArea(entries) },
+    { entries: withArea, byArea: summariseByArea(entries, known), areas: known },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

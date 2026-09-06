@@ -96,17 +96,49 @@ export type AreaDemand = {
   renters: number;
 };
 
+function normalizeArea(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/[ة]/g, "ه")
+    .replace(/[ى]/g, "ي")
+    .replace(/[ـًٌٍَُِّْ]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * The district an entry belongs to, out of what the person actually typed.
+ *
+ * The intake stores the answer as written, which is right -- a request in a district nobody covers
+ * is the most useful line on the sheet, and refusing it would lose it. But people answer "في أي
+ * مقاطعة" with a whole sentence, and grouping on the raw text gave a summary with one row per
+ * sentence, which counts nothing.
+ *
+ * Matching for display only: the row keeps its own words, and the summary gets a district.
+ */
+export function matchArea(raw: string, known: string[]) {
+  const text = normalizeArea(raw);
+
+  // Longest first, so "دار النعيم" is not claimed by a shorter name inside it.
+  const found = [...known]
+    .sort((first, second) => second.length - first.length)
+    .find((area) => text.includes(normalizeArea(area)));
+
+  return found ?? null;
+}
+
 /**
  * The two sides counted per district, busiest first.
  *
  * This is the sheet to take into a meeting: "forty people are looking in لكصر today" is a different
  * conversation from "please list your houses on my new app".
  */
-export function summariseByArea(entries: CollectionEntry[]): AreaDemand[] {
+export function summariseByArea(entries: CollectionEntry[], known: string[] = []): AreaDemand[] {
   const counts = new Map<string, AreaDemand>();
 
   for (const entry of entries) {
-    const area = entry.area.trim() || "بدون مقاطعة";
+    const area = matchArea(entry.area, known) ?? (entry.area.trim() ? "مناطق أخرى" : "بدون مقاطعة");
     const current = counts.get(area) ?? { area, owners: 0, renters: 0 };
 
     if (entry.side === "owner") {
