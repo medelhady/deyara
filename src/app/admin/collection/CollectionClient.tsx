@@ -23,6 +23,13 @@ function formatPrice(price: number | null) {
   return price === null ? "—" : `${new Intl.NumberFormat("en-US").format(price)} أوقية`;
 }
 
+/** A location that was written as a sentence, cut to something a row can carry. */
+function shortenArea(text: string, limit = 24) {
+  const clean = text.replace(/\s+/g, " ").trim();
+
+  return clean.length > limit ? `${clean.slice(0, limit)}…` : clean || "بلا مقاطعة";
+}
+
 function formatWhen(value: string) {
   const date = new Date(value);
 
@@ -217,11 +224,18 @@ export function CollectionClient() {
                     <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
                       {owner ? "🏠 مؤجر" : "🔍 مستأجر"}
                     </span>
+                    {/* The district leads and is never missing: it is the key an admin works by, and
+                        an entry whose answer was a sentence used to show no location at all up here --
+                        only a footnote at the bottom of the card. */}
+                    <strong className="demand-area">
+                      {/* ?? would keep an empty string, and a pin with nothing after it is worse than
+                          no pin: it reads as a district whose name failed to load. */}
+                      📍 {entry.matchedArea?.trim() || shortenArea(entry.area)}
+                    </strong>
                     <strong className="demand-amount">
                       {owner ? "" : "حتى "}
                       {formatPrice(entry.price)}
                     </strong>
-                    {entry.matchedArea ? <span className="demand-chip">{entry.matchedArea}</span> : null}
                     {entry.rooms ? <span className="demand-chip">{entry.rooms} غرف</span> : null}
                     {owner && entry.commission ? (
                       <span className="demand-chip">عمولة {formatPrice(entry.commission)}</span>
@@ -236,7 +250,9 @@ export function CollectionClient() {
                       💬 راسله
                     </a>
                     <span dir="ltr">+{number}</span>
-                    {entry.matchedArea !== entry.area.trim() ? <span>كتب: {entry.area}</span> : null}
+                    {entry.matchedArea?.trim() && entry.matchedArea !== entry.area.trim() ? (
+                      <span>كتب: {entry.area}</span>
+                    ) : null}
                     {entry.addedByAdmin ? <span>إدخال يدوي</span> : null}
                   </div>
                 </article>

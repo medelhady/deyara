@@ -1796,3 +1796,14 @@ select {
 .demand-row-foot .button {
   padding: 4px 12px;
 }
+
+/* The district leads the card: it is the key an admin works by -- who is in لكصر, who is in عرفات --
+   and it was reading as a muted chip behind the price. */
+.demand-area {
+  font-size: 1.05em;
+}
+
+.demand-area,
+.demand-amount {
+  white-space: nowrap;
+}
