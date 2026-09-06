@@ -1,3 +1,4 @@
+import { parseAmount } from "@/lib/amount";
 import type { ExtractedMessage } from "./types";
 import {
   equalsAny,
@@ -17,9 +18,14 @@ const propertyTypes = ["شقة", "منزل", "فيلا", "غرفة", "محل", "
  * accepting them was code guarding against a keyboard nobody uses, on a path where a wrong number is
  * a wrong rent.
  */
+/**
+ * Latin digits only. Mauritania writes 0-9, and the Eastern forms are not read here at all.
+ *
+ * "50 الف" is understood as well as "50000": people say the first and type the second only when a
+ * form makes them, and a rent misread by a factor of a thousand is the worst kind of wrong.
+ */
 function extractNumber(text: string) {
-  const match = text.match(/\d{2,8}/);
-  return match ? Number(match[0]) : undefined;
+  return parseAmount(text);
 }
 
 export function extractMessage(text: string, dictionary?: RuntimeDictionary): ExtractedMessage {

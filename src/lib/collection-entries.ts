@@ -17,6 +17,8 @@ export type CollectionEntry = {
   price: number | null;
   specs: string | null;
   rooms: number | null;
+  /** What the renter will pay the office. Owners only; null when never asked. */
+  commission: number | null;
   addedByAdmin: boolean;
   createdAt: string;
 };
@@ -28,6 +30,7 @@ export async function saveCollectionEntry(entry: {
   price?: number;
   specs?: string;
   rooms?: number;
+  commission?: number;
   addedByAdmin?: boolean;
 }) {
   const supabase = getServiceSupabase();
@@ -43,6 +46,7 @@ export async function saveCollectionEntry(entry: {
     price: entry.price ?? null,
     specs: entry.specs ?? null,
     rooms: entry.rooms ?? null,
+    commission: entry.commission ?? null,
     added_by_admin: entry.addedByAdmin ?? false
   });
 
@@ -63,7 +67,7 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
 
   const { data, error } = await supabase
     .from("collection_entries")
-    .select("id,phone,side,area,price,specs,rooms,added_by_admin,created_at")
+    .select("id,phone,side,area,price,specs,rooms,commission,added_by_admin,created_at")
     .order("created_at", { ascending: false })
     .limit(2000);
 
@@ -80,6 +84,7 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
     price: row.price === null ? null : Number(row.price),
     specs: (row.specs as string | null) ?? null,
     rooms: row.rooms === null ? null : Number(row.rooms),
+    commission: row.commission === null ? null : Number(row.commission),
     addedByAdmin: Boolean(row.added_by_admin),
     createdAt: String(row.created_at)
   }));

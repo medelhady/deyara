@@ -1,3 +1,4 @@
+import { parseAmount } from "@/lib/amount";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 
 /**
@@ -23,10 +24,14 @@ export type CollectState = {
   /** Rooms, features and the nearest landmark, in their own words. */
   specs?: string;
   rooms?: number;
+  /** What the renter will pay the office. Asked of owners only; zero is a real answer. */
+  commission?: number;
 };
 
 /** What the bot still needs before it can save. Null once the entry is complete. */
-export function nextCollectQuestion(state: CollectState): "side" | "area" | "price" | "specs" | null {
+export function nextCollectQuestion(
+  state: CollectState
+): "side" | "area" | "price" | "specs" | "commission" | null {
   if (!state.side) {
     return "side";
   }
@@ -41,6 +46,12 @@ export function nextCollectQuestion(state: CollectState): "side" | "area" | "pri
 
   if (!state.specs) {
     return "specs";
+  }
+
+  // Asked of owners only, and last: a renter has no commission to name, and an owner who has already
+  // answered three questions will answer a fourth.
+  if (state.side === "owner" && state.commission === undefined) {
+    return "commission";
   }
 
   return null;
@@ -82,11 +93,14 @@ export function readSide(body: string): CollectSide | undefined {
   return undefined;
 }
 
-/** Latin digits only, as everywhere else a number is asked for here. */
+/**
+ * A rent, however it was written.
+ *
+ * "50 الف" is how the number is said out loud, and typing five zeros is what someone does only when
+ * a form insists -- so both are read. Latin digits only, as everywhere else here.
+ */
 export function readPrice(body: string) {
-  const match = body.trim().match(/\d{3,8}/);
-
-  return match ? Number(match[0]) : undefined;
+  return parseAmount(body);
 }
 
 /**

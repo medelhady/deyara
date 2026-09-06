@@ -21,6 +21,8 @@ create table if not exists collection_entries (
   -- Rooms, features and the nearest landmark, in their own words.
   specs text,
   rooms integer,
+  -- What the renter pays the office, named by the owner. Null for a renter's request.
+  commission integer,
   -- Set when an admin typed this in from a Facebook or TikTok comment rather than the bot.
   added_by_admin boolean not null default false,
   created_at timestamptz not null default now()

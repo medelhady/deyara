@@ -13,6 +13,7 @@ export async function GET() {
     السعر: entry.price ?? "",
     الغرف: entry.rooms ?? "",
     المواصفات: entry.specs ?? "",
+    العمولة: entry.commission ?? "",
     الرقم: entry.phone.replace("whatsapp:", ""),
     المصدر: entry.addedByAdmin ? "إدخال يدوي" : "البوت",
     التاريخ: entry.createdAt

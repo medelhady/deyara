@@ -31,7 +31,7 @@ check("an unusable answer is neither", readSide("شنو هذا"), undefined);
 
 check("a price is read", readPrice("70000"), 70000);
 check("with words around it", readPrice("الإيجار 70000 في الشهر"), 70000);
-check("but not a room count", readPrice("3"), undefined);
+check("a rent written in words is read too", readPrice("70 الف"), 70000);
 
 const specs = readSpecs("3 غرف وجراج، قرب ملعب لكصر");
 
@@ -43,9 +43,20 @@ check("nothing known asks the side", nextCollectQuestion({}), "side");
 check("then the district", nextCollectQuestion({ side: "owner" }), "area");
 check("then the price", nextCollectQuestion({ side: "owner", area: "لكصر" }), "price");
 check("then the specs", nextCollectQuestion({ side: "owner", area: "لكصر", price: 70000 }), "specs");
+// The owner is asked one more thing; a renter has no commission to name.
 check(
-  "and a complete entry asks nothing",
+  "an owner is asked the commission last",
   nextCollectQuestion({ side: "owner", area: "لكصر", price: 70000, specs: "3 غرف" }),
+  "commission"
+);
+check(
+  "and a complete owner entry asks nothing",
+  nextCollectQuestion({ side: "owner", area: "لكصر", price: 70000, specs: "3 غرف", commission: 0 }),
+  null
+);
+check(
+  "a renter is never asked for one",
+  nextCollectQuestion({ side: "renter", area: "لكصر", price: 60000, specs: "3 غرف" }),
   null
 );
 
@@ -75,12 +86,19 @@ async function main() {
   check("then the specs", asksSpecs.reply.includes("كم غرفة"), true);
   check("inviting the landmark inside the example", asksSpecs.reply.includes("قرب ملعب لكصر"), true);
 
-  const saved = await handleIncomingMessage(say(owner, "3 غرف وجراج، قرب ملعب لكصر"));
+  const asksCommission = await handleIncomingMessage(say(owner, "3 غرف وجراج، قرب ملعب لكصر"));
+
+  check("the owner is then asked the commission", asksCommission.reply.includes("عمولة المكتب"), true);
+  check("and told the renter pays it", asksCommission.reply.includes("يدفعها المستأجر"), true);
+  check("with zero offered", asksCommission.reply.includes("اكتب: 0"), true);
+
+  const saved = await handleIncomingMessage(say(owner, "30 الف"));
 
   check("it is saved with no confirmation step", saved.reply.includes("سجّلنا دارك"), true);
   check("naming the district back", saved.reply.includes("لكصر"), true);
   check("and the rent as an amount", saved.reply.includes("70,000 أوقية"), true);
   check("with what they wrote", saved.reply.includes("جراج"), true);
+  check("and the commission written in words", saved.reply.includes("عمولة 30,000"), true);
   check("and an invitation to add another", saved.reply.includes("دار ثانية"), true);
 
   // The renter's half, which is the same three questions asked the other way round.
@@ -91,7 +109,7 @@ async function main() {
 
   check("the renter is asked where", (await handleIncomingMessage(say(renter, "تفرغ زينة"))).reply.includes("أقصى إيجار"), true);
 
-  await handleIncomingMessage(say(renter, "60000"));
+  await handleIncomingMessage(say(renter, "60 الف"));
 
   const savedRenter = await handleIncomingMessage(say(renter, "3 غرف وقريبة من المدرسة"));
 
@@ -115,10 +133,10 @@ async function main() {
 
 // The counts that are the reason for collecting at all.
 const entries: CollectionEntry[] = [
-  { id: "1", phone: "a", side: "renter", area: "لكصر", price: 60000, specs: null, rooms: null, addedByAdmin: false, createdAt: "" },
-  { id: "2", phone: "b", side: "renter", area: "لكصر", price: 50000, specs: null, rooms: null, addedByAdmin: false, createdAt: "" },
-  { id: "3", phone: "c", side: "owner", area: "لكصر", price: 70000, specs: null, rooms: null, addedByAdmin: false, createdAt: "" },
-  { id: "4", phone: "d", side: "renter", area: "عرفات", price: 40000, specs: null, rooms: null, addedByAdmin: true, createdAt: "" }
+  { id: "1", phone: "a", side: "renter", area: "لكصر", price: 60000, specs: null, rooms: null, commission: null, addedByAdmin: false, createdAt: "" },
+  { id: "2", phone: "b", side: "renter", area: "لكصر", price: 50000, specs: null, rooms: null, commission: null, addedByAdmin: false, createdAt: "" },
+  { id: "3", phone: "c", side: "owner", area: "لكصر", price: 70000, specs: null, rooms: null, commission: null, addedByAdmin: false, createdAt: "" },
+  { id: "4", phone: "d", side: "renter", area: "عرفات", price: 40000, specs: null, rooms: null, commission: null, addedByAdmin: true, createdAt: "" }
 ];
 
 const summary = summariseByArea(entries);

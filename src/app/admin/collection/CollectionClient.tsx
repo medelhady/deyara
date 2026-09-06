@@ -10,6 +10,7 @@ type Entry = {
   price: number | null;
   specs: string | null;
   rooms: number | null;
+  commission: number | null;
   addedByAdmin: boolean;
   createdAt: string;
 };
@@ -179,13 +180,14 @@ export function CollectionClient() {
                 <th>المقاطعة</th>
                 <th>السعر</th>
                 <th>المواصفات</th>
+                <th>العمولة</th>
                 <th>الرقم</th>
               </tr>
             </thead>
             <tbody>
               {entries.length === 0 ? (
                 <tr>
-                  <td colSpan={5}>لا شيء بعد.</td>
+                  <td colSpan={6}>لا شيء بعد.</td>
                 </tr>
               ) : (
                 entries.map((entry) => (
@@ -194,6 +196,7 @@ export function CollectionClient() {
                     <td>{entry.area}</td>
                     <td>{formatPrice(entry.price)}</td>
                     <td>{entry.specs ?? "—"}</td>
+                    <td>{formatPrice(entry.commission)}</td>
                     <td dir="ltr">{entry.phone.replace("whatsapp:", "")}</td>
                   </tr>
                 ))

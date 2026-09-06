@@ -455,7 +455,7 @@ async function getNextPropertyQuestion(draft: DraftProperty) {
   }
 
   if (!draft.price) {
-    return "كم سعر الإيجار؟ اكتب الرقم فقط أو مع العملة.";
+    return "كم سعر الإيجار؟ اكتب الرقم مثل 70000، أو بالحروف مثل 70 الف.";
   }
 
   if (!draft.landmark) {
@@ -2066,13 +2066,35 @@ async function handleCollection(
     };
   }
 
-  const specs = readSpecs(body);
+  if (asked === "specs") {
+    const specs = readSpecs(body);
 
-  if (!specs.specs) {
-    return {
-      debugIntent: "unknown",
-      reply: await getMessage(owner ? "collect_owner_specs" : "collect_renter_specs")
-    };
+    if (!specs.specs) {
+      return {
+        debugIntent: "unknown",
+        reply: await getMessage(owner ? "collect_owner_specs" : "collect_renter_specs")
+      };
+    }
+
+    state.specs = specs.specs;
+    state.rooms = specs.rooms;
+
+    // A renter has no commission to name, so their entry is complete here.
+    if (owner) {
+      await setConversationState(message.from, { collect: state });
+
+      return { debugIntent: "add_property", reply: await getMessage("collect_owner_commission") };
+    }
+  }
+
+  if (asked === "commission") {
+    const commission = readPrice(body);
+
+    if (commission === undefined) {
+      return { debugIntent: "unknown", reply: await getMessage("collect_owner_commission") };
+    }
+
+    state.commission = commission;
   }
 
   await saveCollectionEntry({
@@ -2080,8 +2102,9 @@ async function handleCollection(
     side: state.side ?? "renter",
     area: state.area ?? "",
     price: state.price,
-    specs: specs.specs,
-    rooms: specs.rooms
+    specs: state.specs,
+    rooms: state.rooms,
+    commission: state.commission
   });
 
   // Cleared rather than kept: the next message from this number starts a fresh entry, which is what
@@ -2089,7 +2112,10 @@ async function handleCollection(
   await setConversationState(message.from, { collect: undefined });
 
   const amount = state.price ? formatPrice(state.price) : "";
-  const summary = [owner ? amount : amount && `حتى ${amount}`, specs.specs].filter(Boolean).join(" · ");
+  const commission = state.commission ? `عمولة ${formatPrice(state.commission)}` : "";
+  const summary = [owner ? amount : amount && `حتى ${amount}`, state.specs, commission]
+    .filter(Boolean)
+    .join(" · ");
 
   return {
     debugIntent: owner ? "add_property" : "search_property",
