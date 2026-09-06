@@ -58,3 +58,28 @@ export function parseAmount(body: string): number | undefined {
 
   return value;
 }
+
+/**
+ * The least anyone pays for a house here in a month.
+ *
+ * Nothing rents for sixty ouguiya, so "60" in answer to "how much is the rent" is sixty thousand --
+ * which is how the number is said, and how two thirds of the answers arrived. Reading it literally
+ * put rents of 60 and 70 on the sheet, and a column of those is unreadable whatever the layout.
+ */
+const rentFloor = 1000;
+
+/**
+ * A rent or a commission, which are said in thousands whether or not the zeros are typed.
+ *
+ * Separate from parseAmount because it is a fact about houses, not about numbers: a room count of 3
+ * must stay 3, and only the fields that hold money may assume the thousands.
+ */
+export function parseRent(body: string): number | undefined {
+  const value = parseAmount(body);
+
+  if (value === undefined || value === 0) {
+    return value;
+  }
+
+  return value < rentFloor ? value * 1000 : value;
+}

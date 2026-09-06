@@ -1722,3 +1722,77 @@ select {
 .property-entry.is-selected {
   background: #eef6f3;
 }
+
+/* One request per card, readable without opening anything: what an admin needs before deciding
+   whether to message this person is all of it, and the message is one tap from the row. */
+.demand-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.demand-row {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.demand-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.demand-amount {
+  font-size: 1.05em;
+}
+
+.demand-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+.demand-tag.is-owner {
+  background: #eef6f3;
+  color: var(--accent);
+}
+
+.demand-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+/* Pushed to the far edge so the eye can run down the dates without reading the rest. */
+.demand-when {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.demand-said {
+  margin: 8px 0 0;
+  line-height: 1.8;
+}
+
+.demand-row-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.demand-row-foot .button {
+  padding: 4px 12px;
+}

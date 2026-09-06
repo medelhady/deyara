@@ -29,17 +29,6 @@ function formatWhen(value: string) {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("ar", { dateStyle: "short", timeStyle: "short" });
 }
 
-/** The first words of what they wrote, for a row that has to stay one line. */
-function shorten(text: string | null, limit = 48) {
-  if (!text) {
-    return "—";
-  }
-
-  const clean = text.replace(/\s+/g, " ").trim();
-
-  return clean.length > limit ? `${clean.slice(0, limit)}…` : clean;
-}
-
 export function CollectionClient() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [byArea, setByArea] = useState<AreaDemand[]>([]);
@@ -47,7 +36,6 @@ export function CollectionClient() {
   const [side, setSide] = useState<"all" | "owner" | "renter">("all");
   const [area, setArea] = useState("all");
   const [search, setSearch] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ side: "renter", area: "", phone: "", price: "", specs: "" });
 
@@ -210,46 +198,51 @@ export function CollectionClient() {
         {visible.length === 0 ? (
           <p>لا شيء يطابق هذه الفلترة.</p>
         ) : (
-          visible.map((entry) => {
-            const open = openId === entry.id;
-            const number = entry.phone.replace("whatsapp:", "").replace(/\D/g, "");
+          <div className="demand-list">
+            {visible.map((entry) => {
+              const number = entry.phone.replace("whatsapp:", "").replace(/\D/g, "");
+              const owner = entry.side === "owner";
 
-            return (
-              <div className={open ? "property-entry is-selected" : "property-entry"} key={entry.id}>
-                <button className="property-summary" type="button" onClick={() => setOpenId(open ? null : entry.id)}>
-                  <span>
-                    {open ? "▾" : "▸"} {entry.side === "owner" ? "🏠" : "🔍"} {entry.matchedArea ?? entry.area}
-                    {" — "}
-                    {formatPrice(entry.price)}
-                  </span>
-                  <span className="area-counts">{shorten(entry.specs, 28)}</span>
-                </button>
-
-                {open ? (
-                  <div className="property-detail">
-                    <p>الجهة: {entry.side === "owner" ? "مؤجر يعرض دارًا" : "مستأجر يبحث"}</p>
-                    <p>{entry.side === "owner" ? "الإيجار" : "أقصى ميزانية"}: {formatPrice(entry.price)}</p>
-                    {entry.side === "owner" ? <p>عمولة المكتب: {formatPrice(entry.commission)}</p> : null}
-                    <p>الغرف: {entry.rooms ?? "—"}</p>
-                    <p>ما كتبه: {entry.specs ?? "—"}</p>
-                    {/* Their own words as well as the matched district: the sentence they typed often
-                        carries the neighbourhood, which the district name loses. */}
-                    <p>المقاطعة كما كتبها: {entry.area}</p>
-                    <p>المصدر: {entry.addedByAdmin ? "إدخال يدوي" : "البوت"}</p>
-                    <p>التاريخ: {formatWhen(entry.createdAt)}</p>
-                    <div className="row-actions">
-                      <a className="button secondary" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer">
-                        💬 راسله على واتساب
-                      </a>
-                      <span className="amount-note" dir="ltr">
-                        +{number}
-                      </span>
-                    </div>
+              return (
+                /**
+                 * Two lines and no expanding.
+                 *
+                 * Everything an admin does from this page ends in a WhatsApp message, and the old row
+                 * made that two clicks away behind a fold. What they wrote is shown whole rather than
+                 * cut at forty-eight characters, because the sentence is the request -- "ثلاث غرف
+                 * وجلسة وقريبة من ا…" tells you nothing you can act on.
+                 */
+                <article className="demand-row" key={entry.id}>
+                  <div className="demand-row-head">
+                    <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
+                      {owner ? "🏠 مؤجر" : "🔍 مستأجر"}
+                    </span>
+                    <strong className="demand-amount">
+                      {owner ? "" : "حتى "}
+                      {formatPrice(entry.price)}
+                    </strong>
+                    {entry.matchedArea ? <span className="demand-chip">{entry.matchedArea}</span> : null}
+                    {entry.rooms ? <span className="demand-chip">{entry.rooms} غرف</span> : null}
+                    {owner && entry.commission ? (
+                      <span className="demand-chip">عمولة {formatPrice(entry.commission)}</span>
+                    ) : null}
+                    <span className="demand-when">{formatWhen(entry.createdAt)}</span>
                   </div>
-                ) : null}
-              </div>
-            );
-          })
+
+                  {entry.specs ? <p className="demand-said">{entry.specs}</p> : null}
+
+                  <div className="demand-row-foot">
+                    <a className="button secondary" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer">
+                      💬 راسله
+                    </a>
+                    <span dir="ltr">+{number}</span>
+                    {entry.matchedArea !== entry.area.trim() ? <span>كتب: {entry.area}</span> : null}
+                    {entry.addedByAdmin ? <span>إدخال يدوي</span> : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         )}
       </section>
 

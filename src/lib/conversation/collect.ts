@@ -1,4 +1,4 @@
-import { parseAmount } from "@/lib/amount";
+import { parseRent } from "@/lib/amount";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 
 /**
@@ -100,7 +100,7 @@ export function readSide(body: string): CollectSide | undefined {
  * a form insists -- so both are read. Latin digits only, as everywhere else here.
  */
 export function readPrice(body: string) {
-  return parseAmount(body);
+  return parseRent(body);
 }
 
 /**

@@ -6,7 +6,7 @@
  * who do not learn stop answering. A rent misread by a factor of a thousand is the worst kind of
  * wrong, so the multiplier is only believed about numbers small enough to have meant it.
  */
-import { parseAmount } from "../src/lib/amount";
+import { parseAmount, parseRent } from "../src/lib/amount";
 
 let failures = 0;
 
@@ -46,6 +46,22 @@ check("no number at all", parseAmount("لا يوجد"), undefined);
 check("an empty answer", parseAmount(""), undefined);
 check("zero is a number, not an absence", parseAmount("0"), 0);
 check("a room count is left alone", parseAmount("3"), 3);
+
+/**
+ * A rent is said in thousands whether or not the zeros are typed.
+ *
+ * Two thirds of the real answers arrived as "60" and "70", and reading them literally put rents of
+ * sixty and seventy ouguiya on the sheet -- a column nobody can read, whatever the layout around it.
+ * Only the fields holding money may assume this: a room count of 3 has to stay 3.
+ */
+check("a bare 60 is sixty thousand", parseRent("60"), 60000);
+check("and 100 is a hundred thousand", parseRent("100"), 100000);
+check("a number already in thousands is left alone", parseRent("70000"), 70000);
+check("and one written in words too", parseRent("70 الف"), 70000);
+check("the boundary itself is not multiplied", parseRent("1000"), 1000);
+check("zero stays zero", parseRent("0"), 0);
+check("and nothing stays nothing", parseRent("لا أعرف"), undefined);
+check("a room count is not a rent", parseAmount("3"), 3);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
