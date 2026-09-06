@@ -80,6 +80,7 @@ export type DraftProperty = {
   updatedAt?: string;
 };
 
+import type { CollectState } from "./collect";
 import type { DemoState } from "./demo";
 
 export type ConversationState = {
@@ -102,4 +103,6 @@ export type ConversationState = {
    * why nothing is written to the database.
    */
   demo?: DemoState;
+  /** A half-answered intake while the bot is in collection mode. */
+  collect?: CollectState;
 };

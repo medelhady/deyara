@@ -28,7 +28,142 @@ export type MessageDefinition = {
   fallback: string;
 };
 
+/**
+ * Which half of the bot a message belongs to.
+ *
+ * At twenty-nine messages the list buries what is actually running: while collection mode is on,
+ * most of these are for a flow nobody is walking.
+ */
+export function messageGroup(key: string) {
+  return key.startsWith("collect_") ? "collection" : "full";
+}
+
 export const messageDefinitions: MessageDefinition[] = [
+  {
+    key: "collect_start",
+    label: "التجميع — الترحيب والخياران",
+    note: "أول رسالة في وضع التجميع. مهمتها أن تقول ما نفعله الآن، وتعطيه خيارين لا أكثر.",
+    variables: [],
+    fallback: [
+      "أهلًا بك في الديارة 🏠",
+      "",
+      "نجمع الآن عروض المؤجرين وطلبات المستأجرين في نواكشوط، وأول ما يتوفر ما يناسبك نراسلك.",
+      "",
+      "عندك دار للكراء؟ اكتب: *1*",
+      "تدور على دار؟ اكتب: *2*"
+    ].join("\n")
+  },
+  {
+    key: "collect_unclear",
+    label: "التجميع — إعادة الخيارين",
+    note: "حين لا يتضح أي الطرفين هو. لا تشرح كثيرًا — أعد الخيارين فقط.",
+    variables: [],
+    fallback: [
+      "ما فهمت قصدك.",
+      "",
+      "عندك دار للكراء؟ اكتب: *1*",
+      "تدور على دار؟ اكتب: *2*"
+    ].join("\n")
+  },
+  {
+    key: "collect_media",
+    label: "التجميع — الرد على الوسائط",
+    note: "حين يرسل فيديو أو صورة في وضع التجميع. طمئنه أن الفيديو ليس مطلوبًا الآن.",
+    variables: [],
+    fallback: [
+      "ما نحتاج فيديو ولا صورة الآن — نجمع المعلومات فقط.",
+      "",
+      "اكتب المقاطعة والسعر ونسجّلك."
+    ].join("\n")
+  },
+  {
+    key: "collect_owner_area",
+    label: "التجميع — مقاطعة المؤجر",
+    note: "السؤال الأول للمؤجر.",
+    variables: [],
+    fallback: [
+      "في أي مقاطعة الدار؟"
+    ].join("\n")
+  },
+  {
+    key: "collect_owner_price",
+    label: "التجميع — سعر المؤجر",
+    note: "السؤال الثاني للمؤجر.",
+    variables: [],
+    fallback: [
+      "كم إيجارها في الشهر؟ اكتب الرقم فقط."
+    ].join("\n")
+  },
+  {
+    key: "collect_owner_specs",
+    label: "التجميع — مواصفات الدار",
+    note: "السؤال الثالث. المثال هو ما يعلّم الناس ماذا يكتبون، فذكر المعلم فيه يجعل أكثرهم يذكره بلا سؤال رابع.",
+    variables: [],
+    fallback: [
+      "كم غرفة؟ وتقدر تضيف ما يميّزها وأقرب معلم لها في نفس الرسالة.",
+      "",
+      "مثلا: 3 غرف وجراج، قرب ملعب لكصر"
+    ].join("\n")
+  },
+  {
+    key: "collect_owner_saved",
+    label: "التجميع — تأكيد حفظ العرض",
+    note: "تُرسل بعد حفظ عرض المؤجر مباشرة.",
+    variables: [{ name: "area", sample: "لكصر", note: "المقاطعة" }, { name: "summary", sample: "70,000 أوقية · 3 غرف وجراج", note: "ما كتبه مختصرًا" }],
+    fallback: [
+      "✅ سجّلنا دارك في *{area}*.",
+      "",
+      "{summary}",
+      "",
+      "أول ما يجي مستأجر يدور في {area} نوصله بك مباشرة.",
+      "",
+      "عندك دار ثانية؟ اكتب: *دار ثانية*"
+    ].join("\n")
+  },
+  {
+    key: "collect_renter_area",
+    label: "التجميع — مقاطعة المستأجر",
+    note: "السؤال الأول للمستأجر.",
+    variables: [],
+    fallback: [
+      "في أي مقاطعة تدور على دار؟"
+    ].join("\n")
+  },
+  {
+    key: "collect_renter_price",
+    label: "التجميع — ميزانية المستأجر",
+    note: "السؤال الثاني للمستأجر.",
+    variables: [],
+    fallback: [
+      "كم أقصى إيجار تقدر عليه في الشهر؟ اكتب الرقم فقط."
+    ].join("\n")
+  },
+  {
+    key: "collect_renter_specs",
+    label: "التجميع — مواصفات المطلوب",
+    note: "السؤال الثالث للمستأجر.",
+    variables: [],
+    fallback: [
+      "كم غرفة تحتاج؟ وتقدر تضيف أي شيء مهم عندك.",
+      "",
+      "مثلا: 3 غرف وقريبة من المدرسة"
+    ].join("\n")
+  },
+  {
+    key: "collect_renter_saved",
+    label: "التجميع — تأكيد حفظ الطلب",
+    note: "تُرسل بعد حفظ طلب المستأجر مباشرة.",
+    variables: [{ name: "area", sample: "لكصر", note: "المقاطعة" }, { name: "summary", sample: "حتى 60,000 أوقية · 3 غرف", note: "ما كتبه مختصرًا" }],
+    fallback: [
+      "✅ سجّلنا طلبك في *{area}*.",
+      "",
+      "{summary}",
+      "",
+      "أول ما تنزل دار تناسبك في {area} نراسلك.",
+      "",
+      "تدور في مقاطعة ثانية؟ اكتب: *طلب ثاني*"
+    ].join("\n")
+  },
   {
     key: "greeting",
     label: "رد التحية",

@@ -14,6 +14,7 @@ export type AppSettings = {
   referralMinTopupPoints: number;
   adminNotifyNumbers: string;
   demoEnabled: string;
+  collectionMode: string;
 };
 
 export type SettingKey = keyof AppSettings;
@@ -76,6 +77,16 @@ export const settingDefinitions: SettingDefinition[] = [
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
+  },
+  {
+    key: "collectionMode",
+    column: "collection_mode",
+    label: "وضع التجميع",
+    hint: "اكتب on لتشغيله. البوت يسأل ثلاثة أسئلة ويسجّل، بلا فيديو ولا رسوم ولا خصم — للمرحلة التي لا يوجد فيها معروض بعد. اكتب off لعودة الآلية الكاملة.",
+    kind: "text",
+    // Falls back to an environment variable, like the admin numbers do: the mode can be switched on
+    // before the column exists, and it gives the offline checks a way in.
+    fallback: () => process.env.COLLECTION_MODE ?? "off"
   },
   {
     key: "demoEnabled",

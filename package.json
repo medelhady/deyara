@@ -12,7 +12,7 @@
     "check:signature": "npx tsx scripts/check-meta-signature.ts",
     "check:auth": "npx tsx scripts/check-admin-auth.ts",
     "check:referral": "npx tsx scripts/check-referral-commission.ts",
-    "check": "npm run check:signature && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages && npm run check:template && npm run check:broadcast && npm run check:parse && npm run check:usercommands && npm run check:propertydelete && npm run check:video && npm run check:greeting && npm run check:listingflow && npm run check:commission && npm run check:noresults && npm run check:videohealth && npm run check:deliverystatus && npm run check:mp4 && npm run check:examples && npm run check:adminreply && npm run check:voicenote && npm run check:rooms && npm run check:digits && npm run check:demo",
+    "check": "npm run check:signature && npm run check:auth && npm run check:referral && npm run check:code && npm run check:commands && npm run check:notifications && npm run check:messages && npm run check:template && npm run check:broadcast && npm run check:parse && npm run check:usercommands && npm run check:propertydelete && npm run check:video && npm run check:greeting && npm run check:listingflow && npm run check:commission && npm run check:noresults && npm run check:videohealth && npm run check:deliverystatus && npm run check:mp4 && npm run check:examples && npm run check:adminreply && npm run check:voicenote && npm run check:rooms && npm run check:digits && npm run check:demo && npm run check:collection",
     "check:commands": "npx tsx scripts/check-admin-commands.ts",
     "check:notifications": "npx tsx scripts/check-notifications.ts",
     "check:messages": "npx tsx scripts/check-bot-messages.ts",
@@ -36,7 +36,8 @@
     "check:voicenote": "npx tsx scripts/check-voice-note.ts",
     "check:rooms": "npx tsx scripts/check-rooms-answer.ts",
     "check:digits": "npx tsx scripts/check-digits.ts",
-    "check:demo": "npx tsx scripts/check-demo.ts"
+    "check:demo": "npx tsx scripts/check-demo.ts",
+    "check:collection": "npx tsx scripts/check-collection.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

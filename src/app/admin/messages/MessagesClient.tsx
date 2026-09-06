@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { messageGroup } from "@/lib/bot-messages";
 
 type Variable = { name: string; sample: string; note: string };
 
@@ -106,7 +107,25 @@ export function MessagesClient() {
         {error ? <p className="auth-error">{error}</p> : null}
       </section>
 
-      {rows.map((row) => {
+      {/* Collection first, the full flow after: while the mode is on, most of these belong to a flow
+          nobody is walking, and burying what is live under it is how a wrong message survives. */}
+      {(["collection", "full"] as const).map((group) => {
+        const inGroup = rows.filter((row) => messageGroup(row.key) === group);
+
+        if (inGroup.length === 0) {
+          return null;
+        }
+
+        return (
+          <section className="panel message-group" key={group}>
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">{group === "collection" ? "وضع التجميع" : "الآلية الكاملة"}</p>
+                <h2>{inGroup.length} رسالة</h2>
+              </div>
+            </div>
+
+      {inGroup.map((row) => {
         const draft = drafts[row.key] ?? "";
         const unknown = unknownIn(draft, row.variables);
         const changed = draft.trim() !== (row.body || row.fallback).trim();
@@ -181,6 +200,9 @@ export function MessagesClient() {
               {savedKey === row.key ? <span>✅ حُفظت</span> : null}
             </div>
           </details>
+        );
+      })}
+          </section>
         );
       })}
     </>

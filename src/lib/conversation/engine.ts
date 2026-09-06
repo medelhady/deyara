@@ -13,6 +13,8 @@ import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { salutationFor } from "./greeting";
+import { nextCollectQuestion, readPrice, readSide, readSpecs, type CollectState } from "./collect";
+import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
@@ -1971,6 +1973,133 @@ async function withDemoMark(phone: string, result: Promise<ConversationResult>):
   return { ...answer, reply: markDemo(answer.reply) };
 }
 
+/**
+ * One intake conversation: which side, which district, what price, what it is.
+ *
+ * Saved the moment the last answer arrives, with no confirmation step. Every step drops some of the
+ * people who started it, and at this stage the count is the whole point -- a wrong entry can be
+ * corrected, an abandoned one cannot be recovered.
+ */
+async function handleCollection(
+  message: IncomingWhatsAppMessage,
+  current: CollectState | undefined
+): Promise<ConversationResult> {
+  const body = message.body.trim();
+
+  // Media is not asked for here and cannot be answered with, so it is turned away kindly rather than
+  // falling into the listing or receipt handlers that no longer apply.
+  if (message.media.length > 0) {
+    const audio = message.media.some((item) => item.contentType.startsWith("audio/"));
+
+    return {
+      debugIntent: "unknown",
+      reply: await getMessage(audio ? "voice_not_supported" : "collect_media")
+    };
+  }
+
+  // Starting again: someone with a second house, or a second district to search.
+  if (/^(دار ثانية|دار ثانيه|طلب ثاني|طلب ثانية|جديد|من جديد|ابدا من جديد)$/i.test(body)) {
+    await setConversationState(message.from, { collect: {} });
+
+    return { debugIntent: "intro", reply: await getMessage("collect_start") };
+  }
+
+  const state: CollectState = { ...(current ?? {}) };
+  const asked = nextCollectQuestion(state);
+
+  if (asked === "side") {
+    const side = readSide(body);
+
+    if (!side) {
+      // First contact and unusable answers get the same two options; only the wording differs.
+      await setConversationState(message.from, { collect: {} });
+
+      return {
+        debugIntent: "intro",
+        reply: await getMessage(current ? "collect_unclear" : "collect_start")
+      };
+    }
+
+    state.side = side;
+    await setConversationState(message.from, { collect: state });
+
+    return {
+      debugIntent: side === "owner" ? "add_property" : "search_property",
+      reply: await getMessage(side === "owner" ? "collect_owner_area" : "collect_renter_area")
+    };
+  }
+
+  const owner = state.side === "owner";
+
+  if (asked === "area") {
+    if (!body) {
+      return { debugIntent: "unknown", reply: await getMessage(owner ? "collect_owner_area" : "collect_renter_area") };
+    }
+
+    // Taken as written, unknown districts included: at this stage every request counts, and one in a
+    // district nobody covers yet is the most useful thing on the sheet.
+    state.area = body;
+    await setConversationState(message.from, { collect: state });
+
+    return {
+      debugIntent: "add_property",
+      reply: await getMessage(owner ? "collect_owner_price" : "collect_renter_price")
+    };
+  }
+
+  if (asked === "price") {
+    const price = readPrice(body);
+
+    if (price === undefined) {
+      return {
+        debugIntent: "unknown",
+        reply: await getMessage(owner ? "collect_owner_price" : "collect_renter_price")
+      };
+    }
+
+    state.price = price;
+    await setConversationState(message.from, { collect: state });
+
+    return {
+      debugIntent: "add_property",
+      reply: await getMessage(owner ? "collect_owner_specs" : "collect_renter_specs")
+    };
+  }
+
+  const specs = readSpecs(body);
+
+  if (!specs.specs) {
+    return {
+      debugIntent: "unknown",
+      reply: await getMessage(owner ? "collect_owner_specs" : "collect_renter_specs")
+    };
+  }
+
+  await saveCollectionEntry({
+    phone: message.from,
+    side: state.side ?? "renter",
+    area: state.area ?? "",
+    price: state.price,
+    specs: specs.specs,
+    rooms: specs.rooms
+  });
+
+  // Cleared rather than kept: the next message from this number starts a fresh entry, which is what
+  // someone with three houses needs.
+  await setConversationState(message.from, { collect: undefined });
+
+  const amount = state.price ? formatPrice(state.price) : "";
+  const summary = [owner ? amount : amount && `حتى ${amount}`, specs.specs].filter(Boolean).join(" · ");
+
+  return {
+    debugIntent: owner ? "add_property" : "search_property",
+    reply: await getMessage(owner ? "collect_owner_saved" : "collect_renter_saved", {
+      area: state.area ?? "",
+      summary
+    })
+  };
+}
+
 export async function handleIncomingMessage(message: IncomingWhatsAppMessage): Promise<ConversationResult> {
   return withDemoMark(message.from, runConversation(message));
 }
@@ -2036,6 +2165,19 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     });
 
     return { debugIntent: "intro", reply: markDemo(await getMessage("demo_start")) };
+  }
+
+  /**
+   * Collection mode takes the conversation entirely.
+   *
+   * Everything the full flow does -- searching, listing, fees, reveals -- assumes there is inventory
+   * to trade. Running any of it against an empty database is how the first hundred users are lost,
+   * so while the switch is on the bot does one thing: three questions, written down.
+   */
+  const collectionOn = (await getSettings()).collectionMode === "on";
+
+  if (collectionOn && !storedState.demo) {
+    return handleCollection(message, storedState.collect);
   }
 
   const draftExpired = Boolean(storedState.draftProperty && !isDraftFresh(storedState.draftProperty));
