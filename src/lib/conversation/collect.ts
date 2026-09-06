@@ -26,12 +26,19 @@ export type CollectState = {
   rooms?: number;
   /** What the renter will pay the office. Asked of owners only; zero is a real answer. */
   commission?: number;
+  /** Their entry is saved. Kept so the next message is answered as a follow-up, not a first hello. */
+  done?: boolean;
 };
 
 /** What the bot still needs before it can save. Null once the entry is complete. */
 export function nextCollectQuestion(
   state: CollectState
 ): "side" | "area" | "price" | "specs" | "commission" | null {
+  if (state.done) {
+    // Saved and cleared: whatever they write next starts a new entry, or is a follow-up.
+    return "side";
+  }
+
   if (!state.side) {
     return "side";
   }

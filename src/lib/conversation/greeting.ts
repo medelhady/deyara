@@ -47,6 +47,19 @@ const salutations: Array<{ answer: string; openings: string[] }> = [
 /** The default answers anything recognised as a greeting whose exact words are not listed. */
 const fallbackSalutation = "أهلًا بيك";
 
+/**
+ * Whether the message is a greeting and nothing else.
+ *
+ * salutationFor always answers something, because every greeting deserves one -- but that makes it
+ * useless for asking the question, and somebody who opens with السلام عليكم and is answered with a
+ * form has been told the machine was not listening.
+ */
+export function isGreetingOnly(body: string) {
+  const text = normalize(body);
+
+  return salutations.some((entry) => entry.openings.some((opening) => text === normalize(opening)));
+}
+
 export function salutationFor(body: string) {
   const text = normalize(body);
 

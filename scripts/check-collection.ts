@@ -125,6 +125,37 @@ async function main() {
   check("a video is turned away, not taken as a listing", video.reply.includes("ما نحتاج فيديو"), true);
   check("and no listing summary is shown", video.reply.includes("راجع ملخص"), false);
 
+  /**
+   * Someone who has registered and keeps writing is not a stranger.
+   *
+   * They were being welcomed from the top a minute after their request was saved, which reads as the
+   * bot having forgotten them -- and the next thing they type is far more often a clarification than
+   * a second house.
+   */
+  const followUp = await handleIncomingMessage(say(renter, "وتعود قريبة من المدرسة"));
+
+  check("a follow-up is not welcomed as a first hello", followUp.reply.includes("أهلًا بك في الديارة"), false);
+  check("they are told their request is held", followUp.reply.includes("مسجّل عندنا"), true);
+  check("and offered a second entry", followUp.reply.includes("طلبًا ثانيًا"), true);
+
+  const second = await handleIncomingMessage(say(renter, "2"));
+
+  check("choosing a side then starts a fresh entry", second.reply.includes("أي مقاطعة"), true);
+
+  /** A greeting is answered as a greeting, whatever else the bot is in the middle of. */
+  const greeted = await handleIncomingMessage(say("whatsapp:+22240007009", "السلام عليكم"));
+
+  check("a greeting gets one back", greeted.reply.startsWith("وعليكم السلام"), true);
+  check("before the two options", greeted.reply.includes("عندك دار للكراء"), true);
+
+  const morning = await handleIncomingMessage(say("whatsapp:+22240007010", "صباح الخير"));
+
+  check("and the right one back", morning.reply.startsWith("صباح النور"), true);
+
+  const plain = await handleIncomingMessage(say("whatsapp:+22240007011", "شنو هذا"));
+
+  check("a non-greeting gets no salutation bolted on", plain.reply.startsWith("أهلًا بك في الديارة"), true);
+
   const searching = await handleIncomingMessage(say("whatsapp:+22240007004", "أريد دار في عرفات"));
 
   check("a search does not run the old flow", searching.reply.includes("المتوفر الآن"), false);

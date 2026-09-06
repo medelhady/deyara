@@ -12,7 +12,7 @@ import { handleAdminCommand } from "./admin-commands";
 import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
-import { salutationFor } from "./greeting";
+import { isGreetingOnly, salutationFor } from "./greeting";
 import { nextCollectQuestion, readPrice, readSide, readSpecs, type CollectState } from "./collect";
 import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
@@ -2011,12 +2011,28 @@ async function handleCollection(
     const side = readSide(body);
 
     if (!side) {
-      // First contact and unusable answers get the same two options; only the wording differs.
-      await setConversationState(message.from, { collect: {} });
+      /**
+       * Three different people reach this line, and telling them apart is the whole of it.
+       *
+       * Someone who has already registered and is adding a detail was being welcomed as a stranger,
+       * which reads as the bot having forgotten them a minute after saving their request. Someone
+       * opening with السلام عليكم was answered with a form and no greeting at all.
+       */
+      const saved = current?.done;
+
+      await setConversationState(message.from, { collect: saved ? current : {} });
+
+      if (saved) {
+        return { debugIntent: "intro", reply: await getMessage("collect_after_saved") };
+      }
+
+      const opening = await getMessage(current ? "collect_unclear" : "collect_start");
 
       return {
         debugIntent: "intro",
-        reply: await getMessage(current ? "collect_unclear" : "collect_start")
+        reply: isGreetingOnly(body) ? `${salutationFor(body)}
+
+${opening}` : opening
       };
     }
 
@@ -2107,9 +2123,10 @@ async function handleCollection(
     commission: state.commission
   });
 
-  // Cleared rather than kept: the next message from this number starts a fresh entry, which is what
-  // someone with three houses needs.
-  await setConversationState(message.from, { collect: undefined });
+  // The answers go, the fact that they registered stays: the next message is far more often a
+  // clarification than a second house, and being welcomed as a stranger after registering reads as
+  // the bot having forgotten them.
+  await setConversationState(message.from, { collect: { done: true } });
 
   const amount = state.price ? formatPrice(state.price) : "";
   const commission = state.commission ? `عمولة ${formatPrice(state.commission)}` : "";
