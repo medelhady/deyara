@@ -1807,3 +1807,29 @@ select {
 .demand-amount {
   white-space: nowrap;
 }
+
+/* The head is the toggle: half the districts arrived as a sentence or as "2", and only what the
+   person actually typed says what they meant. */
+button.demand-row-head {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+
+.demand-open {
+  color: var(--muted);
+}
+
+.demand-thread {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  max-height: 420px;
+  overflow-y: auto;
+}

@@ -19,6 +19,8 @@ type Entry = {
 
 type AreaDemand = { area: string; owners: number; renters: number };
 
+type Message = { id: string; direction: string; message_type: string; body: string | null; created_at: string };
+
 function formatPrice(price: number | null) {
   return price === null ? "—" : `${new Intl.NumberFormat("en-US").format(price)} أوقية`;
 }
@@ -44,6 +46,32 @@ export function CollectionClient() {
   const [area, setArea] = useState("all");
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openPhone, setOpenPhone] = useState<string | null>(null);
+  const [thread, setThread] = useState<Message[] | null>(null);
+
+  /**
+   * The conversation behind an entry.
+   *
+   * Half the districts arrived as a sentence or as "2", and the row alone cannot say what the person
+   * meant. What they actually typed can -- and it is already stored, one table over.
+   */
+  async function openThread(phone: string) {
+    if (openPhone === phone) {
+      setOpenPhone(null);
+      setThread(null);
+      return;
+    }
+
+    setOpenPhone(phone);
+    setThread(null);
+
+    const response = await fetch(`/api/admin/conversations?phone=${encodeURIComponent(phone)}&t=${Date.now()}`, {
+      cache: "no-store"
+    });
+    const data = await response.json();
+
+    setThread(response.ok ? (data.messages ?? []) : []);
+  }
   const [form, setForm] = useState({ side: "renter", area: "", phone: "", price: "", specs: "" });
 
   async function load() {
@@ -220,7 +248,8 @@ export function CollectionClient() {
                  * وجلسة وقريبة من ا…" tells you nothing you can act on.
                  */
                 <article className="demand-row" key={entry.id}>
-                  <div className="demand-row-head">
+                  <button className="demand-row-head" type="button" onClick={() => void openThread(entry.phone)}>
+                    <span className="demand-open">{openPhone === entry.phone ? "▾" : "▸"}</span>
                     <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
                       {owner ? "🏠 مؤجر" : "🔍 مستأجر"}
                     </span>
@@ -241,7 +270,7 @@ export function CollectionClient() {
                       <span className="demand-chip">عمولة {formatPrice(entry.commission)}</span>
                     ) : null}
                     <span className="demand-when">{formatWhen(entry.createdAt)}</span>
-                  </div>
+                  </button>
 
                   {entry.specs ? <p className="demand-said">{entry.specs}</p> : null}
 
@@ -255,6 +284,26 @@ export function CollectionClient() {
                     ) : null}
                     {entry.addedByAdmin ? <span>إدخال يدوي</span> : null}
                   </div>
+
+                  {openPhone === entry.phone ? (
+                    <div className="demand-thread">
+                      {thread === null ? (
+                        <p className="amount-note">جار تحميل المحادثة...</p>
+                      ) : thread.length === 0 ? (
+                        <p className="amount-note">لا توجد محادثة محفوظة لهذا الرقم.</p>
+                      ) : (
+                        thread.map((line) => (
+                          <div
+                            className={line.direction === "inbound" ? "bubble inbound" : "bubble outbound"}
+                            key={line.id}
+                          >
+                            <p>{line.body?.trim() || `(${line.message_type})`}</p>
+                            <span>{formatWhen(line.created_at)}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : null}
                 </article>
               );
             })}
