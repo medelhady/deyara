@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ReplyBox, type ReplyWindow } from "../ReplyBox";
 
 type Entry = {
   id: string;
@@ -48,6 +49,7 @@ export function CollectionClient() {
   const [saving, setSaving] = useState(false);
   const [openPhone, setOpenPhone] = useState<string | null>(null);
   const [thread, setThread] = useState<Message[] | null>(null);
+  const [replyWindow, setReplyWindow] = useState<ReplyWindow | null>(null);
 
   /**
    * The conversation behind an entry.
@@ -59,11 +61,18 @@ export function CollectionClient() {
     if (openPhone === phone) {
       setOpenPhone(null);
       setThread(null);
+      setReplyWindow(null);
       return;
     }
 
     setOpenPhone(phone);
+    await loadThread(phone);
+  }
+
+  /** Re-reads one conversation without closing it, which is what a reply needs afterwards. */
+  async function loadThread(phone: string) {
     setThread(null);
+    setReplyWindow(null);
 
     const response = await fetch(`/api/admin/conversations?phone=${encodeURIComponent(phone)}&t=${Date.now()}`, {
       cache: "no-store"
@@ -71,6 +80,7 @@ export function CollectionClient() {
     const data = await response.json();
 
     setThread(response.ok ? (data.messages ?? []) : []);
+    setReplyWindow(response.ok ? (data.window ?? null) : null);
   }
   const [form, setForm] = useState({ side: "renter", area: "", phone: "", price: "", specs: "" });
 
@@ -275,9 +285,11 @@ export function CollectionClient() {
                   {entry.specs ? <p className="demand-said">{entry.specs}</p> : null}
 
                   <div className="demand-row-foot">
-                    <a className="button secondary" href={`https://wa.me/${number}`} target="_blank" rel="noreferrer">
-                      💬 راسله
-                    </a>
+                    {/* Opens the conversation in place. Replying from here is logged, marked as
+                        written by a person, and does not require finding the number on a phone. */}
+                    <button className="button secondary" type="button" onClick={() => void openThread(entry.phone)}>
+                      💬 {openPhone === entry.phone ? "أغلق المحادثة" : "راسله"}
+                    </button>
                     <span dir="ltr">+{number}</span>
                     {entry.matchedArea?.trim() && entry.matchedArea !== entry.area.trim() ? (
                       <span>كتب: {entry.area}</span>
@@ -302,6 +314,16 @@ export function CollectionClient() {
                           </div>
                         ))
                       )}
+
+                      {/* Mounted for as long as the card is open, not only once the thread has
+                          loaded: reloading after a send emptied it for a moment, and the box was
+                          rebuilt from scratch -- taking the "أُرسلت" confirmation with it. */}
+                      <ReplyBox
+                        phone={entry.phone}
+                        window={replyWindow}
+                        formatWhen={formatWhen}
+                        onSent={() => loadThread(entry.phone)}
+                      />
                     </div>
                   ) : null}
                 </article>
