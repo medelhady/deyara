@@ -51,7 +51,15 @@ export function SimulatorClient() {
       // Follow-ups are shown as their own bubbles, the way they arrive on WhatsApp.
       setMessages((current) => [
         ...current,
-        { direction: "outbound", body: data.reply ?? "حدث خطأ في الرد.", intent: data.intent },
+        {
+          direction: "outbound",
+          // No reply at all is a real answer now: the bot says nothing while a person has the
+          // conversation, and an empty bubble would read as a message that failed to render.
+          body:
+            data.reply?.trim() ||
+            (data.reply === "" ? "— لا رد: المحادثة بيد الإدارة والبوت صامت" : "حدث خطأ في الرد."),
+          intent: data.intent
+        },
         ...((data.followUps ?? []) as string[]).map((followUp) => ({
           direction: "outbound" as const,
           body: followUp,

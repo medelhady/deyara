@@ -18,16 +18,22 @@ export type ReplyWindow = { open: boolean; openUntil: string | null; lastInbound
 export function ReplyBox({
   phone,
   window: replyWindow,
+  handoverUntil,
   onSent,
+  onHandoverEnd,
   formatWhen
 }: {
   phone: string;
   window: ReplyWindow | null;
+  /** When the bot may speak to this number again, or null when it is answering normally. */
+  handoverUntil?: string | null;
   onSent?: () => void | Promise<void>;
+  onHandoverEnd?: () => void | Promise<void>;
   formatWhen: (value: string) => string;
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [returning, setReturning] = useState(false);
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const number = phone.replace("whatsapp:", "").replace(/\D/g, "");
@@ -55,15 +61,56 @@ export function ReplyBox({
 
       setDraft("");
       await onSent?.();
-      setNote({ kind: "ok", text: "✅ أُرسلت." });
+      // Said here rather than left to be discovered: from now on the bot answers nothing, and an
+      // admin who does not know that is an admin who walks away from an open conversation.
+      setNote({ kind: "ok", text: "✅ أُرسلت — البوت صامت مع هذا الرقم 12 ساعة." });
     } finally {
       setSending(false);
     }
   }
 
+  /** Hands the conversation back before the deadline, when the exchange is finished. */
+  async function returnToBot() {
+    setReturning(true);
+
+    try {
+      const response = await fetch("/api/admin/conversations/handover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, active: false })
+      });
+      const data = await response.json();
+
+      await onHandoverEnd?.();
+
+      setNote(
+        response.ok
+          ? { kind: "ok", text: "↩ عادت المحادثة للبوت." }
+          : { kind: "error", text: data.error ?? "تعذر إرجاع المحادثة." }
+      );
+    } finally {
+      setReturning(false);
+    }
+  }
+
+  const handedOver = Boolean(handoverUntil && new Date(handoverUntil).getTime() > Date.now());
+
   return (
     <div className="reply-box">
       {note ? <p className={note.kind === "ok" ? "reply-ok" : "auth-error"}>{note.text}</p> : null}
+
+      {/* While this is up, nothing the user writes gets a bot answer -- so it says who is
+          responsible and how to hand it back, in the one place the answering happens. */}
+      {handedOver ? (
+        <div className="handover-note">
+          <span>
+            👤 المحادثة بيدك — البوت صامت حتى {formatWhen(handoverUntil as string)}
+          </span>
+          <button className="button secondary" type="button" disabled={returning} onClick={() => void returnToBot()}>
+            {returning ? "..." : "↩ أعِد المحادثة للبوت"}
+          </button>
+        </div>
+      ) : null}
 
       {replyWindow?.open ? (
         <>

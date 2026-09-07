@@ -11,6 +11,8 @@ type Thread = {
   count: number;
   /** When WhatsApp stops accepting a free-form reply to this number. Null if they never wrote. */
   openUntil: string | null;
+  /** When the bot may speak to this number again. Non-null means a person is answering it. */
+  handoverUntil: string | null;
 };
 
 type Message = {
@@ -34,6 +36,7 @@ export function ConversationsClient() {
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("جار تحميل المحادثات...");
   const [replyWindow, setReplyWindow] = useState<ReplyWindow | null>(null);
+  const [handoverUntil, setHandoverUntil] = useState<string | null>(null);
 
   async function loadThreads() {
     const response = await fetch(`/api/admin/conversations?t=${Date.now()}`, { cache: "no-store" });
@@ -64,6 +67,7 @@ export function ConversationsClient() {
 
     setMessages(data.messages ?? []);
     setReplyWindow(data.window ?? null);
+    setHandoverUntil(data.handoverUntil ?? null);
   }
 
   useEffect(() => {
@@ -111,6 +115,14 @@ export function ConversationsClient() {
                     💬
                   </span>
                 ) : null}
+                {/* A handed-over conversation gets no bot answer at all, so it has to be visible
+                    from the list: this is the one the user is waiting on a person for. */}
+                {thread.handoverUntil ? (
+                  <span className="thread-human" title="البوت صامت — الرد على هذا الرقم منك أنت">
+                    {" "}
+                    👤
+                  </span>
+                ) : null}
               </strong>
               <span>
                 {thread.lastDirection === "inbound" ? "↩ " : "↪ "}
@@ -151,7 +163,20 @@ export function ConversationsClient() {
         </div>
 
         {selected ? (
-          <ReplyBox phone={selected} window={replyWindow} formatWhen={formatTime} onSent={() => openThread(selected)} />
+          <ReplyBox
+            phone={selected}
+            window={replyWindow}
+            handoverUntil={handoverUntil}
+            formatWhen={formatTime}
+            onSent={async () => {
+              await openThread(selected);
+              await loadThreads();
+            }}
+            onHandoverEnd={async () => {
+              await openThread(selected);
+              await loadThreads();
+            }}
+          />
         ) : null}
       </article>
     </section>

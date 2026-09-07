@@ -35,7 +35,9 @@ export type MessageDefinition = {
  * most of these are for a flow nobody is walking.
  */
 export function messageGroup(key: string) {
-  return key.startsWith("collect_") ? "collection" : "full";
+  // The handover message is not part of collection, but it is live in both modes, and burying what
+  // is running under thirty messages for a flow nobody is walking is how a wrong wording survives.
+  return key.startsWith("collect_") || key.startsWith("handover_") ? "collection" : "full";
 }
 
 export const messageDefinitions: MessageDefinition[] = [
@@ -66,6 +68,17 @@ export const messageDefinitions: MessageDefinition[] = [
       "تحب تسجّل طلبًا ثانيًا؟",
       "عندك دار للكراء؟ اكتب: *1*",
       "تدور على دار؟ اكتب: *2*"
+    ].join("\n")
+  },
+  {
+    key: "handover_ack",
+    label: "التسليم — إشعار وصول واحد",
+    note: "تصل مرة واحدة فقط حين يكتب المستخدم بعد ردّ الإدارة عليه، ثم يصمت البوت حتى تنتهي مدة التسليم أو تُرجع المحادثة له. تعمل في الوضعين.",
+    variables: [],
+    fallback: [
+      "👤 وصلت رسالتك للإدارة",
+      "",
+      "أحد موظفي الديارة يتابع محادثتك الآن، وسيردّ عليك هنا مباشرة."
     ].join("\n")
   },
   {

@@ -1846,3 +1846,23 @@ button.demand-row-head {
   max-height: 420px;
   overflow-y: auto;
 }
+
+/* The conversation a person has taken over: said where the answering happens, because while it is
+   up the bot replies to nothing. */
+.handover-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px solid #e6d9b8;
+  border-radius: 8px;
+  background: #fdf8ec;
+  color: #8a5a12;
+  font-size: 0.9em;
+}
+
+.thread-human {
+  color: #8a5a12;
+}

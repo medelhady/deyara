@@ -53,6 +53,7 @@ export function CollectionClient() {
   const [openPhone, setOpenPhone] = useState<string | null>(null);
   const [thread, setThread] = useState<Message[] | null>(null);
   const [replyWindow, setReplyWindow] = useState<ReplyWindow | null>(null);
+  const [handoverUntil, setHandoverUntil] = useState<string | null>(null);
 
   /**
    * The conversation behind an entry.
@@ -65,6 +66,7 @@ export function CollectionClient() {
       setOpenPhone(null);
       setThread(null);
       setReplyWindow(null);
+      setHandoverUntil(null);
       return;
     }
 
@@ -84,6 +86,7 @@ export function CollectionClient() {
 
     setThread(response.ok ? (data.messages ?? []) : []);
     setReplyWindow(response.ok ? (data.window ?? null) : null);
+    setHandoverUntil(response.ok ? (data.handoverUntil ?? null) : null);
   }
   const [form, setForm] = useState({ side: "renter", area: "", phone: "", price: "", specs: "" });
 
@@ -385,8 +388,10 @@ export function CollectionClient() {
                       <ReplyBox
                         phone={entry.phone}
                         window={replyWindow}
+                        handoverUntil={handoverUntil}
                         formatWhen={formatWhen}
                         onSent={() => loadThread(entry.phone)}
+                        onHandoverEnd={() => loadThread(entry.phone)}
                       />
                     </div>
                   ) : null}

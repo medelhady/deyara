@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { getHandover, listHandovers } from "@/lib/handover";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -60,7 +61,9 @@ export async function GET(request: Request) {
     const messages = ((data ?? []) as ConversationRow[]).reverse();
 
     return NextResponse.json(
-      { messages, window: describeWindow(messages) },
+      // The handover rides along with the window: both answer "can I speak to this number, and who
+      // is speaking to them", and the reply box needs the two together or not at all.
+      { messages, window: describeWindow(messages), handoverUntil: (await getHandover(phone)).until },
       { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   }
@@ -120,8 +123,21 @@ export async function GET(request: Request) {
     }
   }
 
+  /**
+   * Which of these are being answered by a person right now.
+   *
+   * Shown on the list rather than only inside a thread: a handover nobody remembers is a user
+   * writing into silence, and the list is the only place an admin sees all of them at once.
+   */
+  const handovers = await listHandovers(Array.from(threads.keys()));
+
   return NextResponse.json(
-    { threads: Array.from(threads.values()) },
+    {
+      threads: Array.from(threads.values()).map((thread) => ({
+        ...thread,
+        handoverUntil: handovers.get(thread.phone) ?? null
+      }))
+    },
     { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } }
   );
 }

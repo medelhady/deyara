@@ -4,6 +4,7 @@ import { sendNotification } from "@/lib/notifications";
 // The wording and the window live in lib: a route file may only export the handlers, and a check
 // that had to read this file as text would not be reading the thing that runs.
 import { canReply, formatAdminReply } from "@/lib/admin-reply";
+import { startHandover } from "@/lib/handover";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,15 @@ export async function POST(request: Request) {
     { phone, contacted_at: new Date().toISOString() },
     { onConflict: "phone" }
   );
+
+  /**
+   * The bot steps aside for the next twelve hours.
+   *
+   * Without this it keeps reading every message as an answer to its own questions, so the reply this
+   * person is about to write is met with "في أي مقاطعة؟" or "طلبك مسجّل عندنا" -- the bot talking
+   * over the person who just answered them.
+   */
+  await startHandover(phone);
 
   // Written to the same table the bot writes to, so the reply appears in the thread where it was
   // typed rather than only in the notification log.

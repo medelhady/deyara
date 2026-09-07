@@ -17,6 +17,7 @@ import { looksLikeArea, nextCollectQuestion, readPrice, readSide, readSpecs, typ
 import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
+import { getHandover, markAcknowledged, needsAcknowledgement } from "@/lib/handover";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { deletePropertyMedia, signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
@@ -2191,6 +2192,39 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
 
   if (adminReply) {
     return { debugIntent: "intro", reply: adminReply };
+  }
+
+  /**
+   * A person is answering this number, so the bot says nothing.
+   *
+   * Checked before the state is read: everything below reads the message as an answer to a question
+   * the bot asked, and someone replying to a human was asked "في أي مقاطعة؟" mid-sentence, or told
+   * "طلبك مسجّل عندنا ✅" -- the bot talking over the person who had just spoken to them.
+   *
+   * Silence alone is worse than the interruption, so the first message gets one acknowledgement and
+   * the admins are told each time, on their phones, that someone is waiting on them.
+   */
+  const handover = await getHandover(message.from);
+
+  if (handover.active) {
+    await notifyAdmins([
+      "👤 *رسالة أثناء محادثة بشرية*",
+      "",
+      `من: ${message.from.replace("whatsapp:", "")}`,
+      message.body.trim() ? `«${message.body.trim().slice(0, 200)}»` : "(مرفق)",
+      "",
+      "البوت صامت مع هذا الرقم — الرد عليه منك أنت، من صفحة المحادثات."
+    ]);
+
+    if (needsAcknowledgement(handover)) {
+      await markAcknowledged(message.from);
+
+      return { debugIntent: "intro", reply: await getMessage("handover_ack") };
+    }
+
+    // An empty reply is the silence: the webhook sends nothing and logs nothing outbound, while the
+    // message they wrote is still stored and still shows in the dashboard.
+    return { debugIntent: "intro", reply: "" };
   }
 
   const storedState = await getConversationState(message.from);

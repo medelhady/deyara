@@ -42,7 +42,14 @@ async function saveConversation(incoming: IncomingWhatsAppMessage, reply: string
     }
   });
 
-  await saveOutbound(incoming, reply, intent);
+  /**
+   * An empty reply is the bot staying out of a conversation a person has taken over. The message
+   * they wrote is stored either way -- it is what the admin has to read -- but a blank outbound row
+   * would show in the thread as the bot having answered with nothing.
+   */
+  if (reply.trim()) {
+    await saveOutbound(incoming, reply, intent);
+  }
 }
 
 /** Logs one message the bot sent, without re-logging the incoming one that prompted it. */
@@ -125,7 +132,9 @@ export async function POST(request: Request) {
       await sendVideoNotification(incoming.from, result.video.url, "bot_reply");
     }
 
-    await sendNotification(incoming.from, result.reply, "bot_reply");
+    if (result.reply.trim()) {
+      await sendNotification(incoming.from, result.reply, "bot_reply");
+    }
 
     // Sent after the reply and in order, so text meant to be forwarded arrives as its own message.
     for (const followUp of result.followUps ?? []) {
