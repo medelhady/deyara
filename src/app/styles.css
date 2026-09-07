@@ -1866,3 +1866,34 @@ button.demand-row-head {
 .thread-human {
   color: #8a5a12;
 }
+
+/* The campaign reply: a whole message, so it gets the width of one rather than half a grid cell. */
+.campaign-reply {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.campaign-reply textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+}
+
+.campaign-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Two words that mean one thing: broken across lines they read as a stray checkbox. */
+  white-space: nowrap;
+}
+
+.campaign-video {
+  margin-top: 16px;
+}
+
+.campaign-video input[type="file"] {
+  max-width: 100%;
+}

@@ -6,6 +6,7 @@ import { getServiceSupabase } from "@/lib/supabase/server";
  */
 export const backupTables = [
   "app_settings",
+  "bot_campaigns",
   "bot_dictionary",
   "bot_messages",
   "contact_requests",

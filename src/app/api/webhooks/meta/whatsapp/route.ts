@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     // The video leads and the text follows as its own bubble, rather than riding along as a caption:
     // captions wrap in a narrower box and broke the instruction across lines.
     if (result.video) {
-      await sendVideoNotification(incoming.from, result.video.url, "bot_reply");
+      await sendVideoNotification(incoming.from, result.video.url, "bot_reply", result.video.label);
     }
 
     if (result.reply.trim()) {

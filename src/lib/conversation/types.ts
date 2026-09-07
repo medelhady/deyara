@@ -37,7 +37,7 @@ export type ConversationResult = {
    * A link is not a substitute: the renter is on WhatsApp looking at a house, and the whole point of
    * the step is that they watch it without leaving the chat.
    */
-  video?: { url: string };
+  video?: { url: string; label?: string };
   debugIntent: Intent;
 };
 

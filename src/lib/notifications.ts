@@ -183,9 +183,12 @@ export async function sendNotification(
 export async function sendVideoNotification(
   phone: string,
   link: string,
-  kind: NotificationKind
+  kind: NotificationKind,
+  // Not every video is a house any more: a campaign answers a marketer with an explanation, and a
+  // log that calls that one فيديو الدار is a log that cannot be read back.
+  label = "فيديو الدار"
 ): Promise<{ ok: boolean; viaLink: boolean }> {
-  const logged = "[فيديو] فيديو الدار";
+  const logged = `[فيديو] ${label}`;
 
   /**
    * Meta answers before it fetches the link, so handing it a dead URL succeeds and delivers nothing.
@@ -198,7 +201,7 @@ export async function sendVideoNotification(
   if (!health.ok) {
     console.error(`Video link unusable (${kind}) for ${phone}: ${health.reason}`);
 
-    const fallback = await sendNotification(phone, `🎥 فيديو الدار:\n${link}`, kind);
+    const fallback = await sendNotification(phone, `🎥 ${label}:\n${link}`, kind);
 
     await record(phone, kind, logged, fallback.ok ? "sent" : "failed", `الفيديو لم يُرسَل كوسائط: ${health.reason}`);
 
@@ -215,7 +218,7 @@ export async function sendVideoNotification(
 
     console.error(`Video send failed (${kind}) to ${phone}`, raw);
 
-    const fallback = await sendNotification(phone, `🎥 فيديو الدار:\n${link}`, kind);
+    const fallback = await sendNotification(phone, `🎥 ${label}:\n${link}`, kind);
 
     if (!fallback.ok) {
       await record(phone, kind, logged, "failed", raw);

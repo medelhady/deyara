@@ -1,5 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { inspectMp4 } from "@/lib/mp4-inspect";
+import { maxVideoBytes } from "@/lib/video-health";
 
 export const propertyMediaBucket = "property-media";
 
@@ -158,4 +159,69 @@ export async function deletePropertyMedia(storageUrl: string) {
   if (error) {
     console.error("Failed to remove property media", error);
   }
+}
+
+/**
+ * A place in the bucket for a file the dashboard uploads, and permission to put it there.
+ *
+ * The browser uploads straight to storage rather than through this app: a serverless request body is
+ * capped well below the 16MB WhatsApp allows, so a video sent through the app would be refused at a
+ * size WhatsApp would have carried.
+ */
+export async function createUploadSlot(contentType: string, folder = "campaigns") {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { error: "قاعدة البيانات غير مربوطة." as const, path: null, url: null };
+  }
+
+  const path = `${folder}/${Date.now()}.${extensionFor(contentType)}`;
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).createSignedUploadUrl(path);
+
+  if (error || !data) {
+    console.error("Failed to create an upload slot", error);
+
+    return { error: "تعذر تجهيز الرفع. حاول مرة أخرى." as const, path: null, url: null };
+  }
+
+  return { error: null, path, url: data.signedUrl };
+}
+
+/**
+ * Reads an uploaded video back and refuses one WhatsApp will not relay.
+ *
+ * The same trap as a listing video, and worse here: an editor export in H.265 is accepted by Meta,
+ * acknowledged with an id, and silently never delivered -- so a campaign would answer every marketer
+ * with nothing at all, and the dashboard would show it as sent. Checked once at upload, where the
+ * admin can still fix it, and the bad file is removed rather than left in the bucket.
+ */
+export async function verifyStoredVideo(path: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { ok: false as const, error: "قاعدة البيانات غير مربوطة." };
+  }
+
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).download(path);
+
+  if (error || !data) {
+    return { ok: false as const, error: "تعذر قراءة الفيديو بعد الرفع." };
+  }
+
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const problems: string[] = [];
+
+  if (bytes.length > maxVideoBytes) {
+    problems.push(`الفيديو أكبر من 16 ميجابايت، وواتساب لا يقبل أكبر من ذلك.`);
+  }
+
+  problems.push(...inspectMp4(bytes).problems);
+
+  if (problems.length > 0) {
+    await deletePropertyMedia(path);
+
+    return { ok: false as const, error: problems.join(" ") };
+  }
+
+  return { ok: true as const, error: null };
 }

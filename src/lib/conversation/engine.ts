@@ -18,6 +18,7 @@ import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
 import { getHandover, markAcknowledged, needsAcknowledgement } from "@/lib/handover";
+import { getActiveCampaigns, matchCampaign, recordCampaignHit } from "@/lib/campaigns";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { deletePropertyMedia, signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
@@ -2264,6 +2265,35 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     });
 
     return { debugIntent: "intro", reply: markDemo(await getMessage("demo_start")) };
+  }
+
+  /**
+   * The people the flow was never written for.
+   *
+   * A marketer, a merchant or a partner writes the word from the advert and every path below is
+   * wrong for them: the bot asks which district they want and how much they will pay, because those
+   * are the only questions it has. A campaign answers that word with the explanation the advert
+   * promised -- usually a video -- and leaves whatever they were doing untouched.
+   *
+   * Not during the walkthrough: someone inside the demo is being shown one thing at a time, and an
+   * advert cutting into it teaches the wrong lesson.
+   */
+  if (!storedState.demo) {
+    const campaign = matchCampaign(message.body, await getActiveCampaigns());
+
+    if (campaign) {
+      await recordCampaignHit(campaign.id, campaign.hits);
+
+      const link = campaign.videoPath ? await signPropertyMedia(campaign.videoPath) : null;
+
+      // A campaign whose video cannot be signed still answers with its text: half the message is
+      // worth more to someone who just wrote in than silence.
+      return {
+        debugIntent: "intro",
+        reply: campaign.replyText,
+        video: link ? { url: link, label: campaign.name } : undefined
+      };
+    }
   }
 
   /**
