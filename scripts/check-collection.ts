@@ -9,7 +9,7 @@
 process.env.COLLECTION_MODE = "on";
 
 import { handleIncomingMessage } from "../src/lib/conversation/engine";
-import { readSide, readPrice, readSpecs, nextCollectQuestion } from "../src/lib/conversation/collect";
+import { readSide, readPrice, readSpecs, nextCollectQuestion, looksLikeArea } from "../src/lib/conversation/collect";
 import { summariseByArea, type CollectionEntry } from "../src/lib/collection-entries";
 import { messageGroup } from "../src/lib/bot-messages";
 import type { IncomingWhatsAppMessage } from "../src/lib/whatsapp/types";
@@ -45,6 +45,22 @@ check("and so is نبغي دار", readSide("نبغي دار في لكصر", voc
 
 // An ownership word settles a sentence that carries both: "عندي دار للكراء" is an offer.
 check("ownership wins over the rental word", readSide("عندي دار للكراء", vocabulary), "owner");
+
+/**
+ * No district here is named with digits alone.
+ *
+ * People answer "which district" with "1" or "2", still thinking about the menu two questions back.
+ * That was taken as written -- entries saved in a district called "2" -- and the place they actually
+ * meant arrived on the next message, where it was read as a failed price and thrown away. One bad
+ * answer cost two.
+ */
+check("a name is a district", looksLikeArea("لكصر"), true);
+check("a name with a number in it too", looksLikeArea("الداية 15"), true);
+check("and a whole sentence", looksLikeArea("مخبزة الشباب قريب كرفور"), true);
+check("a bare menu number is not", looksLikeArea("2"), false);
+check("nor is a longer number", looksLikeArea("15"), false);
+check("nor punctuation around one", looksLikeArea(" 1 . "), false);
+check("nor nothing at all", looksLikeArea("   "), false);
 
 check("a price is read", readPrice("70000"), 70000);
 check("with words around it", readPrice("الإيجار 70000 في الشهر"), 70000);
@@ -96,6 +112,13 @@ async function main() {
   check("and it says what is being collected", opened.reply.includes("نجمع الآن"), true);
 
   check("the district is asked next", (await handleIncomingMessage(say(owner, "1"))).reply.includes("أي مقاطعة"), true);
+
+  // The exact conversation this came from: "2" answered to the district question.
+  const refused = await handleIncomingMessage(say(owner, "2"));
+
+  check("a number is refused as a district", refused.reply.includes("لا رقمًا"), true);
+  check("with real districts named", refused.reply.includes("عين الطلح"), true);
+  check("and the price is not asked yet", refused.reply.includes("إيجارها"), false);
   check("then the rent", (await handleIncomingMessage(say(owner, "لكصر"))).reply.includes("كم إيجارها"), true);
 
   const asksSpecs = await handleIncomingMessage(say(owner, "70000"));

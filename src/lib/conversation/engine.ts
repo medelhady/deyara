@@ -13,7 +13,7 @@ import { sendNotification } from "@/lib/notifications";
 import { getMessage } from "@/lib/bot-messages";
 import { findReferralCode } from "./referral-code";
 import { isGreetingOnly, salutationFor } from "./greeting";
-import { nextCollectQuestion, readPrice, readSide, readSpecs, type CollectState } from "./collect";
+import { looksLikeArea, nextCollectQuestion, readPrice, readSide, readSpecs, type CollectState } from "./collect";
 import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
@@ -2062,6 +2062,16 @@ ${opening}` : opening
   if (asked === "area") {
     if (!body) {
       return { debugIntent: "unknown", reply: await getMessage(owner ? "collect_owner_area" : "collect_renter_area") };
+    }
+
+    /**
+     * A number is not a district, and accepting one cost two answers rather than one.
+     *
+     * The entry was saved under a district called "2", and the place they actually meant arrived on
+     * the next message -- where it was read as a failed price and discarded.
+     */
+    if (!looksLikeArea(body)) {
+      return { debugIntent: "unknown", reply: await getMessage("collect_area_not_a_number") };
     }
 
     // Taken as written, unknown districts included: at this stage every request counts, and one in a

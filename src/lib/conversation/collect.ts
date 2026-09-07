@@ -122,6 +122,22 @@ export function readSide(
   return undefined;
 }
 
+/**
+ * Whether an answer to "which district" could be one.
+ *
+ * People answer it with "1" or "2" -- still thinking about the menu two questions back -- and the
+ * answer was taken as written, so entries were saved in a district called "2". Worse, the district
+ * they actually meant arrived on the next message and was read as a failed price, then thrown away.
+ *
+ * No district here is named with digits alone. Names that contain a number keep their letters
+ * ("الداية 15"), so only an answer that is nothing but digits is refused.
+ */
+export function looksLikeArea(body: string) {
+  const text = body.trim();
+
+  return text.length > 0 && !/^[\d\s.,\-]+$/.test(text);
+}
+
 export function readPrice(body: string) {
   return parseRent(body);
 }
