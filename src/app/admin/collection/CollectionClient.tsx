@@ -16,6 +16,8 @@ type Entry = {
   commission: number | null;
   addedByAdmin: boolean;
   createdAt: string;
+  /** When an admin last reached this person. Null means nobody has. */
+  contactedAt: string | null;
 };
 
 type AreaDemand = { area: string; owners: number; renters: number };
@@ -44,6 +46,7 @@ export function CollectionClient() {
   const [byArea, setByArea] = useState<AreaDemand[]>([]);
   const [message, setMessage] = useState("جار التحميل...");
   const [side, setSide] = useState<"all" | "owner" | "renter">("all");
+  const [reached, setReached] = useState<"all" | "waiting" | "done">("all");
   const [area, setArea] = useState("all");
   const [search, setSearch] = useState("");
   const [saving, setSaving] = useState(false);
@@ -98,6 +101,29 @@ export function CollectionClient() {
     setMessage((data.entries ?? []).length ? "" : "لا توجد طلبات ولا عروض بعد.");
   }
 
+  /**
+   * Records a call made outside the dashboard.
+   *
+   * Replying from here marks them already; this is for the ones reached from a phone, which is every
+   * one whose 24-hour window has closed.
+   */
+  async function markContacted(phone: string, contacted: boolean) {
+    const response = await fetch("/api/admin/collection/contacted", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, contacted })
+    });
+    const data = await response.json();
+
+    await load();
+
+    // After the reload, never before: load() rewrites the same line, and a failure announced first
+    // was erased a moment later -- leaving a mark that silently did not save.
+    if (!response.ok) {
+      setMessage(`⚠️ ${data.error ?? "تعذر حفظ الوسم."}`);
+    }
+  }
+
   async function add() {
     setSaving(true);
 
@@ -140,6 +166,15 @@ export function CollectionClient() {
         return false;
       }
 
+      // The question that decides the day is not who is there but who has not been called yet.
+      if (reached === "waiting" && entry.contactedAt) {
+        return false;
+      }
+
+      if (reached === "done" && !entry.contactedAt) {
+        return false;
+      }
+
       if (!term) {
         return true;
       }
@@ -152,7 +187,7 @@ export function CollectionClient() {
         (entry.specs ?? "").toLowerCase().includes(term)
       );
     });
-  }, [entries, side, area, search]);
+  }, [entries, side, area, search, reached]);
 
   const sideFilters = [
     { key: "all", label: `الكل (${entries.length})` },
@@ -202,7 +237,7 @@ export function CollectionClient() {
             <p className="eyebrow">القائمة</p>
             <h2>{visible.length} ظاهرًا</h2>
           </div>
-          {area !== "all" || side !== "all" || search ? (
+          {area !== "all" || side !== "all" || search || reached !== "all" ? (
             <button
               className="button secondary"
               type="button"
@@ -210,6 +245,7 @@ export function CollectionClient() {
                 setArea("all");
                 setSide("all");
                 setSearch("");
+                setReached("all");
               }}
             >
               إلغاء الفلترة
@@ -238,6 +274,25 @@ export function CollectionClient() {
           ))}
         </div>
 
+        <div className="filters-bar">
+          {(
+            [
+              { key: "all", label: `الكل` },
+              { key: "waiting", label: `⏳ لم أتواصل (${entries.filter((entry) => !entry.contactedAt).length})` },
+              { key: "done", label: `✅ تواصلت (${entries.filter((entry) => entry.contactedAt).length})` }
+            ] as const
+          ).map((filter) => (
+            <button
+              className={reached === filter.key ? "active" : ""}
+              type="button"
+              key={filter.key}
+              onClick={() => setReached(filter.key)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
         {area !== "all" ? <p className="amount-note">المقاطعة: {area}</p> : null}
 
         {visible.length === 0 ? (
@@ -257,7 +312,7 @@ export function CollectionClient() {
                  * cut at forty-eight characters, because the sentence is the request -- "ثلاث غرف
                  * وجلسة وقريبة من ا…" tells you nothing you can act on.
                  */
-                <article className="demand-row" key={entry.id}>
+                <article className={entry.contactedAt ? "demand-row is-reached" : "demand-row"} key={entry.id}>
                   <button className="demand-row-head" type="button" onClick={() => void openThread(entry.phone)}>
                     <span className="demand-open">{openPhone === entry.phone ? "▾" : "▸"}</span>
                     <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
@@ -279,6 +334,7 @@ export function CollectionClient() {
                     {owner && entry.commission ? (
                       <span className="demand-chip">عمولة {formatPrice(entry.commission)}</span>
                     ) : null}
+                    {entry.contactedAt ? <span className="demand-tag is-reached">✅ تواصلت</span> : null}
                     <span className="demand-when">{formatWhen(entry.createdAt)}</span>
                   </button>
 
@@ -294,6 +350,14 @@ export function CollectionClient() {
                     {entry.matchedArea?.trim() && entry.matchedArea !== entry.area.trim() ? (
                       <span>كتب: {entry.area}</span>
                     ) : null}
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => void markContacted(entry.phone, !entry.contactedAt)}
+                    >
+                      {entry.contactedAt ? "↩ ألغِ الوسم" : "✓ تواصلت معه"}
+                    </button>
+                    {entry.contactedAt ? <span>✅ {formatWhen(entry.contactedAt)}</span> : null}
                     {entry.addedByAdmin ? <span>إدخال يدوي</span> : null}
                   </div>
 

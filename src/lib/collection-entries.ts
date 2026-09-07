@@ -21,6 +21,8 @@ export type CollectionEntry = {
   commission: number | null;
   addedByAdmin: boolean;
   createdAt: string;
+  /** When an admin last reached this person. Null means nobody has. */
+  contactedAt: string | null;
 };
 
 export async function saveCollectionEntry(entry: {
@@ -96,6 +98,27 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
     return [];
   }
 
+  /**
+   * Who has been spoken to, read once for the whole page.
+   *
+   * Kept on the person, not the entry: someone who registered twice was contacted once, and showing
+   * one of their rows as reached and the other as waiting would be worse than showing neither.
+   */
+  const phones = [...new Set((data ?? []).map((row) => String(row.phone)))];
+  const contacted = new Map<string, string>();
+
+  if (phones.length > 0) {
+    const { data: people } = await supabase
+      .from("users")
+      .select("phone,contacted_at")
+      .in("phone", phones)
+      .not("contacted_at", "is", null);
+
+    for (const person of people ?? []) {
+      contacted.set(String(person.phone), String(person.contacted_at));
+    }
+  }
+
   return (data ?? []).map((row) => ({
     id: String(row.id),
     phone: String(row.phone),
@@ -106,7 +129,8 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
     rooms: row.rooms === null ? null : Number(row.rooms),
     commission: row.commission === null ? null : Number(row.commission),
     addedByAdmin: Boolean(row.added_by_admin),
-    createdAt: String(row.created_at)
+    createdAt: String(row.created_at),
+    contactedAt: contacted.get(String(row.phone)) ?? null
   }));
 }
 

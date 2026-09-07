@@ -1762,6 +1762,19 @@ select {
   color: var(--accent);
 }
 
+/* Already spoken to: a marked row is dimmed rather than hidden, so the eye skips it while the row
+   stays readable when the filter is off. */
+.demand-row.is-reached {
+  background: #fbfdfc;
+  border-color: #cfe4dc;
+}
+
+/* Its own colour, not the owner green: two tags in the same green on one line read as one tag. */
+.demand-tag.is-reached {
+  background: #fdf3e3;
+  color: #8a5a12;
+}
+
 .demand-chip {
   padding: 2px 8px;
   border: 1px solid var(--line);

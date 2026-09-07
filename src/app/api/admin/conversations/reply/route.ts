@@ -63,6 +63,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.explained }, { status: 400 });
   }
 
+  /**
+   * Marked as contacted by the act of contacting them.
+   *
+   * A button to press afterwards is a button that gets forgotten, and with four hundred numbers the
+   * list is only useful if "who have I not reached" can be trusted.
+   */
+  await supabase.from("users").upsert(
+    { phone, contacted_at: new Date().toISOString() },
+    { onConflict: "phone" }
+  );
+
   // Written to the same table the bot writes to, so the reply appears in the thread where it was
   // typed rather than only in the notification log.
   await supabase.from("conversations").insert({
