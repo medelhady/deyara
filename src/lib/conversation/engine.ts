@@ -2008,7 +2008,11 @@ async function handleCollection(
   const asked = nextCollectQuestion(state);
 
   if (asked === "side") {
-    const side = readSide(body);
+    const dictionary = await getRuntimeDictionary();
+    const side = readSide(body, {
+      owner: dictionary.ownerListingPhrases,
+      renter: dictionary.renterSearchPhrases
+    });
 
     if (!side) {
       /**
@@ -2026,11 +2030,19 @@ async function handleCollection(
         return { debugIntent: "intro", reply: await getMessage("collect_after_saved") };
       }
 
-      const opening = await getMessage(current ? "collect_unclear" : "collect_start");
+      /**
+       * A greeting is never "ما فهمت قصدك".
+       *
+       * Someone who wrote سلام was answered "وعليكم السلام، ما فهمت قصدك" -- told in one breath that
+       * they had been understood and that they had not. A greeting is not an answer, but it is not a
+       * failure either, so it gets the welcome and the options rather than the reproach.
+       */
+      const greeting = isGreetingOnly(body);
+      const opening = await getMessage(current && !greeting ? "collect_unclear" : "collect_start");
 
       return {
         debugIntent: "intro",
-        reply: isGreetingOnly(body) ? `${salutationFor(body)}
+        reply: greeting ? `${salutationFor(body)}
 
 ${opening}` : opening
       };

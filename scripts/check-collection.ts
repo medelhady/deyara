@@ -29,6 +29,23 @@ check("so is a sentence", readSide("عندي دار للكراء"), "owner");
 check("and the other way", readSide("أدور على دار"), "renter");
 check("an unusable answer is neither", readSide("شنو هذا"), undefined);
 
+/**
+ * The wider vocabulary comes from the bot dictionary, not from a second list kept beside it.
+ *
+ * "ندور" was in that dictionary from the start and missing here, so "ندور استديو" -- the most
+ * ordinary sentence a renter could type -- was answered with "ما فهمت قصدك".
+ */
+const vocabulary = {
+  owner: ["عندي", "لدي", "نأجر"],
+  renter: ["ندور", "نبغي", "ابحث", "للكراء"]
+};
+
+check("ندور استديو is a renter", readSide("ندور استديو", vocabulary), "renter");
+check("and so is نبغي دار", readSide("نبغي دار في لكصر", vocabulary), "renter");
+
+// An ownership word settles a sentence that carries both: "عندي دار للكراء" is an offer.
+check("ownership wins over the rental word", readSide("عندي دار للكراء", vocabulary), "owner");
+
 check("a price is read", readPrice("70000"), 70000);
 check("with words around it", readPrice("الإيجار 70000 في الشهر"), 70000);
 check("a rent written in words is read too", readPrice("70 الف"), 70000);
@@ -151,6 +168,23 @@ async function main() {
   const morning = await handleIncomingMessage(say("whatsapp:+22240007010", "صباح الخير"));
 
   check("and the right one back", morning.reply.startsWith("صباح النور"), true);
+
+  /**
+   * A greeting is understood. Being answered "وعليكم السلام، ما فهمت قصدك" tells someone in one
+   * breath that they were understood and that they were not.
+   */
+  const greetedTwice = "whatsapp:+22240007012";
+
+  await handleIncomingMessage(say(greetedTwice, "مرحبا"));
+
+  const secondGreeting = await handleIncomingMessage(say(greetedTwice, "سلام"));
+
+  check("a greeting is never met with ما فهمت قصدك", secondGreeting.reply.includes("ما فهمت قصدك"), false);
+  check("it gets a salutation instead", secondGreeting.reply.startsWith("وعليكم السلام"), true);
+
+  const stillUnclear = await handleIncomingMessage(say(greetedTwice, "شنو هذا الشي"));
+
+  check("but real confusion still says so", stillUnclear.reply.includes("ما فهمت قصدك"), true);
 
   const plain = await handleIncomingMessage(say("whatsapp:+22240007011", "شنو هذا"));
 

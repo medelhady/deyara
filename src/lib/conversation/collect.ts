@@ -65,7 +65,7 @@ export function nextCollectQuestion(
 }
 
 const ownerWords = ["1", "عندي", "عندي دار", "عندي منزل", "مؤجر", "موجر", "عندي شقة", "اعرض", "عرض"];
-const renterWords = ["2", "ادور", "أدور", "ابحث", "أبحث", "مستاجر", "مستأجر", "نبغي", "اريد", "أريد"];
+const renterWords = ["2", "ادور", "أدور", "ندور", "نندور", "اندور", "ابحث", "أبحث", "مستاجر", "مستأجر", "نبغي", "اريد", "أريد"];
 
 function normalize(value: string) {
   return value
@@ -79,33 +79,49 @@ function normalize(value: string) {
     .replace(/\s+/g, " ");
 }
 
+function startsWithAny(text: string, words: string[]) {
+  return words.some((word) => {
+    const normalized = normalize(word);
+
+    return text === normalized || text.startsWith(`${normalized} `);
+  });
+}
+
+function containsAny(text: string, phrases: string[]) {
+  return phrases.some((phrase) => text.includes(normalize(phrase)));
+}
+
 /**
  * Which side of the market they are on.
  *
- * "1" and "2" are what the entry message asks for, and the words are what people write instead --
- * being told to press 1 does not stop anyone from typing "عندي دار". Returns undefined when the
- * message says neither, so the two options can be offered again rather than guessed between.
+ * "1" and "2" are what the entry message asks for, and everything else is what people write instead.
+ * The wider lists come from the bot dictionary rather than being kept here as well: "ندور" was in
+ * that dictionary from the start and missing from this file, so "ندور استديو" -- the most ordinary
+ * sentence a renter here could type -- was answered with "ما فهمت قصدك".
+ *
+ * Owner phrases are tested first. "عندي دار للكراء" contains a renter phrase too, and the ownership
+ * word is the one that settles it.
+ *
+ * Returns undefined when the message says neither, so the two options can be offered again rather
+ * than guessed between.
  */
-export function readSide(body: string): CollectSide | undefined {
+export function readSide(
+  body: string,
+  phrases?: { owner?: string[]; renter?: string[] }
+): CollectSide | undefined {
   const text = normalize(body);
 
-  if (ownerWords.some((word) => text === normalize(word) || text.startsWith(`${normalize(word)} `))) {
+  if (startsWithAny(text, ownerWords) || containsAny(text, phrases?.owner ?? [])) {
     return "owner";
   }
 
-  if (renterWords.some((word) => text === normalize(word) || text.startsWith(`${normalize(word)} `))) {
+  if (startsWithAny(text, renterWords) || containsAny(text, phrases?.renter ?? [])) {
     return "renter";
   }
 
   return undefined;
 }
 
-/**
- * A rent, however it was written.
- *
- * "50 الف" is how the number is said out loud, and typing five zeros is what someone does only when
- * a form insists -- so both are read. Latin digits only, as everywhere else here.
- */
 export function readPrice(body: string) {
   return parseRent(body);
 }
