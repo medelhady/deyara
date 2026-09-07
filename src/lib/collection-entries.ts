@@ -55,6 +55,26 @@ export async function saveCollectionEntry(entry: {
     return { saved: false as const, error: error.message };
   }
 
+  /**
+   * Someone offering a house is an owner, and the dashboard had no way to know it.
+   *
+   * Every number that writes to the bot is created as a renter, and the role was only ever changed
+   * by publishing a listing -- which collection mode never does. So the panel read "0 مؤجر" beside a
+   * demand page showing seven, and the one number a decision rests on was the wrong one.
+   *
+   * Written after the entry, not instead of it: a failure to relabel must not lose the offer.
+   */
+  if (entry.side === "owner") {
+    const { error: roleError } = await supabase.from("users").upsert(
+      { phone: entry.phone, role: "owner" },
+      { onConflict: "phone" }
+    );
+
+    if (roleError) {
+      console.error("Saved the offer but could not mark the owner", roleError);
+    }
+  }
+
   return { saved: true as const };
 }
 
