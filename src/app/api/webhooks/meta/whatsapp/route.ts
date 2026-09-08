@@ -3,6 +3,7 @@ import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { parseMetaStatuses, parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
 import { recordDeliveryFailure, sendNotification, sendVideoNotification } from "@/lib/notifications";
+import { notifyAdmins } from "@/lib/notify-admins";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
 export const dynamic = "force-dynamic";
@@ -117,6 +118,23 @@ export async function POST(request: Request) {
 
     console.error(`Delivery failed to ${status.recipient}: ${status.error ?? "no reason given"}`);
     await recordDeliveryFailure(status.recipient, status.error ?? "رفضت ميتا تسليم الرسالة بلا سبب معلن.");
+
+    /**
+     * Said out loud, on a phone.
+     *
+     * This callback is the only existence this failure has: the send returned 200, the log says
+     * sent, and a video that reached nobody looks exactly like one that arrived. Written to the log
+     * alone it waits for someone to think of opening the log -- which is not what anyone does when a
+     * video simply does not turn up.
+     */
+    await notifyAdmins([
+      "⚠️ *رسالة لم تُسلَّم*",
+      "",
+      `إلى: ${status.recipient.replace("whatsapp:", "")}`,
+      status.error ?? "بلا سبب معلن.",
+      "",
+      "قبِلتها ميتا ثم رفضت تسليمها — غالبًا فيديو. التفاصيل في سجل الإشعارات."
+    ]);
   }
 
   const messages = await parseMetaWebhook(payload);
@@ -129,7 +147,25 @@ export async function POST(request: Request) {
     // The video leads and the text follows as its own bubble, rather than riding along as a caption:
     // captions wrap in a narrower box and broke the instruction across lines.
     if (result.video) {
-      await sendVideoNotification(incoming.from, result.video.url, "bot_reply", result.video.label);
+      const sent = await sendVideoNotification(incoming.from, result.video.url, "bot_reply", result.video.label);
+
+      /**
+       * A link instead of a video is a degraded send, not a failed one, so nothing else reports it.
+       *
+       * WhatsApp then drops that link for its own reasons and the person is left with nothing --
+       * which is exactly what "the video did not arrive" looks like from the outside, with every log
+       * saying the message was sent.
+       */
+      if (!sent.ok || sent.viaLink) {
+        await notifyAdmins([
+          "⚠️ *الفيديو لم يُرسَل كفيديو*",
+          "",
+          `إلى: ${incoming.from.replace("whatsapp:", "")}`,
+          sent.ok ? "أُرسِل كرابط نصي بدلًا عنه." : "لم يُرسَل إطلاقًا.",
+          "",
+          "السبب مكتوب في سجل الإشعارات."
+        ]);
+      }
     }
 
     if (result.reply.trim()) {
