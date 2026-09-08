@@ -1921,3 +1921,10 @@ button.demand-row-head {
 .campaign-video-block .campaign-video {
   margin-top: 0;
 }
+
+/* A campaign with no video says so: an empty space reads as "attached" to whoever just uploaded. */
+.demand-chip.is-missing {
+  border-color: #e6d9b8;
+  background: #fdf8ec;
+  color: #8a5a12;
+}

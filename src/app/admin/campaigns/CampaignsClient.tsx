@@ -134,7 +134,7 @@ export function CampaignsClient() {
          */
         const detail = (await upload.text().catch(() => "")).slice(0, 200);
 
-        setNote({
+        setVideoNote({
           kind: "error",
           text: `تعذر رفع الفيديو إلى المخزن (${upload.status}). ${detail}`
         });
@@ -157,11 +157,21 @@ export function CampaignsClient() {
       }
 
       setDraft((current) => ({ ...current, videoPath: slot.path }));
-      setVideoNote({ kind: "ok", text: "✅ الفيديو جاهز للإرسال." });
+      /**
+       * Uploaded is not saved, and that gap is where the video was being lost.
+       *
+       * The file is in storage and the chip appears, but nothing links it to a campaign until the
+       * form is saved -- so a video uploaded and left there answers nobody, and the row goes on
+       * sending text alone.
+       */
+      setVideoNote({
+        kind: "ok",
+        text: "✅ الفيديو جاهز — لن يُحفظ حتى تضغط زر الحفظ بالأسفل."
+      });
     } catch (error) {
       // A thrown request leaves no response to read, and without this the box simply stops with no
       // word at all -- which is indistinguishable from a button that does nothing.
-      setNote({
+      setVideoNote({
         kind: "error",
         text: `انقطع الرفع: ${error instanceof Error ? error.message : String(error)}`
       });
@@ -423,7 +433,13 @@ export function CampaignsClient() {
                   {campaign.active ? "▶ تعمل" : "⏸ موقوفة"}
                 </span>
                 <strong className="demand-area">{campaign.name}</strong>
-                {campaign.videoPath ? <span className="demand-chip">🎥 فيديو</span> : null}
+                {campaign.videoPath ? (
+                  <span className="demand-chip">🎥 فيديو</span>
+                ) : (
+                  // Said out loud: an empty space reads as "video attached" to anyone who just
+                  // uploaded one, and that is exactly how a campaign kept answering with text.
+                  <span className="demand-chip is-missing">بلا فيديو</span>
+                )}
                 {/* The count is the whole feedback loop of an advert: a word nobody writes and a
                     word nobody sees look identical without it. */}
                 <span className="demand-chip">{campaign.hits} وصلتهم</span>
@@ -440,7 +456,16 @@ export function CampaignsClient() {
                 <button
                   className="button secondary"
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    if (
+                      draft.videoPath &&
+                      draft.videoPath !== campaign.videoPath &&
+                      !window.confirm("رفعت فيديو ولم تحفظه. الانتقال لحملة أخرى يُلغيه. تكمل؟")
+                    ) {
+                      return;
+                    }
+
+                    setVideoNote(null);
                     setDraft({
                       id: campaign.id,
                       name: campaign.name,
@@ -448,8 +473,8 @@ export function CampaignsClient() {
                       replyText: campaign.replyText,
                       videoPath: campaign.videoPath,
                       active: campaign.active
-                    })
-                  }
+                    });
+                  }}
                 >
                   ✏️ عدّل
                 </button>

@@ -40,6 +40,17 @@ export async function POST(request: Request) {
   const to = `whatsapp:+${phone}`;
   const steps: string[] = [];
 
+  /**
+   * The first thing to establish, and the one nobody thinks to check.
+   *
+   * A video uploaded into the form but never saved with the campaign leaves the row with no video
+   * at all -- and from the outside that is indistinguishable from a video WhatsApp refused. Said
+   * here in one line, before anything else is attempted.
+   */
+  if (!campaign.videoPath) {
+    steps.push("⚠️ هذه الحملة محفوظة بلا فيديو — ارفع الفيديو ثم اضغط «احفظ التعديل» ليُحفظ معها.");
+  }
+
   if (campaign.videoPath) {
     const file = await describeStoredVideo(campaign.videoPath);
 
