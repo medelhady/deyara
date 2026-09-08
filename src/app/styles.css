@@ -1912,3 +1912,12 @@ button.demand-row-head {
 .campaign-steps p {
   margin: 0 0 4px;
 }
+
+/* The upload and its verdict, kept together: an error three panels up is an error nobody reads. */
+.campaign-video-block {
+  margin-top: 16px;
+}
+
+.campaign-video-block .campaign-video {
+  margin-top: 0;
+}

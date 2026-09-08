@@ -62,6 +62,14 @@ export function CampaignsClient() {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [message, setMessage] = useState("جار التحميل...");
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  /**
+   * The upload speaks for itself, under the file input.
+   *
+   * A refusal shown at the top of the page is a refusal nobody reads: the eye is on the button it
+   * just pressed, three panels down. A video was rejected, the message scrolled off above, and the
+   * campaign was saved with no video at all -- answering every marketer with text alone.
+   */
+  const [videoNote, setVideoNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [testPhone, setTestPhone] = useState("");
@@ -93,6 +101,7 @@ export function CampaignsClient() {
   async function upload(file: File) {
     setUploading(true);
     setNote(null);
+    setVideoNote(null);
 
     try {
       const slotResponse = await fetch("/api/admin/campaigns/video", {
@@ -105,7 +114,7 @@ export function CampaignsClient() {
       const slot = await slotResponse.json();
 
       if (!slotResponse.ok) {
-        setNote({ kind: "error", text: withHint(slot.error ?? "تعذر رفع الفيديو.", slot.hint) });
+        setVideoNote({ kind: "error", text: withHint(slot.error ?? "تعذر رفع الفيديو.", slot.hint) });
         return;
       }
 
@@ -148,7 +157,7 @@ export function CampaignsClient() {
       }
 
       setDraft((current) => ({ ...current, videoPath: slot.path }));
-      setNote({ kind: "ok", text: "✅ الفيديو جاهز للإرسال." });
+      setVideoNote({ kind: "ok", text: "✅ الفيديو جاهز للإرسال." });
     } catch (error) {
       // A thrown request leaves no response to read, and without this the box simply stops with no
       // word at all -- which is indistinguishable from a button that does nothing.
@@ -323,6 +332,7 @@ export function CampaignsClient() {
           />
         </label>
 
+        <div className="campaign-video-block">
         <div className="row-actions campaign-video">
           <strong>فيديو الرد</strong>
           <input
@@ -355,6 +365,11 @@ export function CampaignsClient() {
               اختياري. MP4 بترميز H.264 وأقل من 16 ميجابايت — وهذا ما نفحصه قبل القبول. {videoHint}
             </span>
           )}
+        </div>
+
+        {videoNote ? (
+          <p className={videoNote.kind === "ok" ? "reply-ok" : "auth-error"}>{videoNote.text}</p>
+        ) : null}
         </div>
 
         <div className="row-actions">
