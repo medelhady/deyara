@@ -223,5 +223,101 @@ export async function verifyStoredVideo(path: string) {
     return { ok: false as const, error: problems.join(" ") };
   }
 
+  /**
+   * Stored under a name WhatsApp will accept.
+   *
+   * A phone or an editor exports H.264 in a .mov and calls it video/quicktime, which WhatsApp
+   * refuses outright -- the upload to Meta fails, the send falls back to the link, and Meta drops
+   * the link for the same reason without a word. The bytes have just been proven to be H.264, so the
+   * only thing wrong is the label, and it is fixed here rather than left to fail silently later.
+   */
+  if (data.type && data.type !== "video/mp4") {
+    const { error: relabel } = await supabase.storage
+      .from(propertyMediaBucket)
+      .update(path, bytes, { contentType: "video/mp4", upsert: true });
+
+    if (relabel) {
+      console.error("Failed to relabel the uploaded video", relabel);
+
+      return { ok: false as const, error: "تعذر تجهيز الفيديو للإرسال. أعد رفعه من فضلك." };
+    }
+  }
+
   return { ok: true as const, error: null };
+}
+
+/**
+ * Relabels a file already in the bucket as video/mp4.
+ *
+ * For the ones uploaded before the label was being fixed on the way in: the bytes are fine, the name
+ * WhatsApp reads is not, and re-uploading the whole video from the dashboard to correct a header is
+ * a poor trade when the file is already here.
+ */
+export async function relabelStoredVideo(path: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { ok: false as const, error: "قاعدة البيانات غير مربوطة." };
+  }
+
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).download(path);
+
+  if (error || !data) {
+    return { ok: false as const, error: "الملف غير موجود في التخزين." };
+  }
+
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const report = inspectMp4(bytes);
+
+  // Never relabel a file that is not what the label would claim: the point is to correct a name, not
+  // to smuggle an H.265 export past the check that exists to catch it.
+  if (report.problems.length > 0) {
+    return { ok: false as const, error: report.problems.join(" ") };
+  }
+
+  const { error: updateError } = await supabase.storage
+    .from(propertyMediaBucket)
+    .update(path, bytes, { contentType: "video/mp4", upsert: true });
+
+  if (updateError) {
+    console.error("Failed to relabel a stored video", updateError);
+
+    return { ok: false as const, error: "تعذر تصحيح نوع الملف في التخزين." };
+  }
+
+  return { ok: true as const, error: null };
+}
+
+/**
+ * What is actually stored at a path, without touching it.
+ *
+ * For the dashboard test send: when a video does not arrive there is nothing to look at, and the
+ * three things that decide whether it can arrive -- the size, the label and the codecs -- are all
+ * inside the file.
+ */
+export async function describeStoredVideo(path: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { found: false as const, error: "قاعدة البيانات غير مربوطة." };
+  }
+
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).download(path);
+
+  if (error || !data) {
+    return { found: false as const, error: "الملف غير موجود في التخزين." };
+  }
+
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const report = inspectMp4(bytes);
+
+  return {
+    found: true as const,
+    error: null,
+    contentType: data.type || "غير معروف",
+    megabytes: Math.round((bytes.length / (1024 * 1024)) * 10) / 10,
+    videoCodec: report.videoCodec ?? "غير معروف",
+    audioCodec: report.audioCodec ?? "بدون صوت",
+    problems: report.problems
+  };
 }

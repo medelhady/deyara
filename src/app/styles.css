@@ -1897,3 +1897,18 @@ button.demand-row-head {
 .campaign-video input[type="file"] {
   max-width: 100%;
 }
+
+/* What the test send actually did, step by step: the only place a silently dropped video says so. */
+.campaign-steps {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafafa;
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.campaign-steps p {
+  margin: 0 0 4px;
+}

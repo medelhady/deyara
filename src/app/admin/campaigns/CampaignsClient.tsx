@@ -49,6 +49,9 @@ export function CampaignsClient() {
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testing, setTesting] = useState<string | null>(null);
+  const [testSteps, setTestSteps] = useState<{ id: string; lines: string[] } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -183,6 +186,36 @@ export function CampaignsClient() {
     }
   }
 
+  /**
+   * The campaign sent for real, to a number the admin is holding.
+   *
+   * A video that does not arrive leaves nothing behind to inspect -- Meta accepts the send and
+   * decides afterwards -- so the only way to know is to send one and be told each step: what the
+   * file is, whether it went as a video or fell back to a link, and why.
+   */
+  async function test(id: string) {
+    setTesting(id);
+    setTestSteps(null);
+    setNote(null);
+
+    try {
+      const response = await fetch("/api/admin/campaigns/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, phone: testPhone })
+      });
+      const data = await response.json();
+
+      setTestSteps({ id, lines: data.steps ?? [] });
+
+      if (!response.ok) {
+        setNote({ kind: "error", text: data.error ?? "تعذرت التجربة." });
+      }
+    } finally {
+      setTesting(null);
+    }
+  }
+
   const totalHits = useMemo(
     () => campaigns.reduce((sum, campaign) => sum + campaign.hits, 0),
     [campaigns]
@@ -310,6 +343,22 @@ export function CampaignsClient() {
           </div>
         </div>
 
+        <div className="row-actions">
+          <label className="campaign-check">
+            <span>رقم التجربة</span>
+            <input
+              inputMode="numeric"
+              placeholder="22248404037"
+              value={testPhone}
+              onChange={(event) => setTestPhone(event.target.value)}
+            />
+          </label>
+          {/* The 24-hour rule applies to this as to every other message the bot sends. */}
+          <span className="amount-note">
+            اكتب رقمك ثم اضغط «جرّب» على أي حملة — يصلك ما يصل المستخدم تمامًا. راسل البوت من هذا الرقم أولًا حتى تفتح نافذة الـ 24 ساعة.
+          </span>
+        </div>
+
         {message ? <p>{message}</p> : null}
 
         <div className="compact-list">
@@ -356,7 +405,23 @@ export function CampaignsClient() {
                 <button className="button secondary" type="button" onClick={() => void remove(campaign)}>
                   🗑 احذف
                 </button>
+                <button
+                  className="button secondary"
+                  type="button"
+                  disabled={testing === campaign.id || !testPhone.trim()}
+                  onClick={() => void test(campaign.id)}
+                >
+                  {testing === campaign.id ? "جارٍ الإرسال..." : "📤 جرّب"}
+                </button>
               </div>
+
+              {testSteps?.id === campaign.id ? (
+                <div className="campaign-steps">
+                  {testSteps.lines.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

@@ -345,8 +345,22 @@ export async function uploadMetaVideo(link: string) {
     return null;
   }
 
-  const contentType = file.headers.get("content-type") ?? "video/mp4";
+  const stored = file.headers.get("content-type") ?? "video/mp4";
   const bytes = new Uint8Array(await file.arrayBuffer());
+
+  /**
+   * The label, not the file.
+   *
+   * WhatsApp takes video/mp4 and video/3gpp and refuses every other type outright -- including
+   * video/quicktime, which is what a phone or an editor calls an ordinary H.264 file. Meta answers
+   * that refusal with a generic upload error, the send falls back to handing over the link, and Meta
+   * then drops the link for the same reason without saying so. A campaign video exported as .mov
+   * therefore reached nobody, and nothing anywhere said why.
+   *
+   * The bytes are inspected below regardless, so this renames a file that is already known to be
+   * H.264 -- it does not smuggle a codec past the check.
+   */
+  const contentType = stored === "video/mp4" || stored === "video/3gpp" ? stored : "video/mp4";
 
   /**
    * Checked here because these bytes are already in hand, and because Meta will not tell us in time.
