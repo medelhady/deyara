@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listCampaigns } from "@/lib/campaigns";
 import { describeStoredVideo, relabelStoredVideo, signPropertyMedia } from "@/lib/whatsapp/media";
 import { sendNotification, sendVideoNotification } from "@/lib/notifications";
+import { checkVideoUrl } from "@/lib/video-health";
 
 export const dynamic = "force-dynamic";
 // The same budget as the webhook: this signs a link, reads the file, uploads it to Meta and sends.
@@ -74,6 +75,20 @@ export async function POST(request: Request) {
     if (!link) {
       return NextResponse.json({ error: "تعذر توقيع رابط الفيديو من التخزين.", steps }, { status: 400 });
     }
+
+    /**
+     * The same check the bot runs before every video, reported rather than swallowed.
+     *
+     * When it fails the bot sends a bare link instead -- and WhatsApp drops that quietly -- so this
+     * is the step that turns "the video did not arrive" into a sentence with a reason in it.
+     */
+    const health = await checkVideoUrl(link);
+
+    steps.push(
+      health.ok
+        ? `الرابط: يعمل (${health.contentType ?? "بلا نوع"}).`
+        : `⚠️ الرابط: ${health.reason}`
+    );
 
     const sent = await sendVideoNotification(to, link, "admin_alert", campaign.name);
 

@@ -20,8 +20,10 @@ export type VideoCheck =
 /**
  * A HEAD request, falling back to a one-byte ranged GET.
  *
- * Some storage backends answer HEAD with 405 while serving GET perfectly well, and treating that as
- * a broken file would reject videos that work.
+ * Some storage backends answer HEAD with 405, some with 400 or 403, while serving GET perfectly
+ * well. Any of those read as a broken file would reject a video that works -- and rejecting it here
+ * is not a loud failure: the caller sends a bare link instead, which WhatsApp then drops for reasons
+ * of its own. So a refused HEAD is never the verdict; the GET is.
  */
 export async function checkVideoUrl(url: string, timeoutMs = 8000): Promise<VideoCheck> {
   if (!/^https?:\/\//i.test(url)) {
@@ -34,7 +36,7 @@ export async function checkVideoUrl(url: string, timeoutMs = 8000): Promise<Vide
   try {
     let response = await fetch(url, { method: "HEAD", signal: controller.signal });
 
-    if (response.status === 405 || response.status === 501) {
+    if (!response.ok) {
       response = await fetch(url, { headers: { Range: "bytes=0-0" }, signal: controller.signal });
     }
 
