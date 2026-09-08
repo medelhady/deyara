@@ -24,6 +24,21 @@ type Draft = {
 
 const emptyDraft: Draft = { name: "", keywords: "", replyText: "", videoPath: null, active: true };
 
+/**
+ * The way out of a video WhatsApp will not take, added to the refusal itself.
+ *
+ * Every one of these failures -- too big, H.265, an odd container -- has the same fix, and it needs
+ * no software and no computer: WhatsApp itself transcodes and compresses anything sent through it.
+ * Telling someone their file is 42 megabytes and stopping there leaves them stuck with a video they
+ * cannot use.
+ */
+const videoHint =
+  "أسهل حل وبلا برامج: أرسل الفيديو لنفسك على واتساب، ثم نزّله من المحادثة وارفع النسخة الجديدة — واتساب يحوّله إلى H.264 ويصغّر حجمه تلقائيًا.";
+
+function withHint(error: string, flagged?: boolean) {
+  return flagged ? `${error} ${videoHint}` : error;
+}
+
 function formatWhen(value: string | null) {
   if (!value) {
     return "";
@@ -83,12 +98,14 @@ export function CampaignsClient() {
       const slotResponse = await fetch("/api/admin/campaigns/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contentType: file.type, size: file.size })
+        // The name travels too: a file picked on Windows or from a phone can arrive with no type at
+        // all, and the extension is then the only evidence of what it is.
+        body: JSON.stringify({ contentType: file.type, size: file.size, name: file.name })
       });
       const slot = await slotResponse.json();
 
       if (!slotResponse.ok) {
-        setNote({ kind: "error", text: slot.error ?? "تعذر رفع الفيديو." });
+        setNote({ kind: "error", text: withHint(slot.error ?? "تعذر رفع الفيديو.", slot.hint) });
         return;
       }
 
@@ -99,7 +116,19 @@ export function CampaignsClient() {
       });
 
       if (!upload.ok) {
-        setNote({ kind: "error", text: "تعذر رفع الفيديو إلى المخزن. تحقق من الاتصال وأعد المحاولة." });
+        /**
+         * The storage server's own words, not ours.
+         *
+         * "Could not upload" says nothing that can be acted on -- a rejected key, a blocked request
+         * and a dropped connection all look the same from here, and only the status and the body
+         * tell them apart.
+         */
+        const detail = (await upload.text().catch(() => "")).slice(0, 200);
+
+        setNote({
+          kind: "error",
+          text: `تعذر رفع الفيديو إلى المخزن (${upload.status}). ${detail}`
+        });
         return;
       }
 
@@ -111,12 +140,22 @@ export function CampaignsClient() {
       const verified = await verifyResponse.json();
 
       if (!verifyResponse.ok) {
-        setNote({ kind: "error", text: verified.error ?? "الفيديو غير صالح للإرسال عبر واتساب." });
+        setNote({
+          kind: "error",
+          text: withHint(verified.error ?? "الفيديو غير صالح للإرسال عبر واتساب.", verified.hint)
+        });
         return;
       }
 
       setDraft((current) => ({ ...current, videoPath: slot.path }));
       setNote({ kind: "ok", text: "✅ الفيديو جاهز للإرسال." });
+    } catch (error) {
+      // A thrown request leaves no response to read, and without this the box simply stops with no
+      // word at all -- which is indistinguishable from a button that does nothing.
+      setNote({
+        kind: "error",
+        text: `انقطع الرفع: ${error instanceof Error ? error.message : String(error)}`
+      });
     } finally {
       setUploading(false);
 
@@ -313,7 +352,7 @@ export function CampaignsClient() {
             </>
           ) : (
             <span className="amount-note">
-              اختياري. MP4 بترميز H.264 وأقل من 16 ميجابايت — وهذا ما نفحصه قبل القبول.
+              اختياري. MP4 بترميز H.264 وأقل من 16 ميجابايت — وهذا ما نفحصه قبل القبول. {videoHint}
             </span>
           )}
         </div>
