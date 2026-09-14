@@ -175,6 +175,41 @@ export async function readOfficeScreenshot(dataUrl: string) {
   }
 }
 
+/**
+ * Numbers already belonging to another office.
+ *
+ * The same post gets screenshotted twice over a week of scrolling, and a list holding one agency
+ * three times is a list nobody trusts to call from -- worse, it is three calls to a man who already
+ * said no once.
+ *
+ * `exceptId` is the row being edited: an office must be allowed to keep its own numbers.
+ *
+ * Pure, and takes the list rather than reading it, so the rule can be checked offline.
+ */
+export function duplicatesAmong(
+  phones: string[],
+  offices: Array<{ id: string; name: string; phones: string[] }>,
+  exceptId?: string
+) {
+  const taken = new Map<string, string>();
+
+  for (const office of offices) {
+    if (exceptId && office.id === exceptId) {
+      continue;
+    }
+
+    for (const phone of office.phones) {
+      if (!taken.has(phone)) {
+        taken.set(phone, office.name);
+      }
+    }
+  }
+
+  return phones
+    .filter((phone) => taken.has(phone))
+    .map((phone) => ({ phone, name: taken.get(phone) as string }));
+}
+
 type OfficeRow = {
   id: string;
   name: string;
@@ -252,6 +287,26 @@ export async function saveOffice(input: {
 
   if (!supabase) {
     return { saved: false as const, error: "قاعدة البيانات غير مربوطة." };
+  }
+
+  /**
+   * Refused here, not only warned about in the page.
+   *
+   * The warning on the form can be scrolled past, and the same office arriving twice costs a second
+   * call to someone who already answered. Checked against what is stored at this moment, since two
+   * screenshots of one agency can be reviewed minutes apart.
+   */
+  const { offices: existing } = await listOffices();
+  const clashes = duplicatesAmong(phones, existing, input.id);
+
+  if (clashes.length > 0) {
+    return {
+      saved: false as const,
+      error: clashes
+        .map((clash) => `الرقم ${clash.phone} مسجّل مسبقًا في «${clash.name}».`)
+        .join(" ")
+        .concat(" عدّل المكتب القائم بدل إضافته مرة ثانية، أو احذف الرقم المكرر من الخانة.")
+    };
   }
 
   const row: Record<string, unknown> = {

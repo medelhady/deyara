@@ -380,16 +380,25 @@ export function OfficesClient() {
                       </div>
 
                       {duplicates.length > 0 ? (
-                        <p className="amount-note">
-                          ⚠️ {duplicates.map((phone) => `${phone} مسجّل في «${known.get(phone)}»`).join("، ")}
+                        <p className="auth-error">
+                          ⛔ {duplicates.map((phone) => `${phone} مسجّل مسبقًا في «${known.get(phone)}»`).join("، ")} —
+                          عدّل المكتب القائم من الجدول، أو احذف الرقم المكرر من الخانة.
                         </p>
                       ) : null}
 
                       {draft.error ? <p className="auth-error">{draft.error}</p> : null}
 
                       <div className="demand-row-foot">
-                        <button className="button" type="button" onClick={() => void saveDraft(draft)}>
-                          احفظ في القائمة
+                        {/* Disabled rather than left to fail on the server: the refusal is already on
+                            screen, and a button that can only be pressed into an error is a button
+                            that teaches people to ignore what is written above it. */}
+                        <button
+                          className="button"
+                          type="button"
+                          disabled={duplicates.length > 0}
+                          onClick={() => void saveDraft(draft)}
+                        >
+                          {duplicates.length > 0 ? "رقم مكرر" : "احفظ في القائمة"}
                         </button>
                         <button
                           className="button secondary"

@@ -8,7 +8,7 @@
  * asked for, a string where a list was, or nothing at all -- none of which may reach the page as a
  * crash, because an empty draft that can be typed by hand always beats an error.
  */
-import { cleanPhones, normalizePhone, parseOfficeReading } from "../src/lib/offices";
+import { cleanPhones, duplicatesAmong, normalizePhone, parseOfficeReading } from "../src/lib/offices";
 
 let failures = 0;
 
@@ -54,6 +54,27 @@ check("an empty answer gives an empty draft", parseOfficeReading({}).name, "");
 check("with no phones invented", parseOfficeReading({}).phones.length, 0);
 check("and null is survivable", parseOfficeReading(null).name, "");
 check("as is a string where an object was expected", parseOfficeReading("مكتب").name, "");
+
+// A number that already belongs to another office: refused, so one agency is not called twice by
+// two people reading two rows.
+const stored = [
+  { id: "1", name: "مكتب النور", phones: ["22244112233", "22236445566"] },
+  { id: "2", name: "وكالة الواحة", phones: ["22247778899"] }
+];
+
+check("a fresh number is not a duplicate", duplicatesAmong(["22233221100"], stored).length, 0);
+check("a number already stored is caught", duplicatesAmong(["22244112233"], stored).length, 1);
+check("and it names whose it is", duplicatesAmong(["22244112233"], stored)[0].name, "مكتب النور");
+check(
+  "one duplicate among new numbers is still caught",
+  duplicatesAmong(["22233221100", "22247778899"], stored).length,
+  1
+);
+check("every clash is reported, not just the first", duplicatesAmong(["22244112233", "22247778899"], stored).length, 2);
+
+// An office being edited must be allowed to keep its own numbers.
+check("editing a row does not clash with itself", duplicatesAmong(["22244112233"], stored, "1").length, 0);
+check("but still clashes with another row", duplicatesAmong(["22247778899"], stored, "1").length, 1);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
