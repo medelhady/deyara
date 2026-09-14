@@ -11,6 +11,7 @@ export async function GET() {
     المكتب: office.name,
     الأرقام: office.phones.join(" / "),
     المنصة: office.platform ?? "",
+    المنطقة: office.area ?? "",
     الملاحظة: office.note ?? "",
     التاريخ: office.createdAt
   }));

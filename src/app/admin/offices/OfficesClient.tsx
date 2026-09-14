@@ -8,6 +8,7 @@ type Office = {
   name: string;
   phones: string[];
   platform: string | null;
+  area: string | null;
   note: string | null;
   screenshotPath: string | null;
   createdAt: string;
@@ -20,6 +21,7 @@ type Draft = {
   name: string;
   phones: string;
   platform: string;
+  area: string;
   note: string;
   status: "reading" | "ready" | "failed" | "saved";
   error?: string;
@@ -48,6 +50,8 @@ export function OfficesClient() {
   const [message, setMessage] = useState("جار التحميل...");
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  /** The districts the bot already knows, offered so one place is not spelled five ways. */
+  const [areas, setAreas] = useState<string[]>([]);
   /**
    * One row being corrected in place.
    *
@@ -60,6 +64,7 @@ export function OfficesClient() {
     name: string;
     phones: string;
     platform: string;
+    area: string;
     note: string;
   } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -69,6 +74,7 @@ export function OfficesClient() {
     const data = await response.json();
 
     setOffices(data.offices ?? []);
+    setAreas(data.areas ?? []);
     setMessage(data.error ?? ((data.offices ?? []).length ? "" : "لا توجد مكاتب بعد. ارفع أول لقطة."));
   }
 
@@ -127,6 +133,7 @@ export function OfficesClient() {
         name: read.draft.name ?? "",
         phones: (read.draft.phones ?? []).join("، "),
         platform: read.draft.platform ?? "",
+        area: read.draft.area ?? "",
         note: read.draft.note ?? ""
       });
     } catch (error) {
@@ -144,6 +151,7 @@ export function OfficesClient() {
       name: "",
       phones: "",
       platform: "",
+      area: "",
       note: "",
       status: "reading"
     }));
@@ -167,6 +175,7 @@ export function OfficesClient() {
         name: draft.name,
         phones: draft.phones.split(/[,،\n/]/),
         platform: draft.platform,
+        area: draft.area,
         note: draft.note,
         screenshotPath: draft.path
       })
@@ -196,6 +205,7 @@ export function OfficesClient() {
         name: editing.name,
         phones: editing.phones.split(/[,،\n/]/),
         platform: editing.platform,
+        area: editing.area,
         note: editing.note
       })
     });
@@ -255,6 +265,7 @@ export function OfficesClient() {
     return offices.filter(
       (office) =>
         office.name.toLowerCase().includes(term) ||
+        (office.area ?? "").toLowerCase().includes(term) ||
         (office.platform ?? "").toLowerCase().includes(term) ||
         (digits && office.phones.some((phone) => phone.includes(digits)))
     );
@@ -262,6 +273,14 @@ export function OfficesClient() {
 
   return (
     <>
+      {/* Shared by the review form and the table row: the districts the bot already matches on, so a
+          place is not written five ways and then filtered as five places. */}
+      <datalist id="office-areas">
+        {areas.map((area) => (
+          <option key={area} value={area} />
+        ))}
+      </datalist>
+
       <section className="panel">
         <p>
           ارفع لقطة شاشة لمنشور أو صفحة مكتب عقاري، ويقرأ منها النظام الاسم وأرقام التواصل والمنصة.
@@ -345,6 +364,16 @@ export function OfficesClient() {
                           </select>
                         </label>
                         <label className="setting-field">
+                          <span>المنطقة</span>
+                          <input
+                            list="office-areas"
+                            placeholder="لكصر، تفرغ زينة..."
+                            value={draft.area}
+                            onChange={(event) => patch(draft.key, { area: event.target.value })}
+                          />
+                          <small>المنطقة التي يعمل فيها المكتب — بها تعرف من تتصل به لطلبات كل مقاطعة.</small>
+                        </label>
+                        <label className="setting-field">
                           <span>ملاحظة</span>
                           <input value={draft.note} onChange={(event) => patch(draft.key, { note: event.target.value })} />
                         </label>
@@ -392,7 +421,7 @@ export function OfficesClient() {
 
         <input
           type="search"
-          placeholder="ابحث بالاسم أو الرقم أو المنصة"
+          placeholder="ابحث بالاسم أو الرقم أو المنطقة أو المنصة"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -406,6 +435,7 @@ export function OfficesClient() {
                 <tr>
                   <th>المكتب</th>
                   <th>أرقام التواصل</th>
+                  <th>المنطقة</th>
                   <th>المنصة</th>
                   <th>أُضيف / ملاحظة</th>
                   <th />
@@ -426,6 +456,13 @@ export function OfficesClient() {
                           inputMode="numeric"
                           value={editing.phones}
                           onChange={(event) => setEditing({ ...editing, phones: event.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          list="office-areas"
+                          value={editing.area}
+                          onChange={(event) => setEditing({ ...editing, area: event.target.value })}
                         />
                       </td>
                       <td>
@@ -477,6 +514,7 @@ export function OfficesClient() {
                           ))}
                         </div>
                       </td>
+                      <td>{office.area ?? "—"}</td>
                       <td>{office.platform ?? "—"}</td>
                       <td>{formatWhen(office.createdAt)}</td>
                       <td>
@@ -490,6 +528,7 @@ export function OfficesClient() {
                                 name: office.name,
                                 phones: office.phones.join("، "),
                                 platform: office.platform ?? "",
+                                area: office.area ?? "",
                                 note: office.note ?? ""
                               })
                             }

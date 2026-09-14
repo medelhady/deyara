@@ -15,6 +15,8 @@ export type OfficeDraft = {
   name: string;
   phones: string[];
   platform: string;
+  /** The district it works in. The list is only worth calling from if it can be read by area. */
+  area: string;
   note: string;
 };
 
@@ -23,6 +25,7 @@ export type Office = {
   name: string;
   phones: string[];
   platform: string | null;
+  area: string | null;
   note: string | null;
   screenshotPath: string | null;
   createdAt: string;
@@ -91,6 +94,7 @@ export function parseOfficeReading(raw: unknown): OfficeDraft {
     name: text(value.name),
     phones: cleanPhones(value.phones ?? value.phone ?? []),
     platform: text(value.platform),
+    area: text(value.area),
     note: text(value.note)
   };
 }
@@ -100,11 +104,12 @@ const prompt = [
   "استخرج فقط ما هو مكتوب في الصورة، ولا تخترع شيئًا غير موجود.",
   "",
   "أرجع JSON بهذه الحقول:",
-  '{"name": "اسم المكتب أو الصفحة أو صاحب الإعلان", "phones": ["أرقام التواصل كما ظهرت"], "platform": "المنصة", "note": "سطر واحد عن نشاطه إن ذكر"}',
+  '{"name": "اسم المكتب أو الصفحة أو صاحب الإعلان", "phones": ["أرقام التواصل كما ظهرت"], "platform": "المنصة", "area": "المنطقة أو المقاطعة إن ظهرت", "note": "سطر واحد عن نشاطه إن ذكر"}',
   "",
   "قواعد:",
   "- phones: كل الأرقام الظاهرة للتواصل، بالأرقام اللاتينية، ولا تضع فيها أسعارًا ولا تواريخ ولا أعداد مشاهدات.",
   "- platform: استنتجها من شكل الواجهة، واكتب واحدة من: فيسبوك، تيك توك، واتساب، إنستغرام، مجموعة واتساب، أخرى.",
+  "- area: اسم المقاطعة أو الحي إن ذُكِر في الصورة، وإلا فاتركه فارغًا — لا تخمّن.",
   "- إن لم يظهر الاسم اترك name فارغًا، وإن لم يظهر رقم اترك phones قائمة فارغة.",
   "- لا تكتب أي نص خارج JSON."
 ].join("\n");
@@ -175,6 +180,7 @@ type OfficeRow = {
   name: string;
   phones: unknown;
   platform: string | null;
+  area: string | null;
   note: string | null;
   screenshot_path: string | null;
   created_at: string;
@@ -186,6 +192,7 @@ function readRow(row: OfficeRow): Office {
     name: String(row.name),
     phones: cleanPhones(row.phones),
     platform: row.platform,
+    area: row.area,
     note: row.note,
     screenshotPath: row.screenshot_path,
     createdAt: String(row.created_at)
@@ -210,7 +217,7 @@ export async function listOffices() {
 
   const { data, error } = await supabase
     .from("real_estate_offices")
-    .select("id,name,phones,platform,note,screenshot_path,created_at")
+    .select("id,name,phones,platform,area,note,screenshot_path,created_at")
     .order("created_at", { ascending: false })
     .limit(2000);
 
@@ -226,6 +233,7 @@ export async function saveOffice(input: {
   name: string;
   phones: string[];
   platform: string;
+  area: string;
   note: string;
   screenshotPath?: string | null;
 }) {
@@ -250,6 +258,7 @@ export async function saveOffice(input: {
     name,
     phones,
     platform: input.platform.trim() || null,
+    area: input.area.trim() || null,
     note: input.note.trim() || null
   };
 
