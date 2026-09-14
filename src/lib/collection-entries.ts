@@ -23,6 +23,13 @@ export type CollectionEntry = {
   createdAt: string;
   /** When an admin last reached this person. Null means nobody has. */
   contactedAt: string | null;
+  /**
+   * When this request was read and its details taken down. Null while it still needs reading.
+   *
+   * On the entry rather than the person: one number can carry a house and a search, and they are
+   * read one at a time.
+   */
+  handledAt: string | null;
 };
 
 export async function saveCollectionEntry(entry: {
@@ -89,7 +96,7 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
 
   const { data, error } = await supabase
     .from("collection_entries")
-    .select("id,phone,side,area,price,specs,rooms,commission,added_by_admin,created_at")
+    .select("id,phone,side,area,price,specs,rooms,commission,added_by_admin,created_at,handled_at")
     .order("created_at", { ascending: false })
     .limit(2000);
 
@@ -130,7 +137,8 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
     commission: row.commission === null ? null : Number(row.commission),
     addedByAdmin: Boolean(row.added_by_admin),
     createdAt: String(row.created_at),
-    contactedAt: contacted.get(String(row.phone)) ?? null
+    contactedAt: contacted.get(String(row.phone)) ?? null,
+    handledAt: (row.handled_at as string | null) ?? null
   }));
 }
 

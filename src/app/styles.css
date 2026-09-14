@@ -1823,8 +1823,14 @@ select {
 
 /* The head is the toggle: half the districts arrived as a sentence or as "2", and only what the
    person actually typed says what they meant. */
-button.demand-row-head {
-  width: 100%;
+/* The head is no longer one button: the heart sits inside it, and a button inside a button is not
+   valid markup -- pressing it would open the conversation as well. */
+.demand-row-open {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
   padding: 0;
   border: 0;
   background: none;
@@ -2124,4 +2130,33 @@ button.demand-row-head {
   .dash-figure strong {
     font-size: 1.25rem;
   }
+}
+
+/* Read, and written down. Pressed when the eye leaves the row, so the next session starts where the
+   last one stopped instead of at the top again. */
+.demand-heart {
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--line);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.demand-heart:hover {
+  color: #c9352f;
+}
+
+.demand-heart.is-done {
+  color: #c9352f;
+}
+
+/* Faded, not hidden: the row stays readable, and the eye skips what it has already taken. */
+.demand-row.is-handled {
+  opacity: 0.62;
+}
+
+.demand-row.is-handled:hover {
+  opacity: 1;
 }

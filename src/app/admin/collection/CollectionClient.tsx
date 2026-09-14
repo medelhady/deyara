@@ -16,6 +16,8 @@ type Entry = {
   commission: number | null;
   addedByAdmin: boolean;
   createdAt: string;
+  /** When this request was read and its details taken down. Null while it still waits to be read. */
+  handledAt: string | null;
   /** When an admin last reached this person. Null means nobody has. */
   contactedAt: string | null;
 };
@@ -124,6 +126,36 @@ export function CollectionClient() {
     // was erased a moment later -- leaving a mark that silently did not save.
     if (!response.ok) {
       setMessage(`⚠️ ${data.error ?? "تعذر حفظ الوسم."}`);
+    }
+  }
+
+  /**
+   * The heart beside the time: read, and written down.
+   *
+   * Three hundred requests read a few at a time between other work -- without a mark the eye starts
+   * from the top every session, so the same rows are copied out twice while the ones below are never
+   * reached. Sent on the entry, since one number can carry a house and a search.
+   */
+  async function markHandled(id: string, handled: boolean) {
+    // Moved before the request, not after it: a heart that waits for the network before filling in
+    // gets pressed twice, and the second press undoes the first.
+    setEntries((current) =>
+      current.map((entry) =>
+        entry.id === id ? { ...entry, handledAt: handled ? new Date().toISOString() : null } : entry
+      )
+    );
+
+    const response = await fetch("/api/admin/collection/handled", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, handled })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+
+      await load();
+      setMessage(`⚠️ ${data.error ?? "تعذر حفظ العلامة."}`);
     }
   }
 
@@ -315,8 +347,22 @@ export function CollectionClient() {
                  * cut at forty-eight characters, because the sentence is the request -- "ثلاث غرف
                  * وجلسة وقريبة من ا…" tells you nothing you can act on.
                  */
-                <article className={entry.contactedAt ? "demand-row is-reached" : "demand-row"} key={entry.id}>
-                  <button className="demand-row-head" type="button" onClick={() => void openThread(entry.phone)}>
+                <article
+                  className={[
+                    "demand-row",
+                    entry.contactedAt ? "is-reached" : "",
+                    entry.handledAt ? "is-handled" : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  key={entry.id}
+                >
+                  <div className="demand-row-head">
+                    <button
+                      className="demand-row-open"
+                      type="button"
+                      onClick={() => void openThread(entry.phone)}
+                    >
                     <span className="demand-open">{openPhone === entry.phone ? "▾" : "▸"}</span>
                     <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
                       {owner ? "🏠 مؤجر" : "🔍 مستأجر"}
@@ -339,7 +385,24 @@ export function CollectionClient() {
                     ) : null}
                     {entry.contactedAt ? <span className="demand-tag is-reached">✅ تواصلت</span> : null}
                     <span className="demand-when">{formatWhen(entry.createdAt)}</span>
-                  </button>
+                    </button>
+
+                    {/* Outside the opening button rather than inside it: a button within a button is
+                        not valid, and pressing the heart would open the conversation as well. */}
+                    <button
+                      className={entry.handledAt ? "demand-heart is-done" : "demand-heart"}
+                      type="button"
+                      aria-pressed={Boolean(entry.handledAt)}
+                      title={
+                        entry.handledAt
+                          ? `قرأته وأخذت معلوماته ${formatWhen(entry.handledAt)} — اضغط لإلغاء العلامة`
+                          : "علّمه بعد قراءته وأخذ معلوماته"
+                      }
+                      onClick={() => void markHandled(entry.id, !entry.handledAt)}
+                    >
+                      {entry.handledAt ? "♥" : "♡"}
+                    </button>
+                  </div>
 
                   {entry.specs ? <p className="demand-said">{entry.specs}</p> : null}
 

@@ -221,10 +221,10 @@ async function main() {
 
 // The counts that are the reason for collecting at all.
 const entries: CollectionEntry[] = [
-  { id: "1", phone: "a", side: "renter", area: "لكصر", price: 60000, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: false, createdAt: "" },
-  { id: "2", phone: "b", side: "renter", area: "لكصر", price: 50000, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: false, createdAt: "" },
-  { id: "3", phone: "c", side: "owner", area: "لكصر", price: 70000, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: false, createdAt: "" },
-  { id: "4", phone: "d", side: "renter", area: "عرفات", price: 40000, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: true, createdAt: "" }
+  { id: "1", phone: "a", side: "renter", area: "لكصر", price: 60000, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: false, createdAt: "" },
+  { id: "2", phone: "b", side: "renter", area: "لكصر", price: 50000, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: false, createdAt: "" },
+  { id: "3", phone: "c", side: "owner", area: "لكصر", price: 70000, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: false, createdAt: "" },
+  { id: "4", phone: "d", side: "renter", area: "عرفات", price: 40000, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: true, createdAt: "" }
 ];
 
 /**
@@ -242,14 +242,14 @@ check("and quieter ones after", summary[1].area, "عرفات");
 
 // A sentence is matched on the district inside it rather than becoming a row of its own.
 const sentence = summariseByArea(
-  [{ id: "5", phone: "e", side: "renter", area: "ابحث عن دار في عرفات قريبة من السوق", price: null, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: false, createdAt: "" }],
+  [{ id: "5", phone: "e", side: "renter", area: "ابحث عن دار في عرفات قريبة من السوق", price: null, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: false, createdAt: "" }],
   known
 );
 
 check("a sentence is filed under its district", sentence[0].area, "عرفات");
 
 const unknown = summariseByArea(
-  [{ id: "6", phone: "f", side: "renter", area: "منطقة لا نغطيها", price: null, specs: null, rooms: null, commission: null, contactedAt: null, addedByAdmin: false, createdAt: "" }],
+  [{ id: "6", phone: "f", side: "renter", area: "منطقة لا نغطيها", price: null, specs: null, rooms: null, commission: null, contactedAt: null, handledAt: null, addedByAdmin: false, createdAt: "" }],
   known
 );
 
