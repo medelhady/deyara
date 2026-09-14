@@ -1,4 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { getSettings } from "@/lib/settings";
 
 export type DashboardStats = {
   totalProperties: number;
@@ -22,6 +23,18 @@ export type DashboardStats = {
   renters: number;
   /** Null when the notification log table has not been created yet, so the card can stay quiet. */
   failedNotifications: number | null;
+  /**
+   * What the bot is actually doing right now, and what it has gathered.
+   *
+   * While collection mode is on, listings, fees and reveals are all zero by design -- so a dashboard
+   * built around them shows a business doing nothing, on the day it collected forty requests.
+   */
+  collectionMode: boolean;
+  collectionOffers: number;
+  collectionRequests: number;
+  collectionToday: number;
+  /** People in the list nobody has reached yet. The one number that decides the day's work. */
+  collectionUncontacted: number;
   readAt: string;
 };
 
@@ -39,6 +52,11 @@ export const emptyStats: DashboardStats = {
   owners: 0,
   renters: 0,
   failedNotifications: null,
+  collectionMode: false,
+  collectionOffers: 0,
+  collectionRequests: 0,
+  collectionToday: 0,
+  collectionUncontacted: 0,
   readAt: new Date(0).toISOString()
 };
 
@@ -123,6 +141,44 @@ async function countUrgentTopups(before: string) {
   return error ? 0 : count ?? 0;
 }
 
+/**
+ * How many of the people who registered have not been called yet.
+ *
+ * Counted over people rather than rows: someone who registered a house and a search is one person to
+ * call. Both queries are small -- a few hundred phone numbers -- and doing it here means the number
+ * that decides the day is on the first screen rather than two clicks away.
+ */
+async function countUncontacted() {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return 0;
+  }
+
+  const [entries, reached] = await Promise.all([
+    supabase.from("collection_entries").select("phone").limit(5000),
+    supabase.from("users").select("phone").not("contacted_at", "is", null).limit(5000)
+  ]);
+
+  if (entries.error) {
+    return 0;
+  }
+
+  // A missing contacted_at column means nobody has been marked, so everyone is still waiting.
+  const contacted = new Set((reached.data ?? []).map((row) => String(row.phone)));
+  const people = new Set((entries.data ?? []).map((row) => String(row.phone)));
+
+  let waiting = 0;
+
+  for (const phone of people) {
+    if (!contacted.has(phone)) {
+      waiting += 1;
+    }
+  }
+
+  return waiting;
+}
+
 export async function loadDashboardStats(): Promise<DashboardStats> {
   const supabase = getServiceSupabase();
 
@@ -148,7 +204,12 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
     owners,
     renters,
     conversations,
-    failedNotifications
+    failedNotifications,
+    collectionOffers,
+    collectionRequests,
+    collectionToday,
+    collectionUncontacted,
+    settings
   ] = await Promise.all([
     countRows("properties"),
     countRows("properties", [{ column: "status", value: "active" }]),
@@ -165,7 +226,15 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
       .from("conversations")
       .select("*", { count: "exact", head: true })
       .gte("created_at", startOfToday.toISOString()),
-    countRecentFailedNotifications(dayAgo)
+    countRecentFailedNotifications(dayAgo),
+    countRows("collection_entries", [{ column: "side", value: "owner" }]),
+    countRows("collection_entries", [{ column: "side", value: "renter" }]),
+    supabase
+      .from("collection_entries")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", startOfToday.toISOString()),
+    countUncontacted(),
+    getSettings()
   ]);
 
   return {
@@ -182,6 +251,11 @@ export async function loadDashboardStats(): Promise<DashboardStats> {
     renters,
     conversationsToday: conversations.count ?? 0,
     failedNotifications,
+    collectionMode: settings.collectionMode === "on",
+    collectionOffers,
+    collectionRequests,
+    collectionToday: collectionToday.count ?? 0,
+    collectionUncontacted,
     readAt: new Date().toISOString()
   };
 }

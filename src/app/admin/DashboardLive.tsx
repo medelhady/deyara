@@ -96,7 +96,37 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
   const open = tasks.filter((task) => task.value > 0);
   const waiting = open.reduce((total, task) => total + task.value, 0);
 
-  const metrics = [
+  /**
+   * The numbers that mean something today.
+   *
+   * Published listings and delivered numbers are the measures of the full flow; while collection
+   * mode is on they are zero for a reason, and four zeros read as a dead business rather than as a
+   * flow that is deliberately switched off.
+   */
+  const metrics = stats.collectionMode
+    ? [
+        {
+          label: "مسجّل في القائمة",
+          value: stats.collectionOffers + stats.collectionRequests,
+          note: `${formatNumber(stats.collectionOffers)} عرض، و${formatNumber(stats.collectionRequests)} طلب`
+        },
+        {
+          label: "وصل اليوم",
+          value: stats.collectionToday,
+          note: "عروض وطلبات سجّلها البوت منذ منتصف الليل"
+        },
+        {
+          label: "رسالة اليوم",
+          value: stats.conversationsToday,
+          note: "واردة وصادرة عبر واتساب"
+        },
+        {
+          label: "مستخدم",
+          value: stats.owners + stats.renters,
+          note: `${formatNumber(stats.owners)} مؤجر، ${formatNumber(stats.renters)} مستأجر`
+        }
+      ]
+    : [
     {
       label: "إعلان منشور",
       value: stats.activeProperties,
@@ -117,7 +147,7 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
       value: stats.owners + stats.renters,
       note: `${formatNumber(stats.owners)} مؤجر، ${formatNumber(stats.renters)} مستأجر`
     }
-  ];
+      ];
 
   return (
     <>
@@ -128,7 +158,14 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
           <p className="dash-hero-line">
             {waiting > 0
               ? `${formatNumber(waiting)} عنصر ينتظر قرارك الآن.`
-              : "لا شيء ينتظر قرارك. كل الطلبات مغطاة."}
+              : /**
+                 * In collection mode there is nothing to approve by design, so "everything is
+                 * covered" would be a dashboard congratulating itself while four hundred people
+                 * wait for a call nobody has made.
+                 */
+                stats.collectionMode && stats.collectionUncontacted > 0
+                ? `${formatNumber(stats.collectionUncontacted)} رقمًا لم تتواصل معه بعد.`
+                : "لا شيء ينتظر قرارك. كل الطلبات مغطاة."}
           </p>
         </div>
 
@@ -151,6 +188,44 @@ export function DashboardLive({ initial }: { initial: DashboardStats }) {
           <span className="dash-alert-go">←</span>
         </Link>
       ) : null}
+
+      {/**
+       * The work of the day, at the top and larger than anything else.
+       *
+       * While collection mode is on this is the only page with anything in it: the listings, the
+       * fees and the reveals are all zero by design, and burying the one live list among twelve
+       * identical cards is how an admin opens the dashboard and sees a business doing nothing.
+       */}
+      <Link className="dash-feature" href="/admin/collection">
+        <span className="dash-feature-icon" aria-hidden="true">
+          📋
+        </span>
+        <span className="dash-feature-text">
+          <strong>الطلبات والعروض</strong>
+          <span>ما جمعه البوت من الطرفين، مرتّبًا بالمقاطعة — ومن بقي بلا اتصال.</span>
+        </span>
+        <span className="dash-feature-figures">
+          <span className="dash-figure">
+            <strong>{formatNumber(stats.collectionOffers)}</strong>
+            <small>عرض مؤجّر</small>
+          </span>
+          <span className="dash-figure">
+            <strong>{formatNumber(stats.collectionRequests)}</strong>
+            <small>طلب مستأجر</small>
+          </span>
+          <span className={stats.collectionUncontacted > 0 ? "dash-figure is-urgent" : "dash-figure"}>
+            <strong>{formatNumber(stats.collectionUncontacted)}</strong>
+            <small>لم تتواصل معهم</small>
+          </span>
+          <span className="dash-figure">
+            <strong>{formatNumber(stats.collectionToday)}</strong>
+            <small>وصل اليوم</small>
+          </span>
+        </span>
+        <span className="dash-feature-go" aria-hidden="true">
+          ←
+        </span>
+      </Link>
 
       <section className="dash-section" aria-label="يحتاج قرارك">
         <div className="dash-section-head">
