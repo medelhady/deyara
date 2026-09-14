@@ -19,6 +19,7 @@ export const backupTables = [
   "payments",
   "places",
   "properties",
+  "real_estate_offices",
   "property_media",
   "search_requests",
   "user_wallets",

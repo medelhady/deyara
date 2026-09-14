@@ -321,3 +321,32 @@ export async function describeStoredVideo(path: string) {
     problems: report.problems
   };
 }
+
+/**
+ * One stored file, read back as bytes the app can hand to something else.
+ *
+ * For the screenshot reader: the bucket is private, so a link is no use to a service that has to
+ * fetch the picture itself -- it is read here, where the service key lives, and passed on inline.
+ */
+export async function readStoredFile(path: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return { found: false as const, error: "قاعدة البيانات غير مربوطة.", base64: "", contentType: "" };
+  }
+
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).download(path);
+
+  if (error || !data) {
+    return { found: false as const, error: "تعذر قراءة الصورة بعد الرفع.", base64: "", contentType: "" };
+  }
+
+  const bytes = Buffer.from(await data.arrayBuffer());
+
+  return {
+    found: true as const,
+    error: null,
+    base64: bytes.toString("base64"),
+    contentType: data.type || "image/png"
+  };
+}

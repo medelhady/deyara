@@ -2160,3 +2160,18 @@ select {
 .demand-row.is-handled:hover {
   opacity: 1;
 }
+
+/* The office list: a name, its numbers as the calls they become, and where it was found. */
+.office-phones {
+  display: grid;
+  gap: 4px;
+}
+
+.office-phones a {
+  color: var(--accent);
+}
+
+.office-note {
+  display: block;
+  color: var(--muted);
+}
