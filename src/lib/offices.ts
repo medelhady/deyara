@@ -246,13 +246,23 @@ export async function saveOffice(input: {
     return { saved: false as const, error: "قاعدة البيانات غير مربوطة." };
   }
 
-  const row = {
+  const row: Record<string, unknown> = {
     name,
     phones,
     platform: input.platform.trim() || null,
-    note: input.note.trim() || null,
-    screenshot_path: input.screenshotPath ?? null
+    note: input.note.trim() || null
   };
+
+  /**
+   * The screenshot is only written when one is supplied.
+   *
+   * Editing a name from the table sends no picture, and setting the column to null there would
+   * throw away the evidence the row was read from -- the one thing that can settle a doubtful
+   * number later.
+   */
+  if (input.screenshotPath !== undefined) {
+    row.screenshot_path = input.screenshotPath;
+  }
 
   const { error } = input.id
     ? await supabase.from("real_estate_offices").update(row).eq("id", input.id)

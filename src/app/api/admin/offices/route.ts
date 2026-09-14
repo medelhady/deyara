@@ -32,7 +32,9 @@ export async function POST(request: Request) {
     phones: Array.isArray(body.phones) ? body.phones : [],
     platform: String(body.platform ?? ""),
     note: String(body.note ?? ""),
-    screenshotPath: body.screenshotPath ?? null
+    // Undefined and null mean different things here: no picture supplied versus remove the one
+    // stored. An edit from the table sends neither, and must not erase it.
+    screenshotPath: "screenshotPath" in body ? (body.screenshotPath ?? null) : undefined
   });
 
   if (!result.saved) {

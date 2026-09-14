@@ -48,6 +48,20 @@ export function OfficesClient() {
   const [message, setMessage] = useState("جار التحميل...");
   const [note, setNote] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [search, setSearch] = useState("");
+  /**
+   * One row being corrected in place.
+   *
+   * A name read off a blurry post, a note remembered after a call -- both are found later, in the
+   * table, not at the moment of reading. Sending them back through the upload form would mean
+   * finding the screenshot again.
+   */
+  const [editing, setEditing] = useState<{
+    id: string;
+    name: string;
+    phones: string;
+    platform: string;
+    note: string;
+  } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -167,6 +181,34 @@ export function OfficesClient() {
     setDrafts((current) => current.filter((item) => item.key !== draft.key));
     await load();
     setNote({ kind: "ok", text: `✅ حُفظ «${draft.name.trim()}».` });
+  }
+
+  async function saveEdit() {
+    if (!editing) {
+      return;
+    }
+
+    const response = await fetch("/api/admin/offices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: editing.id,
+        name: editing.name,
+        phones: editing.phones.split(/[,،\n/]/),
+        platform: editing.platform,
+        note: editing.note
+      })
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      setNote({ kind: "error", text: data.error ?? "تعذر الحفظ." });
+      return;
+    }
+
+    setEditing(null);
+    await load();
+    setNote({ kind: "ok", text: "✅ حُفِظ التعديل." });
   }
 
   async function remove(office: Office) {
@@ -365,36 +407,103 @@ export function OfficesClient() {
                   <th>المكتب</th>
                   <th>أرقام التواصل</th>
                   <th>المنصة</th>
-                  <th>أُضيف</th>
+                  <th>أُضيف / ملاحظة</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {visible.map((office) => (
-                  <tr key={office.id}>
-                    <td>
-                      <strong>{office.name}</strong>
-                      {office.note ? <small className="office-note">{office.note}</small> : null}
-                    </td>
-                    <td>
-                      <div className="office-phones">
-                        {office.phones.map((phone) => (
-                          // Straight to WhatsApp: the number is only useful as the call it becomes.
-                          <a key={phone} href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" dir="ltr">
-                            +{phone}
-                          </a>
-                        ))}
-                      </div>
-                    </td>
-                    <td>{office.platform ?? "—"}</td>
-                    <td>{formatWhen(office.createdAt)}</td>
-                    <td>
-                      <button className="button secondary" type="button" onClick={() => void remove(office)}>
-                        🗑
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {visible.map((office) =>
+                  editing?.id === office.id ? (
+                    <tr key={office.id}>
+                      <td>
+                        <input
+                          value={editing.name}
+                          onChange={(event) => setEditing({ ...editing, name: event.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          inputMode="numeric"
+                          value={editing.phones}
+                          onChange={(event) => setEditing({ ...editing, phones: event.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={editing.platform}
+                          onChange={(event) => setEditing({ ...editing, platform: event.target.value })}
+                        >
+                          <option value="">—</option>
+                          {officePlatforms.map((platform) => (
+                            <option key={platform} value={platform}>
+                              {platform}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        {/* The note is written here because it is learned here: after a call, not
+                            while reading the picture. */}
+                        <input
+                          placeholder="ملاحظة"
+                          value={editing.note}
+                          onChange={(event) => setEditing({ ...editing, note: event.target.value })}
+                        />
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button className="button" type="button" onClick={() => void saveEdit()}>
+                            ✔ احفظ
+                          </button>
+                          <button className="button secondary" type="button" onClick={() => setEditing(null)}>
+                            ✕
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={office.id}>
+                      <td>
+                        <strong>{office.name}</strong>
+                        {office.note ? <small className="office-note">{office.note}</small> : null}
+                      </td>
+                      <td>
+                        <div className="office-phones">
+                          {office.phones.map((phone) => (
+                            // Straight to WhatsApp: the number is only useful as the call it becomes.
+                            <a key={phone} href={`https://wa.me/${phone}`} target="_blank" rel="noreferrer" dir="ltr">
+                              +{phone}
+                            </a>
+                          ))}
+                        </div>
+                      </td>
+                      <td>{office.platform ?? "—"}</td>
+                      <td>{formatWhen(office.createdAt)}</td>
+                      <td>
+                        <div className="row-actions">
+                          <button
+                            className="button secondary"
+                            type="button"
+                            onClick={() =>
+                              setEditing({
+                                id: office.id,
+                                name: office.name,
+                                phones: office.phones.join("، "),
+                                platform: office.platform ?? "",
+                                note: office.note ?? ""
+                              })
+                            }
+                          >
+                            ✏️
+                          </button>
+                          <button className="button secondary" type="button" onClick={() => void remove(office)}>
+                            🗑
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                )}
               </tbody>
             </table>
           </div>
