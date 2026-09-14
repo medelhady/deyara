@@ -11,6 +11,13 @@ import type { CollectSide } from "@/lib/conversation/collect";
 
 export type CollectionEntry = {
   id: string;
+  /**
+   * The short number both sides can say out loud: "طلب 128".
+   *
+   * Null only on rows saved before the column existed, or before the migration is run -- everything
+   * that shows it has to survive its absence.
+   */
+  code: number | null;
   phone: string;
   side: CollectSide;
   area: string;
@@ -48,21 +55,33 @@ export async function saveCollectionEntry(entry: {
     return { saved: false as const };
   }
 
-  const { error } = await supabase.from("collection_entries").insert({
-    phone: entry.phone,
-    side: entry.side,
-    area: entry.area,
-    price: entry.price ?? null,
-    specs: entry.specs ?? null,
-    rooms: entry.rooms ?? null,
-    commission: entry.commission ?? null,
-    added_by_admin: entry.addedByAdmin ?? false
-  });
+  /**
+   * The row is read back for its number, which the database hands out, not this code.
+   *
+   * Asked for here because the person is about to be told it -- and a reference they were given but
+   * that was never stored is worse than no reference at all.
+   */
+  const { data, error } = await supabase
+    .from("collection_entries")
+    .insert({
+      phone: entry.phone,
+      side: entry.side,
+      area: entry.area,
+      price: entry.price ?? null,
+      specs: entry.specs ?? null,
+      rooms: entry.rooms ?? null,
+      commission: entry.commission ?? null,
+      added_by_admin: entry.addedByAdmin ?? false
+    })
+    .select("code")
+    .maybeSingle();
 
   if (error) {
     console.error("Failed to save a collection entry", error);
     return { saved: false as const, error: error.message };
   }
+
+  const code = typeof data?.code === "number" ? data.code : null;
 
   /**
    * Someone offering a house is an owner, and the dashboard had no way to know it.
@@ -84,7 +103,7 @@ export async function saveCollectionEntry(entry: {
     }
   }
 
-  return { saved: true as const };
+  return { saved: true as const, code };
 }
 
 export async function listCollectionEntries(): Promise<CollectionEntry[]> {
@@ -96,7 +115,7 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
 
   const { data, error } = await supabase
     .from("collection_entries")
-    .select("id,phone,side,area,price,specs,rooms,commission,added_by_admin,created_at,handled_at")
+    .select("id,code,phone,side,area,price,specs,rooms,commission,added_by_admin,created_at,handled_at")
     .order("created_at", { ascending: false })
     .limit(2000);
 
@@ -128,6 +147,7 @@ export async function listCollectionEntries(): Promise<CollectionEntry[]> {
 
   return (data ?? []).map((row) => ({
     id: String(row.id),
+    code: typeof row.code === "number" ? row.code : null,
     phone: String(row.phone),
     side: row.side as CollectSide,
     area: String(row.area),

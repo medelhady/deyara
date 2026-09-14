@@ -152,5 +152,23 @@ check(
   false
 );
 
+/**
+ * The request number, and the day the column does not exist yet.
+ *
+ * The code is handed out by the database, so a bot running against a database that has not been
+ * migrated has none to report -- and a confirmation reading "رقم طلبك: *" with nothing after it is
+ * worse than one that never mentioned a number.
+ */
+for (const key of ["collect_owner_saved", "collect_renter_saved"]) {
+  const saved = messageDefinitions.find((definition) => definition.key === key)!;
+  const withCode = renderMessage(saved.fallback, { area: "لكصر", summary: "3 غرف", code: 128 });
+  const withoutCode = renderMessage(saved.fallback, { area: "لكصر", summary: "3 غرف" });
+
+  check(`${key} shows the request number`, withCode.includes("128"), true);
+  check(`${key} still confirms the area`, withCode.includes("لكصر"), true);
+  check(`${key} drops the whole line when there is no number`, withoutCode.includes("رقم"), false);
+  check(`${key} is still a confirmation without it`, withoutCode.includes("سجّلنا"), true);
+}
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -163,11 +163,17 @@ export const messageDefinitions: MessageDefinition[] = [
     key: "collect_owner_saved",
     label: "التجميع — تأكيد حفظ العرض",
     note: "تُرسل بعد حفظ عرض المؤجر مباشرة.",
-    variables: [{ name: "area", sample: "لكصر", note: "المقاطعة" }, { name: "summary", sample: "70,000 أوقية · 3 غرف وجراج", note: "ما كتبه مختصرًا" }],
+    variables: [
+      { name: "area", sample: "لكصر", note: "المقاطعة" },
+      { name: "summary", sample: "70,000 أوقية · 3 غرف وجراج", note: "ما كتبه مختصرًا" },
+      { name: "code", sample: "128", note: "رقم الطلب القصير — يذكره لك عند الاتصال" }
+    ],
     fallback: [
       "✅ سجّلنا دارك في *{area}*.",
       "",
       "{summary}",
+      "",
+      "🗂️ رقم عرضك: *{code}* — اذكره إذا راسلتنا.",
       "",
       "أول ما يجي مستأجر يدور في {area} نوصله بك مباشرة.",
       "",
@@ -209,11 +215,17 @@ export const messageDefinitions: MessageDefinition[] = [
     key: "collect_renter_saved",
     label: "التجميع — تأكيد حفظ الطلب",
     note: "تُرسل بعد حفظ طلب المستأجر مباشرة.",
-    variables: [{ name: "area", sample: "لكصر", note: "المقاطعة" }, { name: "summary", sample: "حتى 60,000 أوقية · 3 غرف", note: "ما كتبه مختصرًا" }],
+    variables: [
+      { name: "area", sample: "لكصر", note: "المقاطعة" },
+      { name: "summary", sample: "حتى 60,000 أوقية · 3 غرف", note: "ما كتبه مختصرًا" },
+      { name: "code", sample: "128", note: "رقم الطلب القصير — يذكره لك عند الاتصال" }
+    ],
     fallback: [
       "✅ سجّلنا طلبك في *{area}*.",
       "",
       "{summary}",
+      "",
+      "🗂️ رقم طلبك: *{code}* — اذكره إذا راسلتنا.",
       "",
       "أول ما تنزل دار تناسبك في {area} نراسلك.",
       "",

@@ -8,6 +8,7 @@ export const revalidate = 0;
 export async function GET() {
   const entries = await listCollectionEntries();
   const rows = entries.map((entry) => ({
+    "رقم الطلب": entry.code ?? "",
     الجهة: entry.side === "owner" ? "مؤجر" : "مستأجر",
     المقاطعة: entry.area,
     السعر: entry.price ?? "",

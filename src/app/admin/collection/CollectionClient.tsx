@@ -5,6 +5,8 @@ import { ReplyBox, type ReplyWindow } from "../ReplyBox";
 
 type Entry = {
   id: string;
+  /** The short number the person was told: "طلب 128". Null on rows saved before it existed. */
+  code: number | null;
   phone: string;
   side: "owner" | "renter";
   area: string;
@@ -217,6 +219,8 @@ export function CollectionClient() {
       // Digits match the phone, text matches anything they wrote -- one box rather than two, because
       // an admin looking someone up does not know which field will find them.
       return (
+        // The code is what they quote on a call, so it matches before anything else.
+        String(entry.code ?? "") === term ||
         (digits.length >= 3 && entry.phone.replace(/\D/g, "").includes(digits)) ||
         entry.area.toLowerCase().includes(term) ||
         (entry.specs ?? "").toLowerCase().includes(term)
@@ -291,7 +295,7 @@ export function CollectionClient() {
         <input
           type="search"
           className="property-search"
-          placeholder="ابحث برقم الهاتف أو بأي كلمة كتبها"
+          placeholder="ابحث برقم الطلب أو الهاتف أو بأي كلمة كتبها"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
         />
@@ -364,6 +368,9 @@ export function CollectionClient() {
                       onClick={() => void openThread(entry.phone)}
                     >
                     <span className="demand-open">{openPhone === entry.phone ? "▾" : "▸"}</span>
+                    {/* First on the line because it is what the person says on the phone, and what
+                        the search box is for. */}
+                    {entry.code ? <span className="demand-code">#{entry.code}</span> : null}
                     <span className={owner ? "demand-tag is-owner" : "demand-tag"}>
                       {owner ? "🏠 مؤجر" : "🔍 مستأجر"}
                     </span>

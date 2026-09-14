@@ -2137,7 +2137,7 @@ ${opening}` : opening
     state.commission = commission;
   }
 
-  await saveCollectionEntry({
+  const saved = await saveCollectionEntry({
     phone: message.from,
     side: state.side ?? "renter",
     area: state.area ?? "",
@@ -2162,7 +2162,14 @@ ${opening}` : opening
     debugIntent: owner ? "add_property" : "search_property",
     reply: await getMessage(owner ? "collect_owner_saved" : "collect_renter_saved", {
       area: state.area ?? "",
-      summary
+      summary,
+      /**
+       * The number the database gave this row, or nothing.
+       *
+       * Its line disappears whole when it is empty, so a database that has not run the migration
+       * yet sends the same message it sent yesterday rather than one with a gap in it.
+       */
+      code: saved.code ?? undefined
     })
   };
 }

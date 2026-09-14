@@ -2175,3 +2175,15 @@ select {
   display: block;
   color: var(--muted);
 }
+
+/* The short number, first on the row: it is what the person says on the phone and what the search
+   box is for. */
+.demand-code {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 700;
+  white-space: nowrap;
+}
