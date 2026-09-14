@@ -1928,3 +1928,119 @@ button.demand-row-head {
   background: #fdf8ec;
   color: #8a5a12;
 }
+
+/* A switch that answers "is it on right now" by colour, before a word is read: green working, red
+   stopped. The two settings it carries decide how the bot answers everyone who writes in next. */
+.switch-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.switch-text {
+  display: grid;
+  gap: 4px;
+  max-width: 46ch;
+}
+
+.switch-text small {
+  color: var(--muted);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.switch:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.switch-track {
+  position: relative;
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  background: #c9352f;
+  transition: background 0.15s ease;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 3px;
+  /* The page is RTL, so "on" slides the knob to the left edge -- the direction the eye reads to. */
+  right: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.switch.is-on .switch-track {
+  background: #0f7b63;
+}
+
+.switch.is-on .switch-knob {
+  transform: translateX(-22px);
+}
+
+.switch-label {
+  min-width: 4.5ch;
+  font-weight: 700;
+}
+
+.switch.is-on .switch-label {
+  color: #0f7b63;
+}
+
+.switch.is-off .switch-label {
+  color: #c9352f;
+}
+
+/* An edit still sitting in the box, not yet stored. One save button for fourteen fields otherwise
+   leaves an admin believing a price changed when it did not. */
+.setting-field.is-dirty input,
+.setting-field.is-dirty textarea {
+  border-color: var(--accent);
+}
+
+.setting-dirty {
+  margin-inline-start: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fdf8ec;
+  color: #8a5a12;
+  font-size: 0.75em;
+  font-style: normal;
+}
+
+.switch-ok {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.switch-error {
+  color: #c9352f;
+  font-weight: 700;
+}

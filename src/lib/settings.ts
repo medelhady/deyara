@@ -1,4 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
+import type { SettingGroup } from "@/lib/setting-groups";
 
 export type AppSettings = {
   contactRevealPoints: number;
@@ -24,9 +25,13 @@ type SettingDefinition = {
   column: string;
   label: string;
   hint: string;
-  kind: "number" | "text" | "textarea";
+  /** "toggle" is a stored "on"/"off" -- a switch rather than a word typed by hand. */
+  kind: "number" | "text" | "textarea" | "toggle";
+  /** Which section of the page this belongs in. Fourteen fields in one grid is a wall to read. */
+  group: SettingGroup;
   fallback: () => string;
 };
+
 
 // The single source of truth for what is configurable, shared by the reader, the API and the page.
 export const settingDefinitions: SettingDefinition[] = [
@@ -36,6 +41,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "تكلفة طلب رقم المؤجر",
     hint: "الأوقية التي تُخصم من المستأجر مقابل كل رقم يستلمه.",
     kind: "number",
+    group: "prices",
     fallback: () => process.env.CONTACT_REQUEST_FEE ?? "1"
   },
   {
@@ -44,6 +50,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "تكلفة نشر إعلان عقار",
     hint: "الأوقية التي تُخصم من المالك لحظة موافقة الإدارة على النشر.",
     kind: "number",
+    group: "prices",
     fallback: () => "2000"
   },
   {
@@ -52,6 +59,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "نسبة عمولة المسوّقين (%)",
     hint: "نسبة رصيد التسويق التي يحصل عليها صاحب الإحالة من كل شحنة.",
     kind: "number",
+    group: "referrals",
     fallback: () => "30"
   },
   {
@@ -60,6 +68,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "كل كم ساعة يُذكَّر المؤجر بمراجعة إعلاناته",
     hint: "لا يُذكَّر إلا من له إعلان لم يُحدَّث خلال هذه المدة، ولا يتكرر التذكير قبل انقضائها. اجعلها 0 لإيقاف التذكير.",
     kind: "number",
+    group: "prices",
     fallback: () => "48"
   },
   {
@@ -68,6 +77,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "الحد الأدنى لطلب السحب",
     hint: "أقل رصيد عمولة يسمح بطلب السحب.",
     kind: "number",
+    group: "referrals",
     fallback: () => "500"
   },
   {
@@ -76,24 +86,27 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "أرقام تنبيهات الإدارة",
     hint: "بصيغة دولية كاملة مع رمز الدولة مثل 22245678901، وافصل بينها بفاصلة. اتركه فارغًا لإيقاف التنبيهات.",
     kind: "text",
+    group: "numbers",
     fallback: () => process.env.ADMIN_WHATSAPP_NUMBERS ?? ""
   },
   {
     key: "collectionMode",
     column: "collection_mode",
     label: "وضع التجميع",
-    hint: "اكتب on لتشغيله. البوت يسأل ثلاثة أسئلة ويسجّل، بلا فيديو ولا رسوم ولا خصم — للمرحلة التي لا يوجد فيها معروض بعد. اكتب off لعودة الآلية الكاملة.",
-    kind: "text",
+    hint: "البوت يسأل ثلاثة أسئلة ويسجّل، بلا فيديو ولا رسوم ولا خصم — للمرحلة التي لا يوجد فيها معروض بعد. إيقافه يعيد الآلية الكاملة.",
+    kind: "toggle",
     // Falls back to an environment variable, like the admin numbers do: the mode can be switched on
     // before the column exists, and it gives the offline checks a way in.
+    group: "modes",
     fallback: () => process.env.COLLECTION_MODE ?? "off"
   },
   {
     key: "demoEnabled",
     column: "demo_enabled",
     label: "وضع التجربة للمسوّقين",
-    hint: "اكتب off لإيقافه. كل رسالة تجريبية تستدعي الذكاء الاصطناعي وتُحتسب عليك، فأوقفه إن كثر الفضوليون.",
-    kind: "text",
+    hint: "يتيح للمسوّق محادثة تجريبية كاملة. كل رسالة فيها تستدعي الذكاء الاصطناعي وتُحتسب عليك، فأوقفه إن كثر الفضوليون.",
+    kind: "toggle",
+    group: "modes",
     fallback: () => "on"
   },
   {
@@ -102,6 +115,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "أوقية ترحيب للمسجّل عبر دعوة",
     hint: "تُمنح فورًا لمن يسجل عبر رابط مسوّق. اجعلها 0 لإيقافها.",
     kind: "number",
+    group: "referrals",
     fallback: () => "1"
   },
   {
@@ -110,6 +124,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "مكافأة المسوّق عند التسجيل",
     hint: "رصيد استخدام تُمنح للمسوّق فور تسجيل شخص برابطه، قبل أي شحن. اجعلها 0 لإيقافها.",
     kind: "number",
+    group: "referrals",
     fallback: () => "300"
   },
   {
@@ -118,6 +133,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "أقل شحنة تستحق عمولة",
     hint: "لا تُحتسب عمولة إحالة لشحنة أقل من هذا. اجعلها 0 لاحتساب كل الشحنات.",
     kind: "number",
+    group: "referrals",
     fallback: () => "0"
   },
   {
@@ -126,6 +142,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "رقم واتساب البوت",
     hint: "الرقم الذي تفتح عليه روابط الدعوة محادثة مع البوت. بصيغة دولية كاملة مثل 22248404036.",
     kind: "text",
+    group: "numbers",
     fallback: () => process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ""
   },
   {
@@ -134,6 +151,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "مدة عمولة الإحالة (شهر)",
     hint: "تُحتسب العمولة على شحنات المُحال خلال هذه المدة من تاريخ تسجيله، ثم تتوقف.",
     kind: "number",
+    group: "referrals",
     fallback: () => "12"
   },
   {
@@ -142,6 +160,7 @@ export const settingDefinitions: SettingDefinition[] = [
     label: "رقم استقبال الدفع",
     hint: "الرقم الذي يحوّل إليه المستخدمون مبلغ الشحن.",
     kind: "text",
+    group: "numbers",
     fallback: () =>
       process.env.POINTS_PAYMENT_NUMBER ??
       process.env.ADMIN_WHATSAPP_NUMBERS?.split(",")[0]?.replace("whatsapp:", "") ??
@@ -237,6 +256,7 @@ export async function readSettingRows() {
     label: definition.label,
     hint: definition.hint,
     kind: definition.kind,
+    group: definition.group,
     value: String(settings[definition.key])
   }));
 }
@@ -260,7 +280,7 @@ export async function saveSettings(updates: Record<string, string>) {
   const supabase = getServiceSupabase();
 
   if (!supabase) {
-    return { saved: false, error: "Supabase is not configured." };
+    return { saved: false, error: "قاعدة البيانات غير مربوطة." };
   }
 
   const rows = settingDefinitions

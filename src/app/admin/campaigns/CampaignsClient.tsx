@@ -149,7 +149,7 @@ export function CampaignsClient() {
       const verified = await verifyResponse.json();
 
       if (!verifyResponse.ok) {
-        setNote({
+        setVideoNote({
           kind: "error",
           text: withHint(verified.error ?? "الفيديو غير صالح للإرسال عبر واتساب.", verified.hint)
         });
