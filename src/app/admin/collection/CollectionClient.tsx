@@ -204,7 +204,7 @@ export function CollectionClient() {
         <div className="panel-header">
           <div>
             <p className="eyebrow">حسب المقاطعة</p>
-            <h2>{entries.length} مُدخَلًا</h2>
+            <h2>{entries.length} طلبًا</h2>
           </div>
           <a className="button secondary" href="/api/admin/collection/csv">
             ⬇ تصدير إكسل
