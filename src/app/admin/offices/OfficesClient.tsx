@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { officePlatforms } from "@/lib/office-platforms";
+import { explainStorageUpload } from "@/lib/upload-errors";
 
 type Office = {
   id: string;
@@ -111,7 +112,7 @@ export function OfficesClient() {
       if (!upload.ok) {
         const detail = (await upload.text().catch(() => "")).slice(0, 150);
 
-        patch(key, { status: "failed", error: `تعذر رفع الصورة (${upload.status}). ${detail}` });
+        patch(key, { status: "failed", error: explainStorageUpload(upload.status, detail) });
         return;
       }
 

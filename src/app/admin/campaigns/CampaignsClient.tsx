@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { mediaKindFor, mediaKindLabels, type MediaKind } from "@/lib/media-kinds";
+import { explainStorageUpload } from "@/lib/upload-errors";
 
 type Campaign = {
   id: string;
@@ -139,9 +140,11 @@ export function CampaignsClient() {
          */
         const detail = (await upload.text().catch(() => "")).slice(0, 200);
 
+        // Named rather than forwarded: the refusal that actually happens is the bucket's own MIME
+        // list, and its 415 says nothing about where that rule lives or how to change it.
         setVideoNote({
           kind: "error",
-          text: `تعذر رفع ${described} إلى المخزن (${upload.status}). ${detail}`
+          text: `تعذر رفع ${described}: ${explainStorageUpload(upload.status, detail)}`
         });
         return;
       }

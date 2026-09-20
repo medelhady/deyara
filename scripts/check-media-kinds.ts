@@ -10,6 +10,7 @@
  */
 import { extensionForMedia, mediaKindFor, mediaSizeLimits, metaMediaType } from "../src/lib/media-kinds";
 import { readAttachments } from "../src/lib/campaigns";
+import { allowedUploadTypes, explainStorageUpload } from "../src/lib/upload-errors";
 
 let failures = 0;
 
@@ -71,6 +72,24 @@ check("and the old column ignored once there are any", readAttachments(stored, "
 check("an entry with no path is dropped", readAttachments([{ type: "image" }], null).length, 0);
 check("a broken type falls back to the path", readAttachments([{ path: "a/b.mp3" }], null)[0].kind, "audio");
 check("and a non-list is survivable", readAttachments("nonsense", null).length, 0);
+
+// The refusal that actually happens: the bucket was created for property videos, and its MIME list
+// turns a voice note away with a 415 that says nothing about where the rule lives.
+const mimeRefusal = explainStorageUpload(
+  400,
+  '{"statusCode":"415","error":"invalid_mime_type","message":"mime type audio/ogg is not supported"}'
+);
+
+check("a refused type is explained, not forwarded", mimeRefusal.includes("property-media"), true);
+check("and the type itself is named", mimeRefusal.includes("audio/ogg"), true);
+check("with the line to run", mimeRefusal.includes("allowed_mime_types"), true);
+check("a size refusal says so", explainStorageUpload(413, "Payload too large").includes("أكبر"), true);
+check(
+  "anything else keeps the server words",
+  explainStorageUpload(500, "boom").includes("boom"),
+  true
+);
+check("every type we send is allowed by the line", allowedUploadTypes.includes("audio/ogg"), true);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
