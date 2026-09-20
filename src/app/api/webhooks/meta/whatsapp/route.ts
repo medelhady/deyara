@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { handleIncomingMessage } from "@/lib/conversation/engine";
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { parseMetaStatuses, parseMetaWebhook, verifyMetaSignature } from "@/lib/whatsapp/meta";
-import { recordDeliveryFailure, sendNotification, sendVideoNotification } from "@/lib/notifications";
+import {
+  recordDeliveryFailure,
+  sendMediaNotification,
+  sendNotification,
+  sendVideoNotification
+} from "@/lib/notifications";
 import { notifyAdmins } from "@/lib/notify-admins";
 import type { IncomingWhatsAppMessage } from "@/lib/whatsapp/types";
 
@@ -159,6 +164,31 @@ export async function POST(request: Request) {
       if (!sent.ok || sent.viaLink) {
         await notifyAdmins([
           "⚠️ *الفيديو لم يُرسَل كفيديو*",
+          "",
+          `إلى: ${incoming.from.replace("whatsapp:", "")}`,
+          sent.ok ? "أُرسِل كرابط نصي بدلًا عنه." : "لم يُرسَل إطلاقًا.",
+          "",
+          "السبب مكتوب في سجل الإشعارات."
+        ]);
+      }
+    }
+
+    /**
+     * Everything the reply carries, in the order it was attached, before the text.
+     *
+     * The same alert as a video that degrades: a file sent as a link instead of a file is a send
+     * nothing else reports, and WhatsApp drops that link for its own reasons -- which is exactly
+     * what "nothing arrived" looks like from the outside with every log saying sent.
+     */
+    for (const item of result.media ?? []) {
+      const sent = await sendMediaNotification(incoming.from, item.kind, item.url, "bot_reply", {
+        fileName: item.fileName,
+        label: item.label
+      });
+
+      if (!sent.ok || sent.viaLink) {
+        await notifyAdmins([
+          "⚠️ *ملف لم يُرسَل كما هو*",
           "",
           `إلى: ${incoming.from.replace("whatsapp:", "")}`,
           sent.ok ? "أُرسِل كرابط نصي بدلًا عنه." : "لم يُرسَل إطلاقًا.",

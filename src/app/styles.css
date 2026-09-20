@@ -2187,3 +2187,43 @@ select {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* What a campaign carries, in the order it will be sent. */
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #cfe4dc;
+  border-radius: 999px;
+  background: #f3faf7;
+  font-size: 0.9em;
+}
+
+.attachment-chip small {
+  max-width: 18ch;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip button {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1em;
+  line-height: 1;
+}
+
+.attachment-chip button:hover {
+  color: #c9352f;
+}

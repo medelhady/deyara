@@ -1,28 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { mediaKindFor, mediaKindLabels, type MediaKind } from "@/lib/media-kinds";
 
 type Campaign = {
   id: string;
   name: string;
   keywords: string[];
   replyText: string;
-  videoPath: string | null;
+  attachments: Attachment[];
   active: boolean;
   hits: number;
   lastHitAt: string | null;
 };
+
+/** One file attached to a campaign: a video, a picture, a voice note or a document. */
+type Attachment = { kind: MediaKind; path: string; name: string };
 
 type Draft = {
   id?: string;
   name: string;
   keywords: string;
   replyText: string;
-  videoPath: string | null;
+  attachments: Attachment[];
   active: boolean;
 };
 
-const emptyDraft: Draft = { name: "", keywords: "", replyText: "", videoPath: null, active: true };
+const emptyDraft: Draft = { name: "", keywords: "", replyText: "", attachments: [], active: true };
 
 /**
  * The way out of a video WhatsApp will not take, added to the refusal itself.
@@ -99,9 +103,10 @@ export function CampaignsClient() {
    * that is here, while there is still someone to tell.
    */
   async function upload(file: File) {
-    setUploading(true);
+    const kind = mediaKindFor(file.type, file.name);
+    const described = mediaKindLabels[kind].label;
+
     setNote(null);
-    setVideoNote(null);
 
     try {
       const slotResponse = await fetch("/api/admin/campaigns/video", {
@@ -114,7 +119,7 @@ export function CampaignsClient() {
       const slot = await slotResponse.json();
 
       if (!slotResponse.ok) {
-        setVideoNote({ kind: "error", text: withHint(slot.error ?? "تعذر رفع الفيديو.", slot.hint) });
+        setVideoNote({ kind: "error", text: withHint(slot.error ?? `تعذر رفع ${described}.`, slot.hint) });
         return;
       }
 
@@ -136,7 +141,7 @@ export function CampaignsClient() {
 
         setVideoNote({
           kind: "error",
-          text: `تعذر رفع الفيديو إلى المخزن (${upload.status}). ${detail}`
+          text: `تعذر رفع ${described} إلى المخزن (${upload.status}). ${detail}`
         });
         return;
       }
@@ -144,19 +149,24 @@ export function CampaignsClient() {
       const verifyResponse = await fetch("/api/admin/campaigns/video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ step: "verify", path: slot.path })
+        body: JSON.stringify({ step: "verify", path: slot.path, kind })
       });
       const verified = await verifyResponse.json();
 
       if (!verifyResponse.ok) {
         setVideoNote({
           kind: "error",
-          text: withHint(verified.error ?? "الفيديو غير صالح للإرسال عبر واتساب.", verified.hint)
+          text: withHint(verified.error ?? `${described} غير صالح للإرسال عبر واتساب.`, verified.hint)
         });
         return;
       }
 
-      setDraft((current) => ({ ...current, videoPath: slot.path }));
+      // Added to the end: they are sent in the order they were attached, and that order is the one
+      // the admin built here.
+      setDraft((current) => ({
+        ...current,
+        attachments: [...current.attachments, { kind, path: slot.path, name: file.name }]
+      }));
       /**
        * Uploaded is not saved, and that gap is where the video was being lost.
        *
@@ -166,7 +176,7 @@ export function CampaignsClient() {
        */
       setVideoNote({
         kind: "ok",
-        text: "✅ الفيديو جاهز — لن يُحفظ حتى تضغط زر الحفظ بالأسفل."
+        text: `✅ ${described} جاهزة — لن تُحفظ حتى تضغط زر الحفظ بالأسفل.`
       });
     } catch (error) {
       // A thrown request leaves no response to read, and without this the box simply stops with no
@@ -175,6 +185,24 @@ export function CampaignsClient() {
         kind: "error",
         text: `انقطع الرفع: ${error instanceof Error ? error.message : String(error)}`
       });
+    }
+  }
+
+  /**
+   * Several files at once, uploaded one after another.
+   *
+   * In the order they were chosen, because that is the order they will be sent in -- and one at a
+   * time, since each one is checked on arrival and a queue of parallel uploads on a phone connection
+   * is how they all fail together.
+   */
+  async function uploadAll(files: File[]) {
+    setUploading(true);
+    setVideoNote(null);
+
+    try {
+      for (const file of files) {
+        await upload(file);
+      }
     } finally {
       setUploading(false);
 
@@ -221,7 +249,7 @@ export function CampaignsClient() {
         name: campaign.name,
         keywords: campaign.keywords.join("، "),
         replyText: campaign.replyText,
-        videoPath: campaign.videoPath,
+        attachments: campaign.attachments,
         active: !campaign.active
       })
     });
@@ -344,38 +372,54 @@ export function CampaignsClient() {
 
         <div className="campaign-video-block">
         <div className="row-actions campaign-video">
-          <strong>فيديو الرد</strong>
+          <strong>مرفقات الرد</strong>
           <input
             ref={fileInput}
             type="file"
-            accept="video/mp4,video/*"
+            accept="video/*,image/*,audio/*,.pdf,.ogg,.opus,.m4a"
+            multiple
             disabled={uploading}
             onChange={(event) => {
-              const file = event.target.files?.[0];
+              const files = Array.from(event.target.files ?? []);
 
-              if (file) {
-                void upload(file);
+              if (files.length > 0) {
+                void uploadAll(files);
               }
             }}
           />
           {uploading ? <span className="amount-note">جارٍ الرفع والفحص...</span> : null}
-          {draft.videoPath ? (
-            <>
-              <span className="demand-tag is-owner">🎥 فيديو مرفق</span>
-              <button
-                className="button secondary"
-                type="button"
-                onClick={() => setDraft({ ...draft, videoPath: null })}
-              >
-                أزل الفيديو
-              </button>
-            </>
-          ) : (
-            <span className="amount-note">
-              اختياري. MP4 بترميز H.264 وأقل من 16 ميجابايت — وهذا ما نفحصه قبل القبول. {videoHint}
-            </span>
-          )}
         </div>
+
+        {/* What is attached, in the order it will be sent. Each one can be removed on its own, since
+            changing your mind about one file should not mean starting over. */}
+        {draft.attachments.length > 0 ? (
+          <div className="attachment-list">
+            {draft.attachments.map((attachment, index) => (
+              <span className="attachment-chip" key={`${attachment.path}-${index}`}>
+                <span>
+                  {mediaKindLabels[attachment.kind].icon} {mediaKindLabels[attachment.kind].label}
+                </span>
+                {attachment.name ? <small>{attachment.name}</small> : null}
+                <button
+                  type="button"
+                  aria-label="أزل المرفق"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      attachments: draft.attachments.filter((_, position) => position !== index)
+                    })
+                  }
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="amount-note">
+            اختياري: فيديو أو صورة أو تسجيل صوتي أو ملف، وأكثر من واحد — تُرسل بالترتيب قبل النص. الفيديو بترميز H.264 وأقل من 16 ميجابايت — وهذا ما نفحصه قبل القبول. {videoHint}
+          </p>
+        )}
 
         {videoNote ? (
           <p className={videoNote.kind === "ok" ? "reply-ok" : "auth-error"}>{videoNote.text}</p>
@@ -433,12 +477,16 @@ export function CampaignsClient() {
                   {campaign.active ? "▶ تعمل" : "⏸ موقوفة"}
                 </span>
                 <strong className="demand-area">{campaign.name}</strong>
-                {campaign.videoPath ? (
-                  <span className="demand-chip">🎥 فيديو</span>
+                {campaign.attachments.length > 0 ? (
+                  campaign.attachments.map((attachment, index) => (
+                    <span className="demand-chip" key={`${attachment.path}-${index}`}>
+                      {mediaKindLabels[attachment.kind].icon} {mediaKindLabels[attachment.kind].label}
+                    </span>
+                  ))
                 ) : (
                   // Said out loud: an empty space reads as "video attached" to anyone who just
                   // uploaded one, and that is exactly how a campaign kept answering with text.
-                  <span className="demand-chip is-missing">بلا فيديو</span>
+                  <span className="demand-chip is-missing">بلا مرفقات</span>
                 )}
                 {/* The count is the whole feedback loop of an advert: a word nobody writes and a
                     word nobody sees look identical without it. */}
@@ -458,8 +506,8 @@ export function CampaignsClient() {
                   type="button"
                   onClick={() => {
                     if (
-                      draft.videoPath &&
-                      draft.videoPath !== campaign.videoPath &&
+                      draft.attachments.length > 0 &&
+                      !draft.id &&
                       !window.confirm("رفعت فيديو ولم تحفظه. الانتقال لحملة أخرى يُلغيه. تكمل؟")
                     ) {
                       return;
@@ -471,7 +519,7 @@ export function CampaignsClient() {
                       name: campaign.name,
                       keywords: campaign.keywords.join("، "),
                       replyText: campaign.replyText,
-                      videoPath: campaign.videoPath,
+                      attachments: campaign.attachments,
                       active: campaign.active
                     });
                   }}

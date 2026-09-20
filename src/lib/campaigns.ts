@@ -1,4 +1,5 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
+import { mediaKindFor, type MediaKind } from "@/lib/media-kinds";
 
 /**
  * The answer for whoever is not renting a house.
@@ -12,12 +13,20 @@ import { getServiceSupabase } from "@/lib/supabase/server";
  * noon, worded by the person who wrote the advert, without a deploy.
  */
 
+/** One file a campaign sends before its text: a video, a picture, a voice note or a document. */
+export type CampaignAttachment = {
+  kind: MediaKind;
+  path: string;
+  /** The file name as uploaded -- a document arrives named, and a log reads better with it. */
+  name: string;
+};
+
 export type Campaign = {
   id: string;
   name: string;
   keywords: string[];
   replyText: string;
-  videoPath: string | null;
+  attachments: CampaignAttachment[];
   active: boolean;
   hits: number;
   lastHitAt: string | null;
@@ -148,10 +157,47 @@ type CampaignRow = {
   keywords: string | null;
   reply_text: string | null;
   video_path: string | null;
+  attachments?: unknown;
   active: boolean | null;
   hits: number | null;
   last_hit_at: string | null;
 };
+
+/**
+ * The attachments of one row, taking what is stored and ignoring what is not usable.
+ *
+ * A campaign saved before this column existed carries its video in video_path, and it must go on
+ * working exactly as it did -- so that single video is read as the first attachment rather than
+ * being migrated away from underneath a live advert.
+ */
+export function readAttachments(stored: unknown, videoPath: string | null): CampaignAttachment[] {
+  const rows = Array.isArray(stored) ? stored : [];
+  const attachments: CampaignAttachment[] = [];
+
+  for (const row of rows) {
+    const item = (row ?? {}) as Record<string, unknown>;
+    const path = typeof item.path === "string" ? item.path.trim() : "";
+
+    if (!path) {
+      continue;
+    }
+
+    const name = typeof item.name === "string" ? item.name : "";
+    const declared = typeof item.type === "string" ? item.type : "";
+    const kind: MediaKind =
+      declared === "video" || declared === "image" || declared === "audio" || declared === "document"
+        ? declared
+        : mediaKindFor("", path);
+
+    attachments.push({ kind, path, name });
+  }
+
+  if (attachments.length === 0 && videoPath) {
+    attachments.push({ kind: "video", path: videoPath, name: "" });
+  }
+
+  return attachments;
+}
 
 function readRow(row: CampaignRow): Campaign {
   return {
@@ -159,7 +205,7 @@ function readRow(row: CampaignRow): Campaign {
     name: row.name,
     keywords: parseKeywords(row.keywords ?? ""),
     replyText: row.reply_text ?? "",
-    videoPath: row.video_path,
+    attachments: readAttachments(row.attachments, row.video_path),
     active: row.active !== false,
     hits: row.hits ?? 0,
     lastHitAt: row.last_hit_at
@@ -169,11 +215,17 @@ function readRow(row: CampaignRow): Campaign {
 // The table missing means the migration has not been run. The bot must keep answering everyone else,
 // so that reads as "no campaigns" rather than as a failure worth logging on every message.
 function missingTable(error: { code?: string; message?: string }) {
-  return error.code === "PGRST205" || Boolean(error.message?.includes("bot_campaigns"));
+  return (
+    error.code === "PGRST205" ||
+    Boolean(error.message?.includes("bot_campaigns")) ||
+    // The attachments column arrives with its own migration, and until it is run a save naming it
+    // is refused by name -- which is the same instruction to the admin: run the file.
+    Boolean(error.message?.includes("attachments"))
+  );
 }
 
 const missingTableNote =
-  "جدول الحملات bot_campaigns غير موجود. شغّل ملف supabase/add-campaigns.sql في محرر SQL بـ Supabase ثم أعد المحاولة.";
+  "ناقص في قاعدة البيانات: شغّل ملفي supabase/add-campaigns.sql و supabase/add-campaign-attachments.sql في محرر SQL بـ Supabase ثم أعد المحاولة.";
 
 let cache: { at: number; rows: Campaign[] } | null = null;
 const cacheMs = 30 * 1000;
@@ -199,10 +251,9 @@ export async function getActiveCampaigns(now = Date.now()): Promise<Campaign[]> 
     return [];
   }
 
-  const { data, error } = await supabase
-    .from("bot_campaigns")
-    .select("id,name,keywords,reply_text,video_path,active,hits,last_hit_at")
-    .eq("active", true);
+  // Every column, rather than a named list: the attachments column arrives with a migration, and
+  // naming a column that does not exist yet fails the whole read instead of one field.
+  const { data, error } = await supabase.from("bot_campaigns").select("*").eq("active", true);
 
   if (error) {
     if (!missingTable(error)) {
@@ -229,7 +280,7 @@ export async function listCampaigns() {
 
   const { data, error } = await supabase
     .from("bot_campaigns")
-    .select("id,name,keywords,reply_text,video_path,active,hits,last_hit_at")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -244,7 +295,7 @@ export type CampaignInput = {
   name: string;
   keywords: string;
   replyText: string;
-  videoPath?: string | null;
+  attachments: CampaignAttachment[];
   active: boolean;
 };
 
@@ -265,8 +316,8 @@ export async function saveCampaign(input: CampaignInput) {
     };
   }
 
-  if (!replyText && !input.videoPath) {
-    return { saved: false as const, error: "الحملة بلا رد: اكتب نصًا أو أرفق فيديو." };
+  if (!replyText && input.attachments.length === 0) {
+    return { saved: false as const, error: "الحملة بلا رد: اكتب نصًا أو أرفق ملفًا." };
   }
 
   const supabase = getServiceSupabase();
@@ -281,7 +332,10 @@ export async function saveCampaign(input: CampaignInput) {
     // the one being matched is a keyword nobody can debug.
     keywords: keywords.join("، "),
     reply_text: replyText,
-    video_path: input.videoPath ?? null,
+    attachments: input.attachments.map((item) => ({ type: item.kind, path: item.path, name: item.name })),
+    // Left behind deliberately: a row written by this version keeps its files in attachments, and
+    // the old column stays as it was for anything still reading it.
+    video_path: null,
     active: input.active,
     updated_at: new Date().toISOString()
   };

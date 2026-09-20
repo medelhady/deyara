@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { listCampaigns } from "@/lib/campaigns";
 import { describeStoredVideo, relabelStoredVideo, signPropertyMedia } from "@/lib/whatsapp/media";
-import { sendNotification, sendVideoNotification } from "@/lib/notifications";
+import { mediaKindLabels } from "@/lib/media-kinds";
+import { sendMediaNotification, sendNotification, sendVideoNotification } from "@/lib/notifications";
 import { checkVideoUrl } from "@/lib/video-health";
 
 export const dynamic = "force-dynamic";
@@ -43,82 +44,95 @@ export async function POST(request: Request) {
   /**
    * The first thing to establish, and the one nobody thinks to check.
    *
-   * A video uploaded into the form but never saved with the campaign leaves the row with no video
-   * at all -- and from the outside that is indistinguishable from a video WhatsApp refused. Said
+   * A file uploaded into the form but never saved with the campaign leaves the row with nothing
+   * attached -- and from the outside that is indistinguishable from a file WhatsApp refused. Said
    * here in one line, before anything else is attempted.
    */
-  if (!campaign.videoPath) {
-    steps.push("⚠️ هذه الحملة محفوظة بلا فيديو — ارفع الفيديو ثم اضغط «احفظ التعديل» ليُحفظ معها.");
+  if (campaign.attachments.length === 0) {
+    steps.push("⚠️ هذه الحملة محفوظة بلا مرفقات — ارفع الملف ثم اضغط «احفظ التعديل» ليُحفظ معها.");
   }
 
-  if (campaign.videoPath) {
-    const file = await describeStoredVideo(campaign.videoPath);
-
-    if (!file.found) {
-      return NextResponse.json({ error: file.error }, { status: 400 });
-    }
-
-    steps.push(`الملف: ${file.megabytes} ميجابايت، ${file.contentType}، فيديو ${file.videoCodec}، صوت ${file.audioCodec}.`);
-
-    if (file.problems.length > 0) {
-      return NextResponse.json({ error: file.problems.join(" "), steps }, { status: 400 });
-    }
+  for (const attachment of campaign.attachments) {
+    const described = mediaKindLabels[attachment.kind].label;
 
     /**
-     * The label corrected in place, if it is wrong.
+     * The video keeps its own inspection.
      *
-     * WhatsApp refuses anything that is not video/mp4 or video/3gpp, and a phone exporting H.264
-     * into a .mov calls it video/quicktime -- which is how a perfectly good video reached nobody.
-     * Fixed here rather than by asking for a re-upload, since the file is already in the bucket.
+     * Its failures are the expensive ones -- H.265 accepted by Meta and silently never delivered,
+     * a .mov label refused outright -- and both are fixable here, while someone is still watching.
      */
-    if (file.contentType !== "video/mp4") {
-      const relabelled = await relabelStoredVideo(campaign.videoPath);
+    if (attachment.kind === "video") {
+      const file = await describeStoredVideo(attachment.path);
 
-      steps.push(
-        relabelled.ok
-          ? `✅ صحّحت نوع الملف من ${file.contentType} إلى video/mp4 — واتساب لا يقبل غيره.`
-          : `⚠️ تعذر تصحيح نوع الملف: ${relabelled.error}`
-      );
+      if (!file.found) {
+        return NextResponse.json({ error: file.error, steps }, { status: 400 });
+      }
+
+      steps.push(`الفيديو: MB ميجابايت، TYPE، فيديو VC، صوت AC.`
+        .replace("MB", String(file.megabytes))
+        .replace("TYPE", file.contentType)
+        .replace("VC", file.videoCodec)
+        .replace("AC", file.audioCodec));
+
+      if (file.problems.length > 0) {
+        return NextResponse.json({ error: file.problems.join(" "), steps }, { status: 400 });
+      }
+
+      if (file.contentType !== "video/mp4") {
+        const relabelled = await relabelStoredVideo(attachment.path);
+
+        steps.push(
+          relabelled.ok
+            ? `✅ صحّحت نوع الملف من TYPE إلى video/mp4 — واتساب لا يقبل غيره.`.replace("TYPE", file.contentType)
+            : `⚠️ تعذر تصحيح نوع الملف: REASON`.replace("REASON", relabelled.error ?? "")
+        );
+      }
     }
 
-    const link = await signPropertyMedia(campaign.videoPath);
+    const link = await signPropertyMedia(attachment.path);
 
     if (!link) {
-      return NextResponse.json({ error: "تعذر توقيع رابط الفيديو من التخزين.", steps }, { status: 400 });
+      steps.push(`❌ تعذر توقيع رابط KIND من التخزين.`.replace("KIND", described));
+      continue;
     }
 
-    /**
-     * The same check the bot runs before every video, reported rather than swallowed.
-     *
-     * When it fails the bot sends a bare link instead -- and WhatsApp drops that quietly -- so this
-     * is the step that turns "the video did not arrive" into a sentence with a reason in it.
-     */
-    const health = await checkVideoUrl(link);
+    if (attachment.kind === "video") {
+      const health = await checkVideoUrl(link);
 
-    steps.push(
-      health.ok
-        ? `الرابط: يعمل (${health.contentType ?? "بلا نوع"}).`
-        : `⚠️ الرابط: ${health.reason}`
-    );
+      steps.push(health.ok ? `الرابط: يعمل (TYPE).`.replace("TYPE", health.contentType ?? "-") : `⚠️ الرابط: REASON`.replace("REASON", health.reason));
 
-    const sent = await sendVideoNotification(to, link, "admin_alert", campaign.name);
+      const sent = await sendVideoNotification(to, link, "admin_alert", campaign.name);
 
-    // The distinction the log alone does not make plain: a link that arrived is a video that did not.
+      // The distinction the log alone does not make plain: a link that arrived is a video that did not.
+      steps.push(
+        sent.ok && !sent.viaLink
+          ? "✅ وصل الفيديو كفيديو."
+          : sent.ok
+            ? "⚠️ لم يقبل واتساب الفيديو، فأُرسل كرابط نصي. راجع سجل الإشعارات للسبب."
+            : "❌ لم يصل الفيديو ولا الرابط. راجع سجل الإشعارات."
+      );
+
+      continue;
+    }
+
+    const sent = await sendMediaNotification(to, attachment.kind, link, "admin_alert", {
+      fileName: attachment.name,
+      label: campaign.name
+    });
+
     steps.push(
       sent.ok && !sent.viaLink
-        ? "✅ وصل الفيديو كفيديو."
+        ? `✅ وصلت KIND.`.replace("KIND", described)
         : sent.ok
-          ? "⚠️ لم يقبل واتساب الفيديو، فأُرسل كرابط نصي. راجع سجل الإشعارات للسبب."
-          : "❌ لم يصل الفيديو ولا الرابط. راجع سجل الإشعارات للسبب."
+          ? `⚠️ لم يقبل واتساب KIND، فأُرسلت كرابط نصي.`.replace("KIND", described)
+          : `❌ لم تصل KIND. راجع سجل الإشعارات.`.replace("KIND", described)
     );
-  } else {
-    steps.push("لا يوجد فيديو في هذه الحملة.");
   }
 
   if (campaign.replyText.trim()) {
     const text = await sendNotification(to, campaign.replyText, "admin_alert");
 
-    steps.push(text.ok ? "✅ وصل النص." : `❌ لم يصل النص: ${text.explained}`);
+    steps.push(text.ok ? "✅ وصل النص." : `❌ لم يصل النص: REASON`.replace("REASON", text.explained));
   }
 
   return NextResponse.json({ ok: true, steps });

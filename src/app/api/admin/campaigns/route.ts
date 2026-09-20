@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listCampaigns, saveCampaign } from "@/lib/campaigns";
+import { listCampaigns, readAttachments, saveCampaign } from "@/lib/campaigns";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     name?: string;
     keywords?: string;
     replyText?: string;
-    videoPath?: string | null;
+    attachments?: Array<{ kind?: string; path?: string; name?: string }>;
     active?: boolean;
   };
 
@@ -31,7 +31,12 @@ export async function POST(request: Request) {
     name: String(body.name ?? ""),
     keywords: String(body.keywords ?? ""),
     replyText: String(body.replyText ?? ""),
-    videoPath: body.videoPath ?? null,
+    // Read through the same reader the database rows go through, so a bad entry from the page is
+    // dropped here rather than stored and discovered when a campaign answers with nothing.
+    attachments: readAttachments(
+      (body.attachments ?? []).map((item) => ({ type: item.kind, path: item.path, name: item.name })),
+      null
+    ),
     active: body.active !== false
   });
 

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { inspectMp4 } from "@/lib/mp4-inspect";
+import { metaMediaType, type MediaKind } from "@/lib/media-kinds";
 import type { IncomingWhatsAppMessage, WhatsAppProvider } from "./types";
 
 type MetaWebhookPayload = {
@@ -331,6 +332,18 @@ export class UnusableMediaError extends Error {}
  * comes back is exactly the silence this exists to end.
  */
 export async function uploadMetaVideo(link: string) {
+  return uploadMetaMedia(link, "video");
+}
+
+/**
+ * Uploads one file to Meta and returns its media id.
+ *
+ * By id rather than by link, because Meta fetches a link only after answering the send: a file it
+ * cannot use is accepted, acknowledged, and then dropped, with the refusal arriving in a delivery
+ * callback seconds later and the person seeing nothing at all. Uploading first moves that failure to
+ * a moment where it can still be reported to whoever is standing at the form.
+ */
+export async function uploadMetaMedia(link: string, kind: MediaKind, fileName = "") {
   const token = process.env.META_WHATSAPP_TOKEN;
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
 
@@ -345,7 +358,7 @@ export async function uploadMetaVideo(link: string) {
     return null;
   }
 
-  const stored = file.headers.get("content-type") ?? "video/mp4";
+  const stored = file.headers.get("content-type") ?? "";
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   /**
@@ -360,7 +373,7 @@ export async function uploadMetaVideo(link: string) {
    * The bytes are inspected below regardless, so this renames a file that is already known to be
    * H.264 -- it does not smuggle a codec past the check.
    */
-  const contentType = stored === "video/mp4" || stored === "video/3gpp" ? stored : "video/mp4";
+  const contentType = metaMediaType(kind, stored, fileName);
 
   /**
    * Checked here because these bytes are already in hand, and because Meta will not tell us in time.
@@ -368,10 +381,12 @@ export async function uploadMetaVideo(link: string) {
    * process the file, reporting that in a delivery callback seconds later. A renter meanwhile sees
    * nothing at all. This is the last moment the difference can still be acted on.
    */
-  const report = inspectMp4(bytes);
+  if (kind === "video") {
+    const report = inspectMp4(bytes);
 
-  if (report.problems.length > 0) {
-    throw new UnusableMediaError(report.problems.join(" "));
+    if (report.problems.length > 0) {
+      throw new UnusableMediaError(report.problems.join(" "));
+    }
   }
 
   const form = new FormData();
@@ -379,7 +394,7 @@ export async function uploadMetaVideo(link: string) {
   form.append("messaging_product", "whatsapp");
   form.append("type", contentType);
   // The bytes already read above: a response body can only be consumed once.
-  form.append("file", new Blob([bytes], { type: contentType }), "video.mp4");
+  form.append("file", new Blob([bytes], { type: contentType }), fileName || `campaign-${kind}`);
 
   // No Content-Type header: fetch sets the multipart boundary itself, and overriding it corrupts the
   // body in a way Meta reports only as a generic upload error.
@@ -423,6 +438,46 @@ export const metaWhatsAppProvider: WhatsAppProvider = {
    * with a reason attached. The link path is kept for the case where our own fetch of the file is
    * what fails, since that is the one situation where Meta might still manage it.
    */
+  /**
+   * One file of any kind, as the kind of message WhatsApp knows it as.
+   *
+   * A voice note sent as a document arrives as a file to download rather than something to press
+   * play on, and a picture sent as a document loses its preview -- so the kind is carried all the
+   * way through rather than flattened to "media".
+   */
+  async sendMedia(to, kind, link, options) {
+    if (kind === "video") {
+      await metaWhatsAppProvider.sendVideo(to, link, options?.caption);
+      return;
+    }
+
+    let id: string | null = null;
+
+    try {
+      id = await uploadMetaMedia(link, kind, options?.fileName);
+    } catch (error) {
+      if (error instanceof UnusableMediaError) {
+        throw error;
+      }
+
+      console.error("Meta media upload failed, falling back to the link", error);
+    }
+
+    const media: Record<string, unknown> = id ? { id } : { link };
+
+    // Audio carries no caption -- Meta refuses the field outright -- and a document without a name
+    // arrives as a string of digits nobody will open.
+    if (options?.caption && kind !== "audio") {
+      media.caption = options.caption;
+    }
+
+    if (kind === "document") {
+      media.filename = options?.fileName || "deyara.pdf";
+    }
+
+    await postMessage(to, { type: kind, [kind]: media }, `${kind} send`);
+  },
+
   async sendVideo(to, link, caption) {
     let id: string | null = null;
 

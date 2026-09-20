@@ -1,6 +1,7 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { inspectMp4 } from "@/lib/mp4-inspect";
 import { maxVideoBytes } from "@/lib/video-health";
+import { extensionForMedia, mediaKindFor } from "@/lib/media-kinds";
 
 export const propertyMediaBucket = "property-media";
 
@@ -168,14 +169,16 @@ export async function deletePropertyMedia(storageUrl: string) {
  * capped well below the 16MB WhatsApp allows, so a video sent through the app would be refused at a
  * size WhatsApp would have carried.
  */
-export async function createUploadSlot(contentType: string, folder = "campaigns") {
+export async function createUploadSlot(contentType: string, folder = "campaigns", fileName = "") {
   const supabase = getServiceSupabase();
 
   if (!supabase) {
     return { error: "قاعدة البيانات غير مربوطة." as const, path: null, url: null };
   }
 
-  const path = `${folder}/${Date.now()}.${extensionFor(contentType)}`;
+  // The extension follows the file it came from, so a voice note stays .m4a and a document stays
+  // .pdf -- what comes back out of the bucket has to be what went in.
+  const path = `${folder}/${Date.now()}.${extensionForMedia(mediaKindFor(contentType, fileName), contentType, fileName)}`;
   const { data, error } = await supabase.storage.from(propertyMediaBucket).createSignedUploadUrl(path);
 
   if (error || !data) {

@@ -19,6 +19,7 @@ import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, mar
 import { commissionNote } from "@/lib/commission";
 import { getHandover, markAcknowledged, needsAcknowledgement } from "@/lib/handover";
 import { getActiveCampaigns, matchCampaign, recordCampaignHit } from "@/lib/campaigns";
+import type { MediaKind } from "@/lib/media-kinds";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { deletePropertyMedia, signPropertyMedia } from "@/lib/whatsapp/media";
 import type { ConversationResult, ConversationState, DraftProperty, ExtractedMessage, PropertyCandidate } from "./types";
@@ -2291,14 +2292,34 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     if (campaign) {
       await recordCampaignHit(campaign.id, campaign.hits);
 
-      const link = campaign.videoPath ? await signPropertyMedia(campaign.videoPath) : null;
+      /**
+       * Every file the campaign carries, in the order they were attached.
+       *
+       * A voice note, a picture and a video are three different kinds of WhatsApp message, and the
+       * kind travels with each one: a recording sent as a document arrives as something to download
+       * rather than something to press play on.
+       */
+      const media: Array<{ kind: MediaKind; url: string; label: string; fileName?: string }> = [];
 
-      // A campaign whose video cannot be signed still answers with its text: half the message is
+      for (const attachment of campaign.attachments) {
+        const link = await signPropertyMedia(attachment.path);
+
+        if (link) {
+          media.push({
+            kind: attachment.kind,
+            url: link,
+            label: campaign.name,
+            fileName: attachment.name || undefined
+          });
+        }
+      }
+
+      // A campaign whose files cannot be signed still answers with its text: half the message is
       // worth more to someone who just wrote in than silence.
       return {
         debugIntent: "intro",
         reply: campaign.replyText,
-        video: link ? { url: link, label: campaign.name } : undefined
+        media: media.length > 0 ? media : undefined
       };
     }
   }

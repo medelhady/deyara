@@ -1,3 +1,5 @@
+import type { MediaKind } from "@/lib/media-kinds";
+
 export type Intent =
   | "greeting"
   | "intro"
@@ -38,6 +40,13 @@ export type ConversationResult = {
    * the step is that they watch it without leaving the chat.
    */
   video?: { url: string; label?: string };
+  /**
+   * Files sent before the reply, each as the kind of WhatsApp message it belongs to.
+   *
+   * For campaigns, which answer with whatever explains them best -- a video of the work, a voice
+   * note in the dialect people speak, a picture of the price list.
+   */
+  media?: Array<{ kind: MediaKind; url: string; label?: string; fileName?: string }>;
   debugIntent: Intent;
 };
 

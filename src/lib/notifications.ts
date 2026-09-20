@@ -1,5 +1,6 @@
 import { getServiceSupabase } from "@/lib/supabase/server";
 import { getWhatsAppProvider } from "@/lib/whatsapp/provider";
+import { mediaKindLabels, type MediaKind } from "@/lib/media-kinds";
 import { checkVideoUrl } from "@/lib/video-health";
 import { sendMetaTemplate } from "@/lib/whatsapp/meta";
 
@@ -222,6 +223,57 @@ export async function sendVideoNotification(
 
     if (!fallback.ok) {
       await record(phone, kind, logged, "failed", raw);
+    }
+
+    return { ok: fallback.ok, viaLink: fallback.ok };
+  }
+}
+
+/**
+ * Sends one file of any kind, and records what happened.
+ *
+ * The video path keeps its own function: it checks the link first and has a link fallback built for
+ * a renter waiting on a house. This is for everything else a campaign can carry -- a voice note, a
+ * picture, a price list -- where the failure that matters is Meta refusing the type, and the honest
+ * answer is to say so in the log and let the caller send its text anyway.
+ */
+export async function sendMediaNotification(
+  phone: string,
+  kind: MediaKind,
+  link: string,
+  notificationKind: NotificationKind,
+  options?: { caption?: string; fileName?: string; label?: string }
+): Promise<{ ok: boolean; viaLink: boolean }> {
+  if (kind === "video") {
+    return sendVideoNotification(phone, link, notificationKind, options?.label);
+  }
+
+  const described = options?.label || mediaKindLabels[kind].label;
+  const logged = `[${mediaKindLabels[kind].label}] ${described}`;
+
+  try {
+    await getWhatsAppProvider().sendMedia(phone, kind, link, {
+      caption: options?.caption,
+      fileName: options?.fileName
+    });
+    await record(phone, notificationKind, logged, "sent");
+
+    return { ok: true, viaLink: false };
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+
+    console.error(`Media send failed (${kind}) to ${phone}`, raw);
+
+    /**
+     * A link instead of the file.
+     *
+     * Worth less than the file itself, and Meta may drop it too -- but a link that opens in a
+     * browser is the difference between a person hearing the explanation late and never hearing it.
+     */
+    const fallback = await sendNotification(phone, `${mediaKindLabels[kind].icon} ${described}:\n${link}`, notificationKind);
+
+    if (!fallback.ok) {
+      await record(phone, notificationKind, logged, "failed", raw);
     }
 
     return { ok: fallback.ok, viaLink: fallback.ok };
