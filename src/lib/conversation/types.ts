@@ -91,6 +91,7 @@ export type DraftProperty = {
 
 import type { CollectState } from "./collect";
 import type { DemoState } from "./demo";
+import type { WifiState } from "./wifi-intake";
 
 export type ConversationState = {
   lastSearchResults?: PropertyCandidate[];
@@ -114,4 +115,6 @@ export type ConversationState = {
   demo?: DemoState;
   /** A half-answered intake while the bot is in collection mode. */
   collect?: CollectState;
+  /** A half-answered wifi request taken over WhatsApp. */
+  wifi?: WifiState;
 };
