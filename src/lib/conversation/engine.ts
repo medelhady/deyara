@@ -19,7 +19,6 @@ import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, mar
 import { commissionNote } from "@/lib/commission";
 import { getHandover, markAcknowledged, needsAcknowledgement } from "@/lib/handover";
 import { getActiveCampaigns, matchCampaign, recordCampaignHit } from "@/lib/campaigns";
-import { handleWifiIntake } from "./wifi-intake";
 import type { MediaKind } from "@/lib/media-kinds";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
 import { deletePropertyMedia, signPropertyMedia } from "@/lib/whatsapp/media";
@@ -2274,19 +2273,6 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     });
 
     return { debugIntent: "intro", reply: markDemo(await getMessage("demo_start")) };
-  }
-
-  /**
-   * Wifi requests: a customer applies for the service here and the request lands in the Wifi dashboard.
-   * Runs before campaigns so that "apply wifi" is not swallowed by the "wifi" campaign keyword.
-   * Does nothing unless WIFI_INTAKE_URL and WIFI_INTAKE_KEY are set.
-   */
-  if (!storedState.demo) {
-    const wifiResult = await handleWifiIntake(message, storedState);
-
-    if (wifiResult) {
-      return wifiResult;
-    }
   }
 
   /**
