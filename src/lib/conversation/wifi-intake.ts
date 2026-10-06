@@ -88,6 +88,9 @@ const noSecondPhone = ["لا يوجد", "لايوجد", "ما عندي", "ماع
 
 const flowTtlMs = 3 * 60 * 60 * 1000;
 
+// Where a customer is sent to ask about a request already made.
+const contactLink = "https://wa.me/22234300253";
+
 function mentionsWifi(text: string) {
   return /(ويفي|وايفي|وايفاي|واي فاي|wifi|wi fi)/.test(text);
 }
@@ -543,7 +546,7 @@ export async function handleWifiIntake(
         lines.push(`رقم طلبك: *#${sent.number}*`);
       }
 
-      lines.push("سنراجعه ونتواصل معك قريبًا.", "", "لمعرفة حالة طلبك في أي وقت اكتب: *حالة ويفي*");
+      lines.push("", "لمتابعة طلبكم تواصلوا معنا واتساب 👇", contactLink);
 
       return reply(lines.join("\n"));
     }
