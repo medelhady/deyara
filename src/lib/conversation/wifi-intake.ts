@@ -32,7 +32,8 @@ type WifiField =
   | "id_card"
   | "mauritel";
 
-export type WifiStep = WifiField | "confirm" | "pick_edit";
+// "offered": the customer has seen the wifi advert and is expected to answer "جاهز".
+export type WifiStep = WifiField | "confirm" | "pick_edit" | "offered";
 
 export type WifiState = {
   step: WifiStep;
@@ -87,6 +88,16 @@ const editTexts = ["2", "تعديل", "عدل", "غلط", "خطا", "لا"];
 const noSecondPhone = ["لا يوجد", "لايوجد", "ما عندي", "ماعندي", "لا", "تخطي", "بدون", "0"];
 
 const flowTtlMs = 3 * 60 * 60 * 1000;
+// How long after the advert a customer's "جاهز" still counts.
+const offerTtlMs = 48 * 60 * 60 * 1000;
+
+// "جاهز" on its own is an ordinary word, so it only starts the flow for someone who has just been
+// shown the wifi advert. Written the way normalizeCampaignText leaves them (ة read as ه).
+const readyTexts = ["جاهز", "جاهزه", "انا جاهز", "انا جاهزه", "جاهزين", "نحن جاهزين"];
+
+function isReady(text: string, words: string[]) {
+  return readyTexts.includes(text) || (mentionsWifi(text) && words.some((w) => w === "جاهز" || w === "جاهزه"));
+}
 
 // Where a customer is sent to ask about a request already made.
 const contactLink = "https://wa.me/22234300253";
@@ -432,7 +443,7 @@ async function copyToAdmins(phone: string, wifi: WifiState, number: number | und
   }
 }
 
-async function statusReply(phone: string) {
+async function statusReply(phone: string, state: ConversationState) {
   try {
     const response = await fetch(`${intakeUrl()}?phone=${onlyDigits(phone)}`, {
       headers: authHeaders(),
@@ -449,7 +460,9 @@ async function statusReply(phone: string) {
     const rows = json.requests ?? [];
 
     if (rows.length === 0) {
-      return reply("لا توجد طلبات ويفي مسجّلة على هذا الرقم.\n\nللتقديم اكتب: *تقديم ويفي*");
+      await save(phone, state, { step: "offered", updatedAt: new Date().toISOString() });
+
+      return reply("لا توجد طلبات ويفي مسجّلة على هذا الرقم.\n\nللتقديم اكتب: *جاهز*");
     }
 
     const lines = rows.map(
@@ -479,7 +492,7 @@ async function save(phone: string, state: ConversationState, wifi: WifiState | u
  */
 export async function handleWifiIntake(
   message: IncomingWhatsAppMessage,
-  state: ConversationState
+  initial: ConversationState
 ): Promise<ConversationResult | null> {
   if (!isConfigured()) {
     return null;
@@ -488,22 +501,37 @@ export async function handleWifiIntake(
   const phone = message.from;
   const text = normalizeCampaignText(latinDigits(message.body));
   const words = text.split(" ").filter(Boolean);
-  const wifi = state.wifi;
+  let state = initial;
+  let wifi = state.wifi;
 
   // A flow left open for hours is dropped, and the message is read as if it had never existed.
-  if (wifi && Date.now() - new Date(wifi.updatedAt).getTime() > flowTtlMs) {
+  if (wifi && wifi.step !== "offered" && Date.now() - new Date(wifi.updatedAt).getTime() > flowTtlMs) {
     await discardImages(wifi);
     await save(phone, state, undefined);
-
-    return handleWifiIntake(message, { ...state, wifi: undefined });
+    state = { ...state, wifi: undefined };
+    wifi = undefined;
   }
 
-  if (!wifi) {
+  // An advert seen long ago no longer counts.
+  if (wifi && wifi.step === "offered" && Date.now() - new Date(wifi.updatedAt).getTime() > offerTtlMs) {
+    await save(phone, state, undefined);
+    state = { ...state, wifi: undefined };
+    wifi = undefined;
+  }
+
+  // Not in the middle of a request: only the advert, the word "جاهز" and the status question matter.
+  if (!wifi || wifi.step === "offered") {
     if (mentionsWifi(text) && words.includes("حاله")) {
-      return statusReply(phone);
+      return statusReply(phone, state);
     }
 
-    if (mentionsWifi(text) && applyWords.some((word) => words.includes(word))) {
+    const offered = wifi?.step === "offered";
+    const wantsToApply =
+      (offered && isReady(text, words)) ||
+      (mentionsWifi(text) && isReady(text, words)) ||
+      (mentionsWifi(text) && applyWords.some((word) => words.includes(word)));
+
+    if (wantsToApply) {
       await save(phone, state, { step: "region", updatedAt: new Date().toISOString() });
 
       return reply(
@@ -517,14 +545,23 @@ export async function handleWifiIntake(
       );
     }
 
+    // The advert is about to be sent by the campaign: remember it, and let the campaign answer.
+    if (mentionsWifi(text)) {
+      const stale = !wifi || Date.now() - new Date(wifi.updatedAt).getTime() > 60 * 60 * 1000;
+
+      if (stale) {
+        await save(phone, state, { step: "offered", updatedAt: new Date().toISOString() });
+      }
+    }
+
     return null;
   }
 
   if (cancelWords.some((word) => words.includes(word))) {
     await discardImages(wifi);
-    await save(phone, state, undefined);
+    await save(phone, state, { step: "offered", updatedAt: new Date().toISOString() });
 
-    return reply("تم إلغاء الطلب. وإذا أردت التقديم من جديد اكتب: *تقديم ويفي*");
+    return reply("تم إلغاء الطلب. وإذا أردت التقديم من جديد اكتب: *جاهز*");
   }
 
   // The summary: confirm, or choose something to correct.
