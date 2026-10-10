@@ -480,6 +480,106 @@ async function statusReply(phone: string, state: ConversationState) {
   }
 }
 
+/**
+ * Who may ask for a request by its number.
+ *
+ * The reply carries a customer's ID card, so it is answered only to the numbers listed in
+ * WIFI_LOOKUP_NUMBERS (comma-separated, with or without 222). Empty means nobody.
+ */
+function canLookUp(phone: string) {
+  const digits = onlyDigits(phone);
+  const allowed = (process.env.WIFI_LOOKUP_NUMBERS ?? "")
+    .split(/[,\s،;]+/)
+    .map(onlyDigits)
+    .filter((number) => number.length >= 8);
+
+  return allowed.some((number) => digits === number || digits.endsWith(number) || number.endsWith(digits));
+}
+
+/**
+ * "#12" or "طلب 12" / "طلب رقم 12". A bare number is deliberately not a request number: it is also
+ * a price, an answer to a question, a phone digit.
+ */
+function readRequestNumber(body: string) {
+  const text = latinDigits(body).trim();
+  const match = text.match(/^#\s*(\d{1,7})$/) ?? text.match(/^(?:طلب|الطلب)\s*(?:رقم\s*)?#?\s*(\d{1,7})$/);
+  const number = match ? Number(match[1]) : 0;
+
+  return number > 0 ? number : null;
+}
+
+type LookedUpRequest = {
+  request_number: number;
+  status: string;
+  customer_name: string | null;
+  national_id: string | null;
+  phone: string | null;
+  phone2: string | null;
+  code1: string | null;
+  code2: string | null;
+  region: string | null;
+  attachments?: Array<{ type: string; name: string; url: string | null }>;
+};
+
+const ATTACHMENT_LABELS: Record<string, string> = {
+  id_card: "بطاقة التعريف",
+  mauritel_copy: "داية موريتل",
+  electricity_bill: "فاتورة الكهرباء"
+};
+
+/** The short info of one request, and its pictures, for an allowed number that wrote "#12". */
+async function requestReply(number: number): Promise<ConversationResult> {
+  try {
+    const response = await fetch(`${intakeUrl()}?number=${number}`, {
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      return reply("تعذّر جلب الطلب الآن. حاول بعد قليل.");
+    }
+
+    const json = (await response.json()) as { request?: LookedUpRequest | null };
+    const row = json.request;
+
+    if (!row) {
+      return reply(`لا يوجد طلب برقم #${number}`);
+    }
+
+    const lines = [
+      `📋 *طلب #${row.request_number}* — ${STATUS_LABELS[row.status] ?? row.status}`,
+      "",
+      row.customer_name,
+      row.national_id,
+      [row.phone, row.phone2].filter(Boolean).join(" - "),
+      [row.code1, row.code2].filter(Boolean).join(" - "),
+      row.region ? `المنطقة: ${row.region}` : ""
+    ].filter((line): line is string => Boolean(line && line.trim()));
+
+    const media: NonNullable<ConversationResult["media"]> = [];
+
+    for (const file of row.attachments ?? []) {
+      if (!file.url) {
+        continue;
+      }
+
+      const label = `#${row.request_number} — ${ATTACHMENT_LABELS[file.type] ?? file.type}`;
+      const isPdf = /\.pdf$/i.test(file.name ?? "");
+
+      media.push(
+        isPdf
+          ? { kind: "document", url: file.url, label, fileName: file.name }
+          : { kind: "image", url: file.url, label }
+      );
+    }
+
+    return { debugIntent: "intro", reply: lines.join("\n"), media };
+  } catch (error) {
+    console.error("Wifi intake: request lookup failed", error);
+    return reply("تعذّر جلب الطلب الآن. حاول بعد قليل.");
+  }
+}
+
 async function save(phone: string, state: ConversationState, wifi: WifiState | undefined) {
   await setConversationState(phone, {
     ...state,
@@ -499,6 +599,15 @@ export async function handleWifiIntake(
 ): Promise<ConversationResult | null> {
   if (!isConfigured()) {
     return null;
+  }
+
+  // A request looked up by its number answers at once, even in the middle of another conversation.
+  if (canLookUp(message.from)) {
+    const looked = readRequestNumber(message.body);
+
+    if (looked) {
+      return requestReply(looked);
+    }
   }
 
   const phone = message.from;
