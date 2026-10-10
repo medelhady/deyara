@@ -74,10 +74,13 @@ const FIELDS: Array<{ key: WifiField; label: string; question: string }> = [
 
 const STATUS_LABELS: Record<string, string> = {
   new: "جديد",
-  review: "قيد المراجعة",
-  in_progress: "قيد التنفيذ",
+  account_created: "تم إنشاء الحساب",
+  paid: "تم الدفع",
   done: "مكتمل",
-  rejected: "مرفوض"
+  rejected: "مرفوض",
+  // Stages used before the current ones.
+  review: "قيد المراجعة",
+  in_progress: "قيد التنفيذ"
 };
 
 // Written the way normalizeCampaignText leaves them: no hamza, ة read as ه.
