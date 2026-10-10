@@ -33,13 +33,16 @@ type WifiField =
   | "mauritel";
 
 // "offered": the customer has seen the wifi advert and is expected to answer "جاهز".
-export type WifiStep = WifiField | "confirm" | "pick_edit" | "offered";
+// "quick": a team member is sending the whole request as a few messages (see the quick add below).
+export type WifiStep = WifiField | "confirm" | "pick_edit" | "offered" | "quick";
 
 export type WifiState = {
   step: WifiStep;
   updatedAt: string;
   /** Set while one answer is being corrected from the summary, so the flow returns to it. */
   editing?: boolean;
+  /** Entered by a team member in one go, not answered question by question by the customer. */
+  quick?: boolean;
   region?: string;
   name?: string;
   nationalId?: string;
@@ -270,7 +273,8 @@ function summary(wifi: WifiState) {
     "",
     "هل المعلومات صحيحة؟",
     "اكتب *1* للتأكيد وإرسال الطلب",
-    "اكتب *2* لتعديل معلومة"
+    "اكتب *2* لتعديل معلومة",
+    ...(wifi.quick ? ["اكتب *3* لتبديل الصورتين (البطاقة ↔ داية موريتل)"] : [])
   ].join("\n");
 }
 
@@ -401,7 +405,8 @@ async function submitRequest(phone: string, wifi: WifiState) {
   form.append("code1", wifi.code1 ?? "");
   form.append("code2", wifi.code2 ?? "");
   form.append("region", wifi.region ?? "");
-  form.append("whatsapp_number", onlyDigits(phone));
+  // A team member's own number says nothing about the customer: the customer's first phone is used.
+  form.append("whatsapp_number", wifi.quick && wifi.phone1 ? `222${wifi.phone1}` : onlyDigits(phone));
   form.append("id_card", idCard, `id-card.${extensionFor(wifi.idCard.contentType)}`);
   form.append("mauritel_copy", mauritel, `mauritel.${extensionFor(wifi.mauritel.contentType)}`);
 
@@ -580,6 +585,420 @@ async function requestReply(number: number): Promise<ConversationResult> {
   }
 }
 
+/**
+ * Quick add, for the team numbers (WIFI_LOOKUP_NUMBERS).
+ *
+ * A team member writes "طلب جديد" followed by the details -- labelled lines or just the values in the
+ * order of the dashboard summary -- and then sends the two pictures, as many messages as they like and
+ * in any order. WhatsApp sends an album as separate messages that can be handled at the same moment,
+ * so a picture is never written into the conversation state: each one is its own file in the bucket,
+ * and the files found there are what counts. Once the details and both pictures are in, the usual
+ * summary is shown and "1" sends the request to the dashboard.
+ */
+type QuickKey = "name" | "national_id" | "phones" | "phone1" | "phone2" | "codes" | "code1" | "code2" | "region";
+
+const quickStartWords = ["طلب جديد", "طلب جديده", "اضافه طلب", "رفع طلب", "تسجيل طلب"];
+
+const QUICK_LABELS = new Map<string, QuickKey>(
+  (
+    [
+      ["الاسم", "name"],
+      ["اسم", "name"],
+      ["اسم العميل", "name"],
+      ["الاسم الكامل", "name"],
+      ["name", "name"],
+      ["الرقم الوطني", "national_id"],
+      ["رقم وطني", "national_id"],
+      ["الوطني", "national_id"],
+      ["رقم الهويه", "national_id"],
+      ["الهويه", "national_id"],
+      ["nni", "national_id"],
+      ["الهاتف", "phones"],
+      ["هاتف", "phones"],
+      ["الهواتف", "phones"],
+      ["الجوال", "phones"],
+      ["جوال", "phones"],
+      ["رقم الهاتف", "phones"],
+      ["التلفون", "phones"],
+      ["تلفون", "phones"],
+      ["الارقام", "phones"],
+      ["phone", "phones"],
+      ["tel", "phones"],
+      ["الهاتف الاول", "phone1"],
+      ["هاتف 1", "phone1"],
+      ["الهاتف 1", "phone1"],
+      ["الهاتف الثاني", "phone2"],
+      ["هاتف 2", "phone2"],
+      ["الهاتف 2", "phone2"],
+      ["الكود", "codes"],
+      ["كود", "codes"],
+      ["الاكواد", "codes"],
+      ["الكودات", "codes"],
+      ["code", "codes"],
+      ["codes", "codes"],
+      ["الكود العلوي", "code1"],
+      ["كود علوي", "code1"],
+      ["الكود الاعلى", "code1"],
+      ["الكود الاول", "code1"],
+      ["كود 1", "code1"],
+      ["الكود 1", "code1"],
+      ["الكود السفلي", "code2"],
+      ["كود سفلي", "code2"],
+      ["الكود الاسفل", "code2"],
+      ["الكود الثاني", "code2"],
+      ["كود 2", "code2"],
+      ["الكود 2", "code2"],
+      ["المنطقه", "region"],
+      ["منطقه", "region"],
+      ["الحي", "region"],
+      ["حي", "region"],
+      ["region", "region"]
+    ] as Array<[string, QuickKey]>
+  ).map(([word, key]) => [normalizeCampaignText(word), key])
+);
+
+const QUICK_LABEL_LINE = /^\s*([^:：=\n]{1,30}?)\s*[:：=]\s*(.*)$/;
+
+function readQuickStart(body: string) {
+  const first = body.split(/\r?\n/).find((line) => line.trim()) ?? "";
+  const text = normalizeCampaignText(latinDigits(first));
+
+  return quickStartWords.some((word) => text === word || text.startsWith(`${word} `));
+}
+
+/** One or two phone numbers in a line: "22334455 - 33445566", "22334455 33445566", "+222 22334455". */
+function readPhones(value: string) {
+  const text = latinDigits(value);
+  const parts = text.split(/\s*(?:[-–—،,/]|\sو\s)\s*/).map(readPhone);
+
+  if (parts.length > 0 && parts.every(Boolean)) {
+    return parts as string[];
+  }
+
+  return text
+    .split(/\s+/)
+    .map(readPhone)
+    .filter((phone): phone is string => Boolean(phone));
+}
+
+function isPhoneLine(line: string) {
+  return /^[\d\s\-–—،,/+و]+$/.test(latinDigits(line).trim()) && readPhones(line).length > 0;
+}
+
+/** The two device codes in a line: "AB12 - CD34" or "AB12 CD34". */
+function readCodes(value: string) {
+  const text = latinDigits(value).trim();
+  const marked = text.split(/\s*[-–—،,/]\s*/).map((part) => part.trim()).filter(Boolean);
+  const parts = marked.length >= 2 ? marked : text.split(/\s+/).filter(Boolean);
+
+  return parts.slice(0, 2);
+}
+
+function quickSet(wifi: WifiState, key: QuickKey, raw: string): WifiState {
+  const value = raw.trim();
+
+  if (!value) {
+    return wifi;
+  }
+
+  const simple = (field: WifiField) => {
+    const answer = readTextAnswer(field, value);
+
+    return "value" in answer ? withValue(wifi, field, answer.value) : wifi;
+  };
+
+  switch (key) {
+    case "name":
+      return simple("name");
+    case "national_id":
+      return simple("national_id");
+    case "region":
+      return simple("region");
+    case "phone1":
+      return simple("phone1");
+    case "phone2":
+      return simple("phone2");
+    case "code1":
+      return simple("code1");
+    case "code2":
+      return simple("code2");
+    case "phones": {
+      const phones = readPhones(value);
+
+      if (phones.length === 0) {
+        return wifi;
+      }
+
+      return { ...wifi, phone1: phones[0], phone2: phones[1] ?? wifi.phone2 };
+    }
+    case "codes": {
+      const codes = readCodes(value).filter((code) => code.length >= 2 && code.length <= 30);
+
+      if (codes.length === 0) {
+        return wifi;
+      }
+
+      return { ...wifi, code1: codes[0], code2: codes[1] ?? wifi.code2 };
+    }
+  }
+}
+
+/** A line with no label: placed by what it looks like, in the order of the dashboard summary. */
+function quickGuess(wifi: WifiState, line: string): WifiState {
+  const trimmed = latinDigits(line).trim();
+  const isId = /^\d{9,13}$/.test(trimmed) && !/^(00)?222\d{8}$/.test(trimmed);
+
+  if (isId && !wifi.nationalId) {
+    return quickSet(wifi, "national_id", line);
+  }
+
+  if (isPhoneLine(line)) {
+    return !wifi.phone1 ? quickSet(wifi, "phones", line) : !wifi.code1 ? quickSet(wifi, "codes", line) : wifi;
+  }
+
+  if (!/\d/.test(trimmed)) {
+    return !wifi.name ? quickSet(wifi, "name", line) : !wifi.region ? quickSet(wifi, "region", line) : wifi;
+  }
+
+  return !wifi.code1 ? quickSet(wifi, "codes", line) : !wifi.region ? quickSet(wifi, "region", line) : wifi;
+}
+
+function applyQuickText(wifi: WifiState, body: string): WifiState {
+  let next = wifi;
+  const lines = body
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const [index, line] of lines.entries()) {
+    if (index === 0 && readQuickStart(line)) {
+      continue;
+    }
+
+    const labelled = line.match(QUICK_LABEL_LINE);
+
+    if (labelled) {
+      const key = QUICK_LABELS.get(normalizeCampaignText(latinDigits(labelled[1])));
+
+      // A label that is not one of ours ("ملاحظة: ...") is left alone rather than guessed at.
+      if (key) {
+        next = quickSet(next, key, labelled[2]);
+      }
+
+      continue;
+    }
+
+    next = quickGuess(next, line);
+  }
+
+  return next;
+}
+
+/** A short caption naming the picture ("بطاقة", "داية موريتل"). Anything longer is the details. */
+function quickHint(body: string): "id" | "mau" | null {
+  const text = normalizeCampaignText(latinDigits(body));
+
+  if (!text || /[\n:：]/.test(body) || text.length > 25) {
+    return null;
+  }
+
+  if (/(بطاقه|هويه|وطني)/.test(text)) {
+    return "id";
+  }
+
+  if (/(دايه|موريتل|مودم|mauritel)/.test(text)) {
+    return "mau";
+  }
+
+  return null;
+}
+
+type QuickFile = { path: string; contentType: string; hint: "id" | "mau" | "img"; at: number };
+
+const quickFilePattern = /^(\d+)-q(id|mau|img)[a-z0-9]{4}\.(\w+)$/;
+
+function contentTypeForExtension(extension: string) {
+  switch (extension.toLowerCase()) {
+    case "pdf":
+      return "application/pdf";
+    case "png":
+      return "image/png";
+    case "webp":
+      return "image/webp";
+    default:
+      return "image/jpeg";
+  }
+}
+
+async function listQuickImages(phone: string): Promise<QuickFile[]> {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return [];
+  }
+
+  const folder = `wifi/${onlyDigits(phone)}`;
+  const { data, error } = await supabase.storage.from(propertyMediaBucket).list(folder, { limit: 100 });
+
+  if (error || !data) {
+    console.error("Wifi quick add: could not list the pictures", error);
+    return [];
+  }
+
+  const files: QuickFile[] = [];
+
+  for (const entry of data as Array<{ name: string }>) {
+    const match = entry.name.match(quickFilePattern);
+
+    if (match) {
+      files.push({
+        path: `${folder}/${entry.name}`,
+        contentType: contentTypeForExtension(match[3]),
+        hint: match[2] as QuickFile["hint"],
+        at: Number(match[1])
+      });
+    }
+  }
+
+  return files.sort((first, second) => first.at - second.at);
+}
+
+/** Removes every picture a quick add has left for this number. */
+async function discardQuick(phone: string) {
+  const supabase = getServiceSupabase();
+
+  if (!supabase) {
+    return;
+  }
+
+  for (const file of await listQuickImages(phone)) {
+    await deletePropertyMedia(file.path);
+  }
+}
+
+function quickMissing(wifi: WifiState, pictures: number) {
+  const missing: string[] = [];
+
+  for (const key of ["region", "name", "national_id", "phone1", "code1", "code2"] as WifiField[]) {
+    if (!valueOf(wifi, key)) {
+      missing.push(FIELDS.find((field) => field.key === key)?.label ?? key);
+    }
+  }
+
+  if (pictures === 0) {
+    missing.push("صورة البطاقة", "صورة داية موريتل");
+  } else if (pictures === 1) {
+    missing.push("صورة ثانية (البطاقة أو داية موريتل)");
+  }
+
+  return missing;
+}
+
+/** Which of the pictures is the ID card and which the Mauritel device: by caption, then by order. */
+function assignQuickPictures(files: QuickFile[]) {
+  const pool = [...files];
+  const take = (wanted: (file: QuickFile) => boolean) => {
+    const index = pool.findIndex(wanted);
+
+    return index >= 0 ? pool.splice(index, 1)[0] : undefined;
+  };
+
+  let idFile = take((file) => file.hint === "id") ?? take((file) => file.hint === "img");
+  let mauFile = take((file) => file.hint === "mau") ?? take((file) => file.hint === "img");
+
+  idFile = idFile ?? take(() => true);
+  mauFile = mauFile ?? take(() => true);
+
+  return { idFile, mauFile };
+}
+
+const quickExample = [
+  "المنطقة: ",
+  "الاسم: ",
+  "الرقم الوطني: ",
+  "الهاتف: 22334455 - 33445566",
+  "الكود: AAAA - BBBB"
+].join("\n");
+
+async function quickMessage(
+  message: IncomingWhatsAppMessage,
+  state: ConversationState,
+  wifi: WifiState,
+  starting: boolean
+): Promise<ConversationResult> {
+  const phone = message.from;
+  const hint = message.media.length > 0 ? quickHint(message.body) : null;
+  let received = 0;
+
+  for (const media of message.media) {
+    if (!isImage(media.contentType)) {
+      continue;
+    }
+
+    const suffix = Math.random().toString(36).slice(2, 6).padEnd(4, "0");
+    const stored = await stashImage(media, phone, `q${hint ?? "img"}${suffix}`);
+
+    if (!stored) {
+      return reply("تعذّر حفظ الصورة. أعد إرسالها من فضلك.");
+    }
+
+    received += 1;
+  }
+
+  // A caption that only names the picture is not details. Everything else is read for them.
+  const next = hint ? wifi : applyQuickText(wifi, message.body);
+  const changed = starting || JSON.stringify(next) !== JSON.stringify(wifi);
+  const files = await listQuickImages(phone);
+
+  if (starting && received === 0 && next === wifi) {
+    await save(phone, state, wifi);
+
+    return reply(
+      [
+        "📥 *طلب جديد*",
+        "",
+        "أرسل المعلومات في رسالة واحدة، مثل:",
+        "",
+        quickExample,
+        "",
+        "ثم أرسل *الصورتين*: بطاقة التعريف وصورة داية موريتل.",
+        "(للإلغاء: *إلغاء*)"
+      ].join("\n")
+    );
+  }
+
+  const missing = quickMissing(next, files.length);
+
+  if (missing.length > 0) {
+    // Only written when the details changed: a picture alone must not put an older copy of the
+    // conversation back over a message being handled at the same moment.
+    if (changed) {
+      await save(phone, state, next);
+    }
+
+    return reply(["⏳ *الناقص:*", missing.join("، "), "", "(للإلغاء: *إلغاء*)"].join("\n"));
+  }
+
+  const { idFile, mauFile } = assignQuickPictures(files);
+
+  if (!idFile || !mauFile) {
+    return reply("⏳ *الناقص:* صورة ثانية");
+  }
+
+  const ready: WifiState = {
+    ...next,
+    phone2: next.phone2 ?? "",
+    idCard: { path: idFile.path, contentType: idFile.contentType },
+    mauritel: { path: mauFile.path, contentType: mauFile.contentType },
+    step: "confirm",
+    quick: true
+  };
+
+  await save(phone, state, ready);
+
+  return reply(summary(ready));
+}
+
 async function save(phone: string, state: ConversationState, wifi: WifiState | undefined) {
   await setConversationState(phone, {
     ...state,
@@ -619,6 +1038,11 @@ export async function handleWifiIntake(
   // A flow left open for hours is dropped, and the message is read as if it had never existed.
   if (wifi && wifi.step !== "offered" && Date.now() - new Date(wifi.updatedAt).getTime() > flowTtlMs) {
     await discardImages(wifi);
+
+    if (wifi.quick) {
+      await discardQuick(phone);
+    }
+
     await save(phone, state, undefined);
     state = { ...state, wifi: undefined };
     wifi = undefined;
@@ -629,6 +1053,19 @@ export async function handleWifiIntake(
     await save(phone, state, undefined);
     state = { ...state, wifi: undefined };
     wifi = undefined;
+  }
+
+  // A team member starting a request in one go ("طلب جديد"). Starting again drops the unfinished one.
+  if (canLookUp(phone) && readQuickStart(message.body)) {
+    if (wifi) {
+      await discardImages(wifi);
+    }
+
+    await discardQuick(phone);
+
+    const fresh: WifiState = { step: "quick", quick: true, updatedAt: new Date().toISOString() };
+
+    return quickMessage(message, { ...state, wifi: undefined }, fresh, true);
   }
 
   // Not in the middle of a request: only the advert, the word "جاهز" and the status question matter.
@@ -671,9 +1108,22 @@ export async function handleWifiIntake(
 
   if (cancelWords.some((word) => words.includes(word))) {
     await discardImages(wifi);
+
+    if (wifi.quick) {
+      await discardQuick(phone);
+      await save(phone, state, undefined);
+
+      return reply("تم إلغاء الطلب.");
+    }
+
     await save(phone, state, { step: "offered", updatedAt: new Date().toISOString() });
 
     return reply("تم إلغاء الطلب. وإذا أردت التقديم من جديد اكتب: *جاهز*");
+  }
+
+  // Details and pictures still arriving.
+  if (wifi.step === "quick") {
+    return quickMessage(message, state, wifi, false);
   }
 
   // The summary: confirm, or choose something to correct.
@@ -683,6 +1133,22 @@ export async function handleWifiIntake(
 
       if (!sent.ok) {
         return reply("تعذّر إرسال طلبك الآن 🙏\nمعلوماتك محفوظة، وللمحاولة من جديد اكتب: *1*");
+      }
+
+      if (wifi.quick) {
+        await discardImages(wifi);
+        await discardQuick(phone);
+        await save(phone, state, undefined);
+
+        return reply(
+          [
+            "✅ *تم رفع الطلب إلى الداشبورد*",
+            sent.number ? `رقم الطلب: *#${sent.number}*` : "",
+            wifi.name ?? ""
+          ]
+            .filter(Boolean)
+            .join("\n")
+        );
       }
 
       await copyToAdmins(phone, wifi, sent.number);
@@ -698,6 +1164,14 @@ export async function handleWifiIntake(
       lines.push("", "لمتابعة طلبكم تواصلوا معنا واتساب 👇", contactLink);
 
       return reply(lines.join("\n"));
+    }
+
+    if (wifi.quick && text === "3" && wifi.idCard && wifi.mauritel) {
+      const swapped: WifiState = { ...wifi, idCard: wifi.mauritel, mauritel: wifi.idCard };
+
+      await save(phone, state, swapped);
+
+      return reply(`تم تبديل الصورتين ✅\n\n${summary(swapped)}`);
     }
 
     if (editTexts.includes(text)) {
