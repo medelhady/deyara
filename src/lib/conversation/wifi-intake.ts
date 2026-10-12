@@ -41,8 +41,12 @@ export type WifiState = {
   updatedAt: string;
   /** Set while one answer is being corrected from the summary, so the flow returns to it. */
   editing?: boolean;
-  /** Entered by a team member in one go, not answered question by question by the customer. */
+  /** Sent as one filled-in form and the pictures, not answered question by question. */
   quick?: boolean;
+  /** The form was started by a team member (the customer's own number is then not theirs). */
+  team?: boolean;
+  /** The first phone was taken from the WhatsApp number, so it is not asked. */
+  phone1Auto?: boolean;
   region?: string;
   name?: string;
   nationalId?: string;
@@ -62,8 +66,8 @@ const FIELDS: Array<{ key: WifiField; label: string; question: string }> = [
   { key: "phone1", label: "الهاتف الأول", question: "اكتب *رقم هاتفك الأول* (8 أرقام)." },
   {
     key: "phone2",
-    label: "الهاتف الثاني",
-    question: "اكتب *رقم الهاتف الثاني* (8 أرقام). وإذا لا يوجد اكتب: *لا يوجد*."
+    label: "رقم هاتف آخر",
+    question: "اكتب *رقم هاتف آخر* غير رقم الواتساب (8 أرقام). وإذا لا يوجد اكتب: *لا يوجد*."
   },
   { key: "code1", label: "الكود العلوي", question: "اكتب *الكود الذي في أعلى* داية موريتل." },
   { key: "code2", label: "الكود السفلي", question: "اكتب *الكود الذي في أسفل* داية موريتل." },
@@ -373,7 +377,8 @@ function advance(wifi: WifiState, field: WifiField): { wifi: WifiState; text: st
   }
 
   const index = FIELDS.findIndex((item) => item.key === field);
-  const next = FIELDS[index + 1];
+  const following = FIELDS.slice(index + 1);
+  const next = following.find((item) => !(item.key === "phone1" && wifi.phone1Auto));
 
   if (!next) {
     const done: WifiState = { ...wifi, step: "confirm" };
@@ -406,7 +411,7 @@ async function submitRequest(phone: string, wifi: WifiState) {
   form.append("code2", wifi.code2 ?? "");
   form.append("region", wifi.region ?? "");
   // A team member's own number says nothing about the customer: the customer's first phone is used.
-  form.append("whatsapp_number", wifi.quick && wifi.phone1 ? `222${wifi.phone1}` : onlyDigits(phone));
+  form.append("whatsapp_number", wifi.team && wifi.phone1 ? `222${wifi.phone1}` : onlyDigits(phone));
   form.append("id_card", idCard, `id-card.${extensionFor(wifi.idCard.contentType)}`);
   form.append("mauritel_copy", mauritel, `mauritel.${extensionFor(wifi.mauritel.contentType)}`);
 
@@ -628,6 +633,11 @@ const QUICK_LABELS = new Map<string, QuickKey>(
       ["هاتف 1", "phone1"],
       ["الهاتف 1", "phone1"],
       ["الهاتف الثاني", "phone2"],
+      ["رقم هاتف اخر", "phone2"],
+      ["رقم اخر", "phone2"],
+      ["هاتف اخر", "phone2"],
+      ["الهاتف الاخر", "phone2"],
+      ["رقم هاتف ثاني", "phone2"],
       ["هاتف 2", "phone2"],
       ["الهاتف 2", "phone2"],
       ["الكود", "codes"],
@@ -729,6 +739,13 @@ function quickSet(wifi: WifiState, key: QuickKey, raw: string): WifiState {
         return wifi;
       }
 
+      // The WhatsApp number is already the first phone, so a number written here is the other one.
+      if (wifi.phone1Auto) {
+        const other = phones.find((number) => number !== wifi.phone1);
+
+        return other ? { ...wifi, phone2: other } : wifi;
+      }
+
       return { ...wifi, phone1: phones[0], phone2: phones[1] ?? wifi.phone2 };
     }
     case "codes": {
@@ -744,7 +761,7 @@ function quickSet(wifi: WifiState, key: QuickKey, raw: string): WifiState {
 }
 
 /** A line with no label: placed by what it looks like, in the order of the dashboard summary. */
-function quickGuess(wifi: WifiState, line: string): WifiState {
+function quickGuess(wifi: WifiState, line: string, allowText: boolean): WifiState {
   const trimmed = latinDigits(line).trim();
   const isId = /^\d{9,13}$/.test(trimmed) && !/^(00)?222\d{8}$/.test(trimmed);
 
@@ -753,10 +770,29 @@ function quickGuess(wifi: WifiState, line: string): WifiState {
   }
 
   if (isPhoneLine(line)) {
-    return !wifi.phone1 ? quickSet(wifi, "phones", line) : !wifi.code1 ? quickSet(wifi, "codes", line) : wifi;
+    if (!wifi.phone1 || (wifi.phone1Auto && wifi.phone2 === undefined)) {
+      return quickSet(wifi, "phones", line);
+    }
+
+    if (!wifi.phone1Auto && wifi.phone2 === undefined && !wifi.code1 && readPhones(line).length === 1) {
+      return quickSet(wifi, "phone2", line);
+    }
+
+    return !wifi.code1 ? quickSet(wifi, "codes", line) : wifi;
+  }
+
+  // "لا يوجد" as the other phone.
+  if (wifi.phone2 === undefined && noSecondPhone.includes(normalizeCampaignText(trimmed))) {
+    return quickSet(wifi, "phone2", line);
   }
 
   if (!/\d/.test(trimmed)) {
+    // A customer's chatter ("السلام عليكم") must not become the name: plain text lines are only
+    // placed when the message also carries labelled lines, or comes from the team.
+    if (!allowText) {
+      return wifi;
+    }
+
     return !wifi.name ? quickSet(wifi, "name", line) : !wifi.region ? quickSet(wifi, "region", line) : wifi;
   }
 
@@ -769,6 +805,12 @@ function applyQuickText(wifi: WifiState, body: string): WifiState {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
+  const hasLabels = lines.some((line) => {
+    const labelled = line.match(QUICK_LABEL_LINE);
+
+    return Boolean(labelled && QUICK_LABELS.has(normalizeCampaignText(latinDigits(labelled[1]))));
+  });
+  const allowText = Boolean(wifi.team) || hasLabels;
 
   for (const [index, line] of lines.entries()) {
     if (index === 0 && readQuickStart(line)) {
@@ -788,7 +830,7 @@ function applyQuickText(wifi: WifiState, body: string): WifiState {
       continue;
     }
 
-    next = quickGuess(next, line);
+    next = quickGuess(next, line, allowText);
   }
 
   return next;
@@ -878,8 +920,10 @@ async function discardQuick(phone: string) {
 
 function quickMissing(wifi: WifiState, pictures: number) {
   const missing: string[] = [];
+  // A customer is asked for another number; a team member may leave it out.
+  const keys: WifiField[] = ["region", "name", "national_id", "phone1", ...(wifi.team ? [] : (["phone2"] as WifiField[])), "code1", "code2"];
 
-  for (const key of ["region", "name", "national_id", "phone1", "code1", "code2"] as WifiField[]) {
+  for (const key of keys) {
     if (!valueOf(wifi, key)) {
       missing.push(FIELDS.find((field) => field.key === key)?.label ?? key);
     }
@@ -910,6 +954,34 @@ function assignQuickPictures(files: QuickFile[]) {
   mauFile = mauFile ?? take(() => true);
 
   return { idFile, mauFile };
+}
+
+/** The first message a customer gets after "جاهز", and the form they copy as the second. */
+function formIntro(autoPhone: boolean) {
+  return [
+    "أهلًا بك 👋",
+    "سنسجّل طلب الويفي الخاص بك.",
+    "",
+    "1️⃣ انسخ *النموذج* الذي في الرسالة التالية، عبّئه وأرسله *في رسالة واحدة*.",
+    "2️⃣ ثم أرسل *صورتين*: بطاقة التعريف، وصورة داية موريتل.",
+    ...(autoPhone
+      ? ["", "رقم هاتفك الأول هو رقم الواتساب هذا، فقط اكتب *رقم هاتف آخر* (وإن لم يوجد اكتب: *لا يوجد*)."]
+      : []),
+    "",
+    "(للإلغاء في أي وقت اكتب: *إلغاء*)"
+  ].join("\n");
+}
+
+function formTemplate(autoPhone: boolean) {
+  return [
+    "المنطقة:",
+    "الاسم:",
+    "الرقم الوطني:",
+    ...(autoPhone ? [] : ["الهاتف الأول:"]),
+    "رقم هاتف آخر:",
+    "الكود العلوي:",
+    "الكود السفلي:"
+  ].join("\n");
 }
 
 const quickExample = [
@@ -967,6 +1039,25 @@ async function quickMessage(
     );
   }
 
+  // A customer whose message held nothing recognisable is asked question by question instead.
+  if (!wifi.team && !starting && received === 0 && next === wifi && message.body.trim()) {
+    await discardQuick(phone);
+
+    const first = FIELDS.find(
+      (field) =>
+        field.key !== "id_card" &&
+        field.key !== "mauritel" &&
+        !(field.key === "phone1" && wifi.phone1Auto) &&
+        valueOf(wifi, field.key) === undefined
+    );
+
+    if (first) {
+      await save(phone, state, { ...wifi, step: first.key, quick: undefined });
+
+      return reply(`لم أفهم الرسالة، سأسألك سؤالًا سؤالًا 👇\n\n${first.question}`);
+    }
+  }
+
   const missing = quickMissing(next, files.length);
 
   if (missing.length > 0) {
@@ -988,6 +1079,7 @@ async function quickMessage(
   const ready: WifiState = {
     ...next,
     phone2: next.phone2 ?? "",
+    team: wifi.team,
     idCard: { path: idFile.path, contentType: idFile.contentType },
     mauritel: { path: mauFile.path, contentType: mauFile.contentType },
     step: "confirm",
@@ -1063,7 +1155,7 @@ export async function handleWifiIntake(
 
     await discardQuick(phone);
 
-    const fresh: WifiState = { step: "quick", quick: true, updatedAt: new Date().toISOString() };
+    const fresh: WifiState = { step: "quick", quick: true, team: true, updatedAt: new Date().toISOString() };
 
     return quickMessage(message, { ...state, wifi: undefined }, fresh, true);
   }
@@ -1081,17 +1173,18 @@ export async function handleWifiIntake(
       (mentionsWifi(text) && applyWords.some((word) => words.includes(word)));
 
     if (wantsToApply) {
-      await save(phone, state, { step: "region", updatedAt: new Date().toISOString() });
+      // The first phone is the WhatsApp number the customer is writing from.
+      const auto = readPhone(phone);
 
-      return reply(
-        [
-          "أهلًا بك 👋",
-          "سنسجّل طلب الويفي الخاص بك خطوة بخطوة.",
-          "(للإلغاء في أي وقت اكتب: *إلغاء*)",
-          "",
-          questionFor("region")
-        ].join("\n")
-      );
+      await discardQuick(phone);
+      await save(phone, state, {
+        step: "quick",
+        quick: true,
+        updatedAt: new Date().toISOString(),
+        ...(auto ? { phone1: auto, phone1Auto: true } : {})
+      });
+
+      return { debugIntent: "intro", reply: formIntro(Boolean(auto)), followUps: [formTemplate(Boolean(auto))] };
     }
 
     // The advert is about to be sent by the campaign: remember it, and let the campaign answer.
@@ -1111,6 +1204,9 @@ export async function handleWifiIntake(
 
     if (wifi.quick) {
       await discardQuick(phone);
+    }
+
+    if (wifi.team) {
       await save(phone, state, undefined);
 
       return reply("تم إلغاء الطلب.");
@@ -1136,8 +1232,11 @@ export async function handleWifiIntake(
       }
 
       if (wifi.quick) {
-        await discardImages(wifi);
         await discardQuick(phone);
+      }
+
+      if (wifi.team) {
+        await discardImages(wifi);
         await save(phone, state, undefined);
 
         return reply(
