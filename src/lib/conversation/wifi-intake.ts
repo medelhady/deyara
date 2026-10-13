@@ -957,16 +957,13 @@ function assignQuickPictures(files: QuickFile[]) {
 }
 
 /** The first message a customer gets after "جاهز", and the form they copy as the second. */
-function formIntro(autoPhone: boolean) {
+function formIntro() {
   return [
     "أهلًا بك 👋",
     "سنسجّل طلب الويفي الخاص بك.",
     "",
     "1️⃣ انسخ *النموذج* الذي في الرسالة التالية، عبّئه وأرسله *في رسالة واحدة*.",
     "2️⃣ ثم أرسل *صورتين*: بطاقة التعريف، وصورة داية موريتل.",
-    ...(autoPhone
-      ? ["", "رقم هاتفك الأول هو رقم الواتساب هذا، فقط اكتب *رقم هاتف آخر* (وإن لم يوجد اكتب: *لا يوجد*)."]
-      : []),
     "",
     "(للإلغاء في أي وقت اكتب: *إلغاء*)"
   ].join("\n");
@@ -1184,7 +1181,7 @@ export async function handleWifiIntake(
         ...(auto ? { phone1: auto, phone1Auto: true } : {})
       });
 
-      return { debugIntent: "intro", reply: formIntro(Boolean(auto)), followUps: [formTemplate(Boolean(auto))] };
+      return { debugIntent: "intro", reply: formIntro(), followUps: [formTemplate(Boolean(auto))] };
     }
 
     // The advert is about to be sent by the campaign: remember it, and let the campaign answer.
