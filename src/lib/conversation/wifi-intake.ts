@@ -447,9 +447,7 @@ async function copyToAdmins(phone: string, wifi: WifiState, number: number | und
       ...FIELDS.filter((field) => field.key !== "id_card" && field.key !== "mauritel").map(
         (field) => `${field.label}: ${valueOf(wifi, field.key) ?? "—"}`
       ),
-      `واتساب العميل: +${onlyDigits(phone)}`,
-      "",
-      "الصور محفوظة في داشبورد الويفي."
+      `واتساب العميل: +${onlyDigits(phone)}`
     ].filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== "")));
   } catch (error) {
     console.error("Wifi intake: could not copy the request to the admins", error);
@@ -963,9 +961,7 @@ function formIntro() {
     "سنسجّل طلب الويفي الخاص بك.",
     "",
     "1️⃣ انسخ *النموذج* الذي في الرسالة التالية، عبّئه وأرسله *في رسالة واحدة*.",
-    "2️⃣ ثم أرسل *صورتين*: بطاقة التعريف، وصورة داية موريتل.",
-    "",
-    "(للإلغاء في أي وقت اكتب: *إلغاء*)"
+    "2️⃣ ثم أرسل *صورتين*: بطاقة التعريف، وصورة داية موريتل."
   ].join("\n");
 }
 
