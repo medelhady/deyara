@@ -109,9 +109,6 @@ function isReady(text: string, words: string[]) {
   return readyTexts.includes(text) || (mentionsWifi(text) && words.some((w) => w === "جاهز" || w === "جاهزه"));
 }
 
-// Where a customer is sent to ask about a request already made.
-const contactLink = "https://wa.me/22234300253";
-
 function mentionsWifi(text: string) {
   return /(ويفي|وايفي|وايفاي|واي فاي|wifi|wi fi)/.test(text);
 }
@@ -1252,8 +1249,6 @@ export async function handleWifiIntake(
       if (sent.number) {
         lines.push(`رقم طلبك: *#${sent.number}*`);
       }
-
-      lines.push("", "لمتابعة طلبكم تواصلوا معنا واتساب 👇", contactLink);
 
       return reply(lines.join("\n"));
     }
