@@ -151,6 +151,29 @@ export function matchCampaign<T extends { keywords: string[]; active: boolean }>
   return matches.sort((first, second) => second.length - first.length)[0]?.campaign;
 }
 
+/**
+ * The word to tell people to write, taken from the campaigns that are live.
+ *
+ * When the bot is running one offer, the whole conversation is "write this word" -- and that word
+ * has to come from the campaigns themselves. Written anywhere else it is a second copy to keep in
+ * step, and the day they drift the bot asks for a word that answers nothing.
+ *
+ * Three at most: a line listing six keywords is a line nobody reads to the end.
+ */
+export function campaignKeywordHint<T extends { keywords: string[]; active: boolean }>(campaigns: T[]) {
+  const words: string[] = [];
+
+  for (const campaign of campaigns) {
+    const first = campaign.active ? campaign.keywords[0] : undefined;
+
+    if (first && !words.includes(first)) {
+      words.push(first);
+    }
+  }
+
+  return words.slice(0, 3).join(" أو ");
+}
+
 type CampaignRow = {
   id: string;
   name: string;

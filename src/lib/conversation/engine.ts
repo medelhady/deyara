@@ -18,7 +18,7 @@ import { saveCollectionEntry } from "@/lib/collection-entries";
 import { demoListingFrom, demoMark, hasDemoExpired, isDemoEntry, isDemoExit, markDemo, type DemoState } from "./demo";
 import { commissionNote } from "@/lib/commission";
 import { getHandover, markAcknowledged, needsAcknowledgement } from "@/lib/handover";
-import { getActiveCampaigns, matchCampaign, recordCampaignHit } from "@/lib/campaigns";
+import { campaignKeywordHint, getActiveCampaigns, matchCampaign, recordCampaignHit } from "@/lib/campaigns";
 import { handleWifiIntake } from "./wifi-intake";
 import type { MediaKind } from "@/lib/media-kinds";
 import { parseRoomsAnswer } from "@/lib/rooms-answer";
@@ -2338,6 +2338,35 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
     }
   }
 
+  const settings = await getSettings();
+
+  /**
+   * One offer, and one thing to do about it.
+   *
+   * When the business is running a single campaign -- an internet package rather than a housing
+   * market -- every question the bot knows how to ask is the wrong one. Asking a visitor which
+   * district their house is in, to sell them a wifi subscription, is how an advert that cost money
+   * ends in a conversation nobody finishes.
+   *
+   * So the bot says one line: write the word. The word itself comes from the live campaigns rather
+   * than being written here, because a second copy of it is a copy that drifts -- and the day it
+   * does, the bot asks for a word that answers nothing.
+   */
+  if (settings.campaignsOnly === "on" && !storedState.demo) {
+    const hint = await getMessage("campaign_only_hint", {
+      keywords: campaignKeywordHint(await getActiveCampaigns())
+    });
+
+    // A greeting is answered as a greeting first. It costs nothing, and the alternative is a shop
+    // that replies to السلام عليكم with an instruction.
+    return {
+      debugIntent: "intro",
+      reply: isGreetingOnly(message.body) ? `${salutationFor(message.body)}
+
+${hint}` : hint
+    };
+  }
+
   /**
    * Collection mode takes the conversation entirely.
    *
@@ -2345,7 +2374,7 @@ async function runConversation(message: IncomingWhatsAppMessage): Promise<Conver
    * to trade. Running any of it against an empty database is how the first hundred users are lost,
    * so while the switch is on the bot does one thing: three questions, written down.
    */
-  const collectionOn = (await getSettings()).collectionMode === "on";
+  const collectionOn = settings.collectionMode === "on";
 
   if (collectionOn && !storedState.demo) {
     return handleCollection(message, storedState.collect);

@@ -35,9 +35,12 @@ export type MessageDefinition = {
  * most of these are for a flow nobody is walking.
  */
 export function messageGroup(key: string) {
-  // The handover message is not part of collection, but it is live in both modes, and burying what
-  // is running under thirty messages for a flow nobody is walking is how a wrong wording survives.
-  return key.startsWith("collect_") || key.startsWith("handover_") ? "collection" : "full";
+  // The handover and campaign messages are not part of collection, but they are live in every mode,
+  // and burying what is running under thirty messages for a flow nobody is walking is how a wrong
+  // wording survives.
+  return key.startsWith("collect_") || key.startsWith("handover_") || key.startsWith("campaign_")
+    ? "collection"
+    : "full";
 }
 
 export const messageDefinitions: MessageDefinition[] = [
@@ -68,6 +71,25 @@ export const messageDefinitions: MessageDefinition[] = [
       "تحب تسجّل طلبًا ثانيًا؟",
       "عندك دار للكراء؟ اكتب: *1*",
       "تدور على دار؟ اكتب: *2*"
+    ].join("\n")
+  },
+  {
+    key: "campaign_only_hint",
+    label: "الحملات فقط — سطر التوجيه",
+    note: "تُرسل في وضع «الحملات فقط» لكل من كتب شيئًا غير كلمة الحملة. اجعلها قصيرة — مهمتها شيء واحد: أن يكتب الكلمة.",
+    variables: [
+      {
+        name: "keywords",
+        sample: "ويفي",
+        note: "كلمات الحملات العاملة — تُؤخذ تلقائيًا من صفحة الحملات"
+      }
+    ],
+    fallback: [
+      "أهلًا بك 👋",
+      "",
+      "اكتب *{keywords}* وتصلك كل التفاصيل فورًا.",
+      "",
+      "وإن احتجت شيئًا آخر، اكتبه هنا وترد عليك الإدارة."
     ].join("\n")
   },
   {

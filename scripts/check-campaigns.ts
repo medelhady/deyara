@@ -5,7 +5,13 @@
  * it can go wrong: never firing, because the person wrote the word with a hamza or a typo; and
  * firing at everyone, because the word appears inside ordinary sentences about houses.
  */
-import { matchCampaign, minimumKeywordLength, normalizeCampaignText, parseKeywords } from "../src/lib/campaigns";
+import {
+  campaignKeywordHint,
+  matchCampaign,
+  minimumKeywordLength,
+  normalizeCampaignText,
+  parseKeywords
+} from "../src/lib/campaigns";
 
 let failures = 0;
 
@@ -58,6 +64,28 @@ check(
   matchCampaign("تاجر", [{ ...merchants, active: false }])?.id ?? null,
   null
 );
+
+// The word the bot asks people to write, when it is running one offer and nothing else.
+const live = [
+  { keywords: ["ويفي", "انترنت"], active: true },
+  { keywords: ["شراكة"], active: true },
+  { keywords: ["تاجر"], active: false }
+];
+
+check("the hint names the first keyword of a campaign", campaignKeywordHint([live[0]]), "ويفي");
+check("a paused campaign is not offered", campaignKeywordHint([live[2]]), "");
+check("two live campaigns are joined", campaignKeywordHint(live), "ويفي أو شراكة");
+check(
+  "at most three words, so the line stays readable",
+  campaignKeywordHint([
+    { keywords: ["أ"], active: true },
+    { keywords: ["ب"], active: true },
+    { keywords: ["ج"], active: true },
+    { keywords: ["د"], active: true }
+  ]).split(" أو ").length,
+  3
+);
+check("no campaigns at all leaves it empty", campaignKeywordHint([]), "");
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

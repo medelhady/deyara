@@ -16,6 +16,7 @@ export type AppSettings = {
   adminNotifyNumbers: string;
   demoEnabled: string;
   collectionMode: string;
+  campaignsOnly: string;
 };
 
 export type SettingKey = keyof AppSettings;
@@ -99,6 +100,15 @@ export const settingDefinitions: SettingDefinition[] = [
     // before the column exists, and it gives the offline checks a way in.
     group: "modes",
     fallback: () => process.env.COLLECTION_MODE ?? "off"
+  },
+  {
+    key: "campaignsOnly",
+    column: "campaigns_only",
+    label: "وضع الحملات فقط",
+    hint: "لعرض واحد قائم — البوت يرد بالحملات وحدها، وأي رسالة أخرى يجيبها بسطر واحد يقول أي كلمة يكتب. يعطّل جمع طلبات الإيجار والآلية الكاملة معًا.",
+    kind: "toggle",
+    group: "modes",
+    fallback: () => "off"
   },
   {
     key: "demoEnabled",

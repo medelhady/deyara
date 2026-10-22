@@ -170,5 +170,28 @@ for (const key of ["collect_owner_saved", "collect_renter_saved"]) {
   check(`${key} is still a confirmation without it`, withoutCode.includes("سجّلنا"), true);
 }
 
+/**
+ * The one line the bot sends while it is running a single offer.
+ *
+ * Its whole job is to get one word written, so the word has to be in it -- and when no campaign is
+ * live there is no word to name, and the line that would have carried it has to go rather than
+ * arrive as an empty instruction.
+ */
+const hint = messageDefinitions.find((definition) => definition.key === "campaign_only_hint")!;
+
+check("the hint carries the keyword", renderMessage(hint.fallback, { keywords: "ويفي" }).includes("ويفي"), true);
+check(
+  "and drops that line when there is no campaign",
+  // "اكتب" also begins the last line, so the test looks for what only that line says.
+  renderMessage(hint.fallback, {}).includes("وتصلك"),
+  false
+);
+check(
+  "but still offers a person to talk to",
+  renderMessage(hint.fallback, {}).includes("الإدارة"),
+  true
+);
+check("it stays short", renderMessage(hint.fallback, { keywords: "ويفي" }).split("\n").length <= 6, true);
+
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
