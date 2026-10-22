@@ -53,14 +53,35 @@ function sources(dir: string): string[] {
   });
 }
 
-const root = fileURLToPath(new URL("../src/lib/conversation", import.meta.url));
-const offenders = sources(root).filter((path) => {
-  return readFileSync(path, "utf8")
-    .split("\n")
-    .some((line) => !line.trim().startsWith("*") && !line.trim().startsWith("//") && eastern.test(line));
-});
+/**
+ * Reading them is allowed; showing them is not.
+ *
+ * The rule is about what reaches the user. A pattern that turns ٣ into 3 before anything is read
+ * takes a number from someone whose keyboard produced it and gives back an answer in the digits they
+ * can check -- which serves the rule rather than breaking it. So a line whose Eastern digits sit
+ * inside a character class is a reader and passes; the same digits in a sentence are text about to
+ * be sent, and fail.
+ */
+const insideCharacterClass = /\[[^\]]*[\u0660-\u0669\u06f0-\u06f9][^\]]*\]/;
 
-check("no conversation source carries an Eastern digit", offenders.join(", "), "");
+function sends(line: string) {
+  const trimmed = line.trim();
+
+  if (trimmed.startsWith("*") || trimmed.startsWith("//") || trimmed.startsWith("/*")) {
+    return false;
+  }
+
+  return eastern.test(line) && !insideCharacterClass.test(line);
+}
+
+const root = fileURLToPath(new URL("../src/lib/conversation", import.meta.url));
+const offenders = sources(root).filter((path) => readFileSync(path, "utf8").split("\n").some(sends));
+
+check("no conversation source shows an Eastern digit", offenders.join(", "), "");
+
+// The rule it still enforces, stated where it can be seen: a sentence carrying them is refused.
+check("a reply carrying them would be caught", sends('  return "السعر ٦٠٠٠٠";'), true);
+check("while a reader of them is not", sends("  return value.replace(/[٠-٩]/g, toLatin);"), false);
 
 console.log(failures === 0 ? "\nAll checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
